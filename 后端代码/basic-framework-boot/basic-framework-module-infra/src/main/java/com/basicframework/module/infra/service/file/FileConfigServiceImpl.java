@@ -1,0 +1,313 @@
+package com.basicframework.module.infra.service.file;
+
+import static com.basicframework.framework.common.exception.util.ServiceExceptionUtil.exception;
+import static com.basicframework.framework.common.util.cache.CacheUtils.buildAsyncReloadingCache;
+import static com.basicframework.module.infra.enums.ErrorCodeConstants.FILE_CONFIG_DELETE_FAIL_MASTER;
+import static com.basicframework.module.infra.enums.ErrorCodeConstants.FILE_CONFIG_IN_USE;
+import static com.basicframework.module.infra.enums.ErrorCodeConstants.FILE_CONFIG_NOT_EXISTS;
+
+import cn.hutool.core.io.resource.ResourceUtil;
+import cn.hutool.core.util.IdUtil;
+import com.basicframework.framework.common.pojo.PageParam;
+import com.basicframework.framework.common.pojo.PageResult;
+import com.basicframework.framework.common.util.json.JsonUtils;
+import com.basicframework.framework.common.util.validation.ValidationUtils;
+import com.basicframework.framework.security.core.crypto.CredentialCipher;
+import com.basicframework.module.infra.dal.dataobject.file.FileConfigDO;
+import com.basicframework.module.infra.dal.dataobject.file.FileDO;
+import com.basicframework.module.infra.dal.mysql.file.FileConfigMapper;
+import com.basicframework.module.infra.dal.mysql.file.FileContentMapper;
+import com.basicframework.module.infra.dal.mysql.file.FileMapper;
+import com.basicframework.module.infra.framework.file.core.client.FileClient;
+import com.basicframework.module.infra.framework.file.core.client.FileClientConfig;
+import com.basicframework.module.infra.framework.file.core.client.FileClientFactory;
+import com.basicframework.module.infra.framework.file.core.client.s3.S3FileClientConfig;
+import com.basicframework.module.infra.framework.file.core.enums.FileStorageEnum;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
+import jakarta.annotation.Resource;
+import jakarta.validation.Validator;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.Assert;
+import org.springframework.util.StringUtils;
+import org.springframework.validation.annotation.Validated;
+
+/**
+ * 文件配置 Service 实现类
+ *
+ */
+@Service
+@Validated
+@Slf4j
+public class FileConfigServiceImpl implements FileConfigService {
+
+    private static final Long CACHE_MASTER_ID = 0L;
+    private static final String CONFIG_CONTEXT = "file-client:config";
+
+    /**
+     * {@link FileClient} 缓存，通过它异步刷新 fileClientFactory
+     */
+    @Getter
+    private final LoadingCache<Long, Optional<FileClient>> clientCache =
+            buildAsyncReloadingCache(Duration.ofSeconds(10L), new CacheLoader<Long, Optional<FileClient>>() {
+
+                @Override
+                public Optional<FileClient> load(Long id) {
+                    FileConfigDO config = Objects.equals(CACHE_MASTER_ID, id)
+                            ? fileConfigMapper.selectByMaster()
+                            : fileConfigMapper.selectById(id);
+                    if (config == null) {
+                        return Optional.empty();
+                    }
+                    return Optional.ofNullable(createOrUpdateFileClient(config));
+                }
+            });
+
+    @Resource
+    private FileClientFactory fileClientFactory;
+
+    @Resource
+    private FileConfigMapper fileConfigMapper;
+
+    @Resource
+    private FileMapper fileMapper;
+
+    @Resource
+    private FileContentMapper fileContentMapper;
+
+    @Resource
+    private Validator validator;
+
+    @Resource
+    private CredentialCipher credentialCipher;
+
+    @Override
+    public Long createFileConfig(FileConfigDO fileConfig, Map<String, Object> configMap) {
+        FileClientConfig clientConfig = parseClientConfig(fileConfig.getStorage(), configMap, null);
+        fileConfig
+                .setConfigCiphertext(encryptConfig(clientConfig))
+                .setConfig(null)
+                .setMaster(false);
+        fileConfigMapper.insert(fileConfig);
+        return fileConfig.getId();
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void updateFileConfig(FileConfigDO updateObj, Map<String, Object> configMap) {
+        if (updateObj.getId() == null) {
+            throw exception(FILE_CONFIG_NOT_EXISTS);
+        }
+        FileConfigDO config = fileConfigMapper.selectByIdForUpdate(updateObj.getId());
+        if (config == null) {
+            throw exception(FILE_CONFIG_NOT_EXISTS);
+        }
+        FileClientConfig existingClientConfig = decryptConfig(config);
+        FileClientConfig clientConfig = parseClientConfig(config.getStorage(), configMap, existingClientConfig);
+        updateObj
+                .setStorage(config.getStorage())
+                .setConfigCiphertext(encryptConfig(clientConfig))
+                .setConfig(null);
+        fileConfigMapper.updateById(updateObj);
+
+        // 清空缓存
+        clearCache(config.getId(), null);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void updateFileConfigMaster(Long id) {
+        // 校验存在
+        validateFileConfigExists(id);
+        // 更新其它为非 master
+        fileConfigMapper.updateBatch(new FileConfigDO().setMaster(false));
+        // 更新
+        fileConfigMapper.updateById(new FileConfigDO().setId(id).setMaster(true));
+
+        // 清空缓存
+        clearCache(null, true);
+    }
+
+    private FileClientConfig parseClientConfig(
+            Integer storage, Map<String, Object> config, FileClientConfig existingConfig) {
+        FileStorageEnum storageEnum = FileStorageEnum.getByStorage(storage);
+        Assert.notNull(storageEnum, "不支持的文件存储器");
+        Class<? extends FileClientConfig> configClass = storageEnum.getConfigClass();
+        FileClientConfig clientConfig = JsonUtils.parseObject2(JsonUtils.toJsonString(config), configClass);
+        preserveS3Secret(clientConfig, existingConfig);
+        ValidationUtils.validate(validator, clientConfig);
+        return clientConfig;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteFileConfig(Long id) {
+        validateFileConfigForDelete(id);
+        // 删除
+        fileConfigMapper.deleteById(id);
+
+        // 清空缓存
+        clearCache(id, null);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteFileConfigList(List<Long> ids) {
+        List<Long> configIds = ids.stream().distinct().sorted().toList();
+        configIds.forEach(this::validateFileConfigForDelete);
+
+        // 批量删除
+        fileConfigMapper.deleteByIds(configIds);
+
+        // 清空缓存
+        configIds.forEach(id -> clearCache(id, null));
+    }
+
+    /**
+     * 清空指定文件配置
+     *
+     * @param id     配置编号
+     * @param master 是否主配置
+     */
+    private void clearCache(Long id, Boolean master) {
+        if (id != null) {
+            clientCache.invalidate(id);
+        }
+        if (Boolean.TRUE.equals(master)) {
+            clientCache.invalidate(CACHE_MASTER_ID);
+        }
+    }
+
+    private FileConfigDO validateFileConfigExists(Long id) {
+        FileConfigDO config = fileConfigMapper.selectById(id);
+        if (config == null) {
+            throw exception(FILE_CONFIG_NOT_EXISTS);
+        }
+        return config;
+    }
+
+    private void validateFileConfigForDelete(Long id) {
+        FileConfigDO config = fileConfigMapper.selectByIdForUpdate(id);
+        if (config == null) {
+            throw exception(FILE_CONFIG_NOT_EXISTS);
+        }
+        if (Boolean.TRUE.equals(config.getMaster())) {
+            throw exception(FILE_CONFIG_DELETE_FAIL_MASTER);
+        }
+        if (fileMapper.selectCountByConfigId(id) > 0 || fileContentMapper.selectCountByConfigId(id) > 0) {
+            throw exception(FILE_CONFIG_IN_USE, id);
+        }
+    }
+
+    @Override
+    public FileConfigDO getFileConfig(Long id) {
+        return hydrateConfig(fileConfigMapper.selectById(id));
+    }
+
+    @Override
+    public PageResult<FileConfigDO> getFileConfigPage(
+            PageParam pageParam, String name, Integer storage, LocalDateTime[] createTime) {
+        PageResult<FileConfigDO> page = fileConfigMapper.selectPage(pageParam, name, storage, createTime);
+        page.getList().forEach(this::hydrateConfig);
+        return page;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public String testFileConfig(Long id) throws Exception {
+        FileClient fileClient = getFileClientForReferenceWrite(id);
+        if (fileClient == null) {
+            throw exception(FILE_CONFIG_NOT_EXISTS);
+        }
+        byte[] content = ResourceUtil.readBytes("file/erweima.jpg");
+        String path = IdUtil.fastSimpleUUID() + ".jpg";
+        String url = fileClient.upload(content, path, "image/jpeg");
+        fileMapper.insert(new FileDO()
+                .setConfigId(fileClient.getId())
+                .setName("erweima.jpg")
+                .setPath(path)
+                .setUrl(url)
+                .setType("image/jpeg")
+                .setSize((long) content.length));
+        return url;
+    }
+
+    @Override
+    public FileClient getFileClient(Long id) {
+        return clientCache.getUnchecked(id).orElse(null);
+    }
+
+    @Override
+    public FileClient getMasterFileClient() {
+        return clientCache.getUnchecked(CACHE_MASTER_ID).orElse(null);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public FileClient getFileClientForReferenceWrite(Long id) {
+        FileConfigDO config = fileConfigMapper.selectByIdForShare(id);
+        return config == null ? null : createOrUpdateFileClient(config);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public FileClient getMasterFileClientForReferenceWrite() {
+        FileConfigDO config = fileConfigMapper.selectByMasterForShare();
+        return config == null ? null : createOrUpdateFileClient(config);
+    }
+
+    private FileClient createOrUpdateFileClient(FileConfigDO config) {
+        fileClientFactory.createOrUpdateFileClient(config.getId(), config.getStorage(), resolveConfig(config));
+        return fileClientFactory.getFileClient(config.getId());
+    }
+
+    private FileClientConfig resolveConfig(FileConfigDO config) {
+        return config.getConfig() != null ? config.getConfig() : decryptConfig(config);
+    }
+
+    private FileConfigDO hydrateConfig(FileConfigDO config) {
+        if (config != null) {
+            config.setConfig(decryptConfig(config));
+        }
+        return config;
+    }
+
+    private FileClientConfig decryptConfig(FileConfigDO config) {
+        if (!StringUtils.hasText(config.getConfigCiphertext())) {
+            throw new IllegalStateException("文件客户端配置密文缺失");
+        }
+        String json = credentialCipher.decrypt(config.getConfigCiphertext(), CONFIG_CONTEXT);
+        FileStorageEnum storageEnum = FileStorageEnum.getByStorage(config.getStorage());
+        if (storageEnum == null) {
+            throw new IllegalStateException("文件客户端存储器无效");
+        }
+        try {
+            return JsonUtils.parseObject2(json, storageEnum.getConfigClass());
+        } catch (RuntimeException ignored) {
+            throw new IllegalStateException("文件客户端配置密文内容无效");
+        }
+    }
+
+    private String encryptConfig(FileClientConfig config) {
+        return credentialCipher.encrypt(JsonUtils.toJsonString(config), CONFIG_CONTEXT);
+    }
+
+    private static void preserveS3Secret(FileClientConfig clientConfig, FileClientConfig existingConfig) {
+        if (!(clientConfig instanceof S3FileClientConfig s3Config)
+                || StringUtils.hasText(s3Config.getAccessSecret())
+                || !(existingConfig instanceof S3FileClientConfig existingS3Config)) {
+            return;
+        }
+        s3Config.setAccessSecret(existingS3Config.getAccessSecret());
+    }
+}

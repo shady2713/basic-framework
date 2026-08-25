@@ -1,0 +1,14 @@
+# 工程例外台账 v1
+# 每个条目都必须能查到：负责人(owner)、到期日(dueDate)、移除条件(removalCondition)。
+# 由 scripts/check-exceptions.mjs 门禁守卫：status=active 且已过 dueDate 的条目
+# 会让 CI 变红（expired 例外必须处理，不能留着）。
+# status：active=有效中 / removed=已移除（跳过检查）。
+version: 1
+exceptions:
+  - id: owasp-dependency-check-disabled
+    title: OWASP dependency check 未启用
+    description: .github/workflows/verify.yml 的 backend-build 仅跑 mvn verify，未挂 OWASP dependency-check，AGENTS.md 已如实标注；NVD 数据源依赖外网且当前无缓存策略，先解决可达性再启用。
+    owner: basic-framework 维护者
+    dueDate: 2027-01-01
+    removalCondition: 引入依赖漏洞扫描（dependency-check 或等价）并接入 backend-build 阻塞门禁后，本条目标记 removed。
+    status: active

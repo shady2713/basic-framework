@@ -1,0 +1,2 @@
+com.basicframework.framework.mq.redis.config.BasicFrameworkRedisMQProducerAutoConfiguration
+com.basicframework.framework.mq.redis.config.BasicFrameworkRedisMQConsumerAutoConfiguration

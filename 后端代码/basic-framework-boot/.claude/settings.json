@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -c core.quotepath=false status --short)",
+      "Bash(git -c core.quotepath=false diff --cached --stat)",
+      "Bash(git -c core.quotepath=false diff --stat)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
+    ]
+  }
+}

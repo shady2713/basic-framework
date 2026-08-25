@@ -1,0 +1,419 @@
+# 字段契约目录 —— 平台字段语义的唯一机器可读来源
+# 字段处理规则以 docs/security/data-classification.md 为准；本目录记录代码
+# 当前真值。双端代码必须与本目录登记值一致，由
+# scripts/check-field-catalog.mjs 门禁保证。
+version: 1
+fields:
+  - id: username
+    semanticType: login_username
+    status: aligned
+    description: 登录用户名（system_users.username）
+    required: true
+    nullable: false
+    normalization: trim、NFC 规范化并转小写；写入、唯一性校验和登录查询使用同一规则
+    lengthUnit: utf16_code_unit
+    minLength: 4
+    maxLength: 30
+    characterPolicy: 小写 ASCII 字母开头，其余为小写 ASCII 字母、数字或下划线
+    format: '^[a-z][a-z0-9_]{3,29}$'
+    examples: [admin, user_123]
+    sensitiveClass: internal
+    masking: none
+    databaseType: varchar(30)
+    indexPolicy: unique_index
+    uniquenessScope: global（system_users.uk_username）
+    frontendWidget: Input
+    backendValidator: '@Username -> ValidationUtils#isUsername'
+    vectorMode: regex
+    usage: AuthLoginReqVO、UserSaveReqVO、UserImportDTO；登录和用户管理表单统一使用 buildRequiredUsernameSchema
+    implementations:
+      frontendShared:
+        kind: frontend_regex
+        file: 前端代码/basic-framework-admin/apps/web-ele/src/adapter/field-rules.ts
+        constant: USERNAME_REGEX
+        pattern: '^[a-z][a-z0-9_]{3,29}$'
+        flags: ''
+      backendShared:
+        kind: backend_regex
+        file: 后端代码/basic-framework-boot/basic-framework-core/basic-framework-common/src/main/java/com/basicframework/framework/common/util/validation/ValidationUtils.java
+        constant: PATTERN_USERNAME
+        pattern: '^[a-z][a-z0-9_]{3,29}$'
+    sharedTestVectors:
+      valid: [admin, user_123, a1b2]
+      invalid:
+        - abc
+        - aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        - 1user
+        - _user
+        - user name
+        - 用户名
+        - 😀abcd
+        - ''
+        - null
+
+  - id: nickname
+    semanticType: user_nickname
+    status: drift
+    description: 用户昵称（system_users.nickname）
+    required: true
+    nullable: false
+    normalization: 无（前端 required 规则与后端均不 trim）
+    lengthUnit: utf16_code_unit
+    minLength: 1
+    maxLength: 30
+    characterPolicy: 现状无字符限制（任意字符，含换行和控制字符）
+    format: null
+    examples: [张三, 管理员]
+    sensitiveClass: internal
+    masking: none
+    databaseType: varchar(30)
+    indexPolicy: none
+    uniquenessScope: none
+    frontendWidget: Input
+    backendValidator: 'UserSaveReqVO#nickname 仅 @Size(max = 30)，无 @NotBlank、无字符策略'
+    vectorMode: length
+    usage: UserSaveReqVO；前端用户管理表单只挂 required
+    implementations:
+      backendSize:
+        kind: backend_size
+        file: 后端代码/basic-framework-boot/basic-framework-module-system/src/main/java/com/basicframework/module/system/controller/admin/user/vo/user/UserSaveReqVO.java
+        max: 30
+        note: nickname 当前唯一的后端约束；非空只由前端 required 规则和 DB NOT NULL 保证
+    target:
+      minLength: 1
+      maxLength: 30
+      lengthUnit: code_point
+      normalization: NFC、trim
+      characterPolicy: 允许各语言文字、数字、普通空格及合理标点；拒绝控制字符和换行
+      note: 后端需补 @NotBlank 和控制字符策略，并与前端共用相同归一化语义
+    sharedTestVectors:
+      valid: [张三, Alice, 管理员😀]
+      invalid:
+        - ''
+        - xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+        - null
+
+  - id: password
+    semanticType: user_password
+    status: drift
+    description: 用户自选密码（system_users.password 存 BCrypt 哈希）
+    required: true
+    nullable: false
+    normalization: 前端 zod schema 会 trim；后端不归一化
+    lengthUnit: utf16_code_unit
+    minLength: 6
+    maxLength: 16
+    characterPolicy: 仅 ASCII 字母数字，且必须同时含大写、小写和数字
+    format: '^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{6,16}$'
+    examples: [Abcd12]
+    sensitiveClass: credential
+    masking: full（仅存 BCrypt 哈希，永不回显、禁入日志）
+    databaseType: varchar(100)（BCrypt 哈希）
+    indexPolicy: none
+    uniquenessScope: none
+    frontendWidget: VbenInputPassword
+    backendValidator: 创建仅 UserSaveReqVO#isPasswordValid 非空断言；UserProfileUpdatePasswordReqVO 的 @Password 已注释，复杂度只在前端校验
+    vectorMode: regex
+    usage: UserSaveReqVO、UserProfileUpdatePasswordReqVO、AuthResetPasswordReqVO；前端 reset-pwd.vue、forget-password.vue、用户管理新增表单用 buildRequiredPasswordSchema
+    implementations:
+      frontendShared:
+        kind: frontend_regex
+        file: 前端代码/basic-framework-admin/apps/web-ele/src/adapter/field-rules.ts
+        constant: PASSWORD_REGEX
+        pattern: '^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{6,16}$'
+        flags: ''
+      backendShared:
+        kind: backend_regex
+        file: 后端代码/basic-framework-boot/basic-framework-core/basic-framework-common/src/main/java/com/basicframework/framework/common/util/validation/ValidationUtils.java
+        constant: PATTERN_PASSWORD
+        pattern: '^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{6,16}$'
+        note: 常量与 @Password 存在但在保存/改密路径未启用
+    target:
+      minLength: 15
+      maxLength: 128
+      lengthUnit: code_point
+      normalization: NFC；不 trim、不截断、不写日志
+      characterPolicy: 无字符组合正则；弱密码/泄露密码/用户名/平台名阻断
+      note: 后端所有设密入口必须执行同一策略；最终长度下限需结合 MFA 强制范围形成 ADR
+    sharedTestVectors:
+      valid: [Abcd12, Admin123]
+      invalid:
+        - abcdef12
+        - ABCDEF12
+        - Abcdefgh
+        - Abc1
+        - Abcd1234567890abc
+        - Ab cd12
+        - 密码Abc123
+        - Abcd12😀
+        - ''
+        - null
+
+  - id: mobile
+    semanticType: mobile_cn
+    status: drift
+    description: 中国大陆手机号（system_users.mobile）
+    required: false
+    nullable: true
+    normalization: 前端 zod schema 有 trim；后端无归一化
+    lengthUnit: utf16_code_unit
+    minLength: 11
+    maxLength: 11
+    characterPolicy: 纯数字，1 开头共 11 位
+    format: '^1\d{10}$'
+    examples: ['13812345678']
+    sensitiveClass: pii
+    masking: 现状未统一脱敏；目标保留前 3 后 4
+    databaseType: varchar(11)
+    indexPolicy: non_unique_index
+    uniquenessScope: none（现状 idx_mobile 非唯一）
+    frontendWidget: Input
+    backendValidator: '@Mobile -> ValidationUtils#isMobile'
+    vectorMode: regex
+    usage: AuthSmsSendReqVO、AuthSmsLoginReqVO、AuthResetPasswordReqVO、UserSaveReqVO 等
+    implementations:
+      frontendShared:
+        kind: frontend_regex
+        file: 前端代码/basic-framework-admin/packages/utils/src/validator/regex.ts
+        constant: MOBILE_REGEX
+        pattern: '^1[3-9]\d{9}$'
+        flags: ''
+        note: field-rules.ts 从 @vben/utils 复用此正则
+      frontendUserForm:
+        kind: source_contains
+        file: 前端代码/basic-framework-admin/apps/web-ele/src/views/system/user/data.ts
+        text: .regex(MOBILE_REGEX, '手机号码格式不正确')
+        note: 用户管理表单引用共享 MOBILE_REGEX
+      backendShared:
+        kind: backend_regex
+        file: 后端代码/basic-framework-boot/basic-framework-core/basic-framework-common/src/main/java/com/basicframework/framework/common/util/validation/ValidationUtils.java
+        constant: PATTERN_MOBILE
+        pattern: '^1[3-9]\d{9}$'
+    target:
+      format: '^1[3-9][0-9]{9}$'
+      normalization: 双端 trim，持久化 11 位号码
+      masking: 默认保留前 3 后 4；可达性由验证码证明
+    sharedTestVectors:
+      valid: ['13812345678', '19900001234']
+      invalid:
+        - '23812345678'
+        - '+8613812345678'
+        - '1381234567'
+        - '138123456789'
+        - '138 2345 678'
+        - ''
+        - null
+
+  - id: email
+    semanticType: email
+    status: drift
+    description: 用户邮箱（system_users.email）
+    required: false
+    nullable: true
+    normalization: 前端 zod schema 有 trim；后端无归一化
+    lengthUnit: utf16_code_unit
+    minLength: 0
+    maxLength: 50
+    characterPolicy: 简单词法正则（local@domain.tld），不证明可投递
+    format: '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'
+    examples: ['user@example.com']
+    sensitiveClass: pii
+    masking: 现状未统一脱敏；目标 local 部分打码
+    databaseType: varchar(50)
+    indexPolicy: non_unique_index
+    uniquenessScope: none（现状 idx_email 非唯一；目标唯一性大小写策略需记录）
+    frontendWidget: Input
+    backendValidator: '@EmailEx -> ValidationUtils#isEmail，外加 @Size(max = 50)'
+    vectorMode: regex
+    usage: UserSaveReqVO、部门表单等
+    implementations:
+      frontendShared:
+        kind: frontend_regex
+        file: 前端代码/basic-framework-admin/apps/web-ele/src/adapter/field-rules.ts
+        constant: EMAIL_REGEX
+        pattern: '^[\w.%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$'
+        flags: i
+      frontendUserForm:
+        kind: source_contains
+        file: 前端代码/basic-framework-admin/apps/web-ele/src/views/system/user/data.ts
+        text: z.string().email('邮箱格式不正确')
+        note: 用户管理表单使用 zod 内建 email 规则，未走共享 EMAIL_REGEX，登记待收敛
+      backendShared:
+        kind: backend_regex
+        file: 后端代码/basic-framework-boot/basic-framework-core/basic-framework-common/src/main/java/com/basicframework/framework/common/util/validation/ValidationUtils.java
+        constant: PATTERN_EMAIL
+        pattern: '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'
+      backendSize:
+        kind: backend_size
+        file: 后端代码/basic-framework-boot/basic-framework-module-system/src/main/java/com/basicframework/module/system/controller/admin/user/vo/user/UserSaveReqVO.java
+        max: 50
+    target:
+      maxLength: 254
+      lengthUnit: utf8_octet
+      normalization: trim；domain 小写并 IDNA 处理；以验证邮件证明所有权
+      note: 正则只校验词法；需要证明所有权的业务必须完成验证邮件闭环
+    sharedTestVectors:
+      valid: ['user@example.com', 'USER+tag@Example.COM']
+      invalid:
+        - user@invalid
+        - user@
+        - '@example.com'
+        - user @example.com
+        - 用户@example.com
+        - ''
+        - null
+
+  - id: remark
+    semanticType: remark_text
+    status: drift
+    description: 备注类纯文本（如 system_users.remark、system_role.remark）
+    required: false
+    nullable: true
+    normalization: 无
+    lengthUnit: utf16_code_unit
+    minLength: 0
+    maxLength: 500
+    characterPolicy: 纯文本，允许换行；禁止作为业务状态或配置的隐式存储
+    format: null
+    examples: [这是一条备注]
+    sensitiveClass: internal
+    masking: none
+    databaseType: varchar(500)
+    indexPolicy: none
+    uniquenessScope: none
+    frontendWidget: Textarea
+    backendValidator: RoleSaveReqVO#remark 有 @Size(max = 500)；UserSaveReqVO#remark 无约束（gap）
+    vectorMode: length
+    usage: UserSaveReqVO、RoleSaveReqVO 等；前端用户管理表单备注无长度限制
+    implementations:
+      backendSize:
+        kind: backend_size
+        file: 后端代码/basic-framework-boot/basic-framework-module-system/src/main/java/com/basicframework/module/system/controller/admin/permission/vo/role/RoleSaveReqVO.java
+        max: 500
+        note: 仅 role 备注有约束；UserSaveReqVO#remark 待补齐
+    target:
+      maxLength: 500
+      lengthUnit: code_point
+      note: 所有 remark 字段补齐 0-500 码点长度约束
+    sharedTestVectors:
+      valid:
+        - ''
+        - 这是一条备注
+        - xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+        - null
+      invalid:
+        - xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+  - id: name
+    semanticType: generic_name
+    status: aligned
+    description: 通用名称（如 crm_customer.name）
+    required: true
+    nullable: false
+    normalization: 前端 zod schema 有 trim；后端无归一化
+    lengthUnit: utf16_code_unit
+    minLength: 1
+    maxLength: 100
+    characterPolicy: 任意非空文本（现状无字符限制）
+    format: null
+    examples: [金龙客户科技有限公司, 张三]
+    sensitiveClass: internal
+    masking: none
+    databaseType: varchar(100)
+    indexPolicy: none
+    uniquenessScope: none
+    frontendWidget: Input
+    backendValidator: 'CustomerCreateReqVO#name @NotBlank + @Size(max = 100)'
+    vectorMode: length
+    usage: module-crm 客户档案
+    implementations:
+      backendSize:
+        kind: backend_size
+        file: 后端代码/basic-framework-boot/basic-framework-module-crm/src/main/java/com/basicframework/module/crm/controller/admin/crm/vo/customer/CustomerCreateReqVO.java
+        max: 100
+        note: 名称当前唯一后端约束为长度上限；非空由 @NotBlank 与 DB NOT NULL 保证
+    sharedTestVectors:
+      valid:
+        - 金龙客户科技有限公司
+        - A
+        - 张三 '
+      invalid:
+        - ''
+        - xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+        - null
+
+  - id: amount
+    semanticType: money
+    status: aligned
+    description: 金额（如 crm_customer.amount）
+    required: true
+    nullable: false
+    normalization: decimal(10,2) 标准化存储
+    lengthUnit: utf16_code_unit
+    minLength: 1
+    maxLength: 10
+    characterPolicy: 非负十进制数，整数部分 1-8 位、小数 0-2 位
+    format: '^[0-9]{1,8}(\.[0-9]{1,2})?$'
+    examples: ['12345.67', '0', '100']
+    sensitiveClass: internal
+    masking: none
+    databaseType: decimal(10,2)
+    indexPolicy: none
+    uniquenessScope: none
+    frontendWidget: InputNumber
+    backendValidator: 'CustomerCreateReqVO#amount @NotNull + @DecimalMin("0")；DB decimal(10,2) 兜底'
+    vectorMode: regex
+    usage: module-crm 客户档案
+    implementations:
+      backendSize:
+        kind: backend_size
+        file: 后端代码/basic-framework-boot/basic-framework-module-crm/src/main/java/com/basicframework/module/crm/controller/admin/crm/vo/customer/CustomerCreateReqVO.java
+        max: 10
+        note: 金额列宽 decimal(10,2)；此处以字面长度登记 API 上限语义
+    sharedTestVectors:
+      valid: ['12345.67', '0', '100', '99999999']
+      invalid:
+        - '12.345'
+        - '-5'
+        - '1,000'
+        - '1e3'
+        - ''
+        - null
+
+  - id: contractDate
+    semanticType: date
+    status: aligned
+    description: 日期（如 crm_customer.contract_date）
+    required: true
+    nullable: false
+    normalization: 按 RFC 3339 full-date 传输
+    lengthUnit: utf16_code_unit
+    minLength: 10
+    maxLength: 10
+    characterPolicy: ISO 8601 全日期，严格词法（月 01-12、日 01-31）；日历合法性由日期类型处理
+    format: '^(19|20)[0-9]{2}-(0[1-9]|1[0-2])-(0[1-9]|1[0-9]|2[0-9]|3[01])$'
+    examples: ['2026-08-22']
+    sensitiveClass: internal
+    masking: none
+    databaseType: date
+    indexPolicy: none
+    uniquenessScope: none
+    frontendWidget: DatePicker
+    backendValidator: 'CustomerCreateReqVO#contractDate @NotNull；DB date 列兜底'
+    vectorMode: regex
+    usage: module-crm 客户档案
+    implementations:
+      backendSize:
+        kind: backend_size
+        file: 后端代码/basic-framework-boot/basic-framework-module-crm/src/main/java/com/basicframework/module/crm/controller/admin/crm/vo/customer/CustomerCreateReqVO.java
+        max: 10
+        note: date 列无 varchar 列宽，此处登记字面长度
+    sharedTestVectors:
+      valid: ['2026-08-22', '2000-01-01']
+      invalid:
+        - '2026-8-22'
+        - '2026-08-32'
+        - '20260822'
+        - '2026-08-22T10:00:00Z'
+        - ''
+        - null

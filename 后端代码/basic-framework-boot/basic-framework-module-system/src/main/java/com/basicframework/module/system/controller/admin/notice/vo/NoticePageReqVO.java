@@ -1,0 +1,28 @@
+package com.basicframework.module.system.controller.admin.notice.vo;
+
+import static com.basicframework.framework.common.util.date.DateUtils.FORMAT_YEAR_MONTH_DAY_HOUR_MINUTE_SECOND;
+
+import com.basicframework.framework.common.pojo.PageParam;
+import io.swagger.v3.oas.annotations.media.Schema;
+import java.time.LocalDateTime;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
+import org.springframework.format.annotation.DateTimeFormat;
+
+@Schema(description = "管理后台 - 通知公告分页 Request VO")
+@Data
+@EqualsAndHashCode(callSuper = true)
+@ToString(callSuper = true)
+public class NoticePageReqVO extends PageParam {
+
+    @Schema(description = "公告标题", example = "系统升级通知")
+    private String title;
+
+    @Schema(description = "状态", example = "0")
+    private Integer status;
+
+    @Schema(description = "创建时间")
+    @DateTimeFormat(pattern = FORMAT_YEAR_MONTH_DAY_HOUR_MINUTE_SECOND)
+    private LocalDateTime[] createTime;
+}
