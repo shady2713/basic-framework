@@ -1,7 +1,6 @@
 package com.basicframework.module.infra.framework.file.core.client.db;
 
 import cn.hutool.core.collection.CollUtil;
-import cn.hutool.extra.spring.SpringUtil;
 import com.basicframework.module.infra.dal.dataobject.file.FileContentDO;
 import com.basicframework.module.infra.dal.mysql.file.FileContentMapper;
 import com.basicframework.module.infra.framework.file.core.client.AbstractFileClient;
@@ -14,16 +13,15 @@ import java.util.List;
  */
 public class DBFileClient extends AbstractFileClient<DBFileClientConfig> {
 
-    private FileContentMapper fileContentMapper;
+    private final FileContentMapper fileContentMapper;
 
-    public DBFileClient(Long id, DBFileClientConfig config) {
+    public DBFileClient(Long id, DBFileClientConfig config, FileContentMapper fileContentMapper) {
         super(id, config);
+        this.fileContentMapper = fileContentMapper;
     }
 
     @Override
-    protected void doInit() {
-        fileContentMapper = SpringUtil.getBean(FileContentMapper.class);
-    }
+    protected void doInit() {}
 
     @Override
     public String upload(byte[] content, String path, String type) {

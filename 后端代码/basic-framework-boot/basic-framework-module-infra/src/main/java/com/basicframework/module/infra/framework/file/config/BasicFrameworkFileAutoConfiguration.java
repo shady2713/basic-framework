@@ -1,5 +1,6 @@
 package com.basicframework.module.infra.framework.file.config;
 
+import com.basicframework.module.infra.dal.mysql.file.FileContentMapper;
 import com.basicframework.module.infra.framework.file.core.client.FileClientFactory;
 import com.basicframework.module.infra.framework.file.core.client.FileClientFactoryImpl;
 import com.basicframework.module.infra.framework.file.core.utils.FileArchiveValidator;
@@ -16,8 +17,8 @@ import org.springframework.context.annotation.Configuration;
 public class BasicFrameworkFileAutoConfiguration {
 
     @Bean
-    public FileClientFactory fileClientFactory() {
-        return new FileClientFactoryImpl();
+    public FileClientFactory fileClientFactory(FileContentMapper fileContentMapper) {
+        return new FileClientFactoryImpl(fileContentMapper);
     }
 
     @Bean

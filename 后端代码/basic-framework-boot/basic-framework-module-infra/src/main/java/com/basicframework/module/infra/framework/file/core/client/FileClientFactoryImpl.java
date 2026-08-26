@@ -2,6 +2,9 @@ package com.basicframework.module.infra.framework.file.core.client;
 
 import cn.hutool.core.lang.Assert;
 import cn.hutool.core.util.ReflectUtil;
+import com.basicframework.module.infra.dal.mysql.file.FileContentMapper;
+import com.basicframework.module.infra.framework.file.core.client.db.DBFileClient;
+import com.basicframework.module.infra.framework.file.core.client.db.DBFileClientConfig;
 import com.basicframework.module.infra.framework.file.core.enums.FileStorageEnum;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -14,11 +17,17 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class FileClientFactoryImpl implements FileClientFactory {
 
+    private final FileContentMapper fileContentMapper;
+
     /**
      * 文件客户端 Map
      * key：配置编号
      */
     private final ConcurrentMap<Long, AbstractFileClient<?>> clients = new ConcurrentHashMap<>();
+
+    public FileClientFactoryImpl(FileContentMapper fileContentMapper) {
+        this.fileContentMapper = fileContentMapper;
+    }
 
     @Override
     public FileClient getFileClient(Long configId) {
@@ -48,7 +57,10 @@ public class FileClientFactoryImpl implements FileClientFactory {
             Long configId, Integer storage, Config config) {
         FileStorageEnum storageEnum = FileStorageEnum.getByStorage(storage);
         Assert.notNull(storageEnum, String.format("文件配置(%s) 为空", storageEnum));
-        // 创建客户端
+        if (storageEnum == FileStorageEnum.DB) {
+            return (AbstractFileClient<Config>)
+                    new DBFileClient(configId, (DBFileClientConfig) config, fileContentMapper);
+        }
         return (AbstractFileClient<Config>) ReflectUtil.newInstance(storageEnum.getClientClass(), configId, config);
     }
 }
