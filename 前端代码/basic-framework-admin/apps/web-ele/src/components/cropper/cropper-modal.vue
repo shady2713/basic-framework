@@ -1,17 +1,24 @@
 <script lang="ts" setup>
-import type { CropendResult, CropperModalProps, CropperType } from './typing';
+import type {
+  CropendResult,
+  CropperModalProps,
+  CropperType,
+  CropperUploadError,
+  CropperUploadSuccess,
+} from './typing';
 
 import { ref } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 import { $t } from '@vben/locales';
-import { dataURLtoBlob, isFunction } from '@vben/utils';
+import { dataURLtoBlob } from '@vben/utils';
 
 import { ElAvatar, ElButton, ElSpace, ElTooltip, ElUpload } from 'element-plus';
 
 import { showWarningMessage } from '#/utils/feedback';
 
+import { isImageFile } from './cropper-utils';
 import CropperImage from './cropper.vue';
 
 defineOptions({ name: 'CropperModal' });
@@ -23,12 +30,18 @@ const props = withDefaults(defineProps<CropperModalProps>(), {
   uploadApi: () => Promise.resolve(),
 });
 
-const emit = defineEmits(['uploadSuccess', 'uploadError', 'register']);
+const emit = defineEmits<{
+  uploadError: [payload: CropperUploadError];
+  uploadSuccess: [payload: CropperUploadSuccess];
+}>();
 
-let filename = '';
+type ToolbarAction = 'reset' | 'rotate' | 'scaleX' | 'scaleY' | 'zoom';
+
+let filename = 'avatar.png';
 const src = ref(props.src || '');
 const previewSource = ref('');
 const cropper = ref<CropperType>();
+const cropperKey = ref(0);
 let scaleX = 1;
 let scaleY = 1;
 
@@ -36,11 +49,14 @@ const [Modal, modalApi] = useVbenModal({
   onConfirm: handleOk,
   onOpenChange(isOpen) {
     if (isOpen) {
-      // 打开时，进行 loading 加载。后续 CropperImage 组件加载完毕，会自动关闭 loading（通过 handleReady）
-      modalLoading(true);
-    } else {
-      // 关闭时，清空右侧预览
+      src.value = props.src;
       previewSource.value = '';
+      resetTransforms();
+      cropperKey.value += 1;
+      modalLoading(Boolean(src.value));
+    } else {
+      previewSource.value = '';
+      cropper.value = undefined;
       modalLoading(false);
     }
   },
@@ -50,20 +66,39 @@ function modalLoading(loading: boolean) {
   modalApi.setState({ confirmLoading: loading, loading });
 }
 
-// Block upload
 function handleBeforeUpload(file: File) {
-  if (props.size > 0 && file.size > 1024 * 1024 * props.size) {
-    emit('uploadError', { msg: $t('ui.cropper.imageTooBig') });
+  if (!isImageFile(file)) {
+    reportUploadError($t('ui.cropper.invalidImageType'));
     return false;
   }
+  if (props.size > 0 && file.size > 1024 * 1024 * props.size) {
+    reportUploadError($t('ui.cropper.imageTooBig'));
+    return false;
+  }
+
   const reader = new FileReader();
-  reader.readAsDataURL(file);
+  const previousSource = src.value;
+  modalLoading(true);
   src.value = '';
   previewSource.value = '';
   reader.addEventListener('load', (e) => {
-    src.value = (e.target?.result as string) ?? '';
+    const result = e.target?.result;
+    if (typeof result !== 'string') {
+      src.value = previousSource;
+      modalLoading(false);
+      reportUploadError($t('ui.cropper.imageReadError'));
+      return;
+    }
+    src.value = result;
     filename = file.name;
+    resetTransforms();
   });
+  reader.addEventListener('error', () => {
+    src.value = previousSource;
+    modalLoading(false);
+    reportUploadError($t('ui.cropper.imageReadError'), reader.error);
+  });
+  reader.readAsDataURL(file);
   return false;
 }
 
@@ -73,36 +108,73 @@ function handleCropend({ imgBase64 }: CropendResult) {
 
 function handleReady(cropperInstance: CropperType) {
   cropper.value = cropperInstance;
-  // 画布加载完毕 关闭 loading
   modalLoading(false);
 }
 
-function handlerToolbar(event: string, arg?: number) {
-  if (event === 'scaleX') {
-    scaleX = arg = scaleX === -1 ? 1 : -1;
+function handlerToolbar(action: ToolbarAction, amount = 0) {
+  const instance = cropper.value;
+  if (!instance) return;
+
+  switch (action) {
+    case 'reset': {
+      instance.reset();
+      resetTransforms();
+      break;
+    }
+    case 'rotate': {
+      instance.rotate(amount);
+      break;
+    }
+    case 'scaleX': {
+      scaleX = scaleX === -1 ? 1 : -1;
+      instance.scaleX(scaleX);
+      break;
+    }
+    case 'scaleY': {
+      scaleY = scaleY === -1 ? 1 : -1;
+      instance.scaleY(scaleY);
+      break;
+    }
+    case 'zoom': {
+      instance.zoom(amount);
+      break;
+    }
+    default: {
+      throw new Error(`Unsupported cropper toolbar action: ${action}`);
+    }
   }
-  if (event === 'scaleY') {
-    scaleY = arg = scaleY === -1 ? 1 : -1;
-  }
-  (cropper?.value as any)?.[event]?.(arg);
+}
+
+function resetTransforms() {
+  scaleX = 1;
+  scaleY = 1;
+}
+
+function reportUploadError(message: string, error?: unknown) {
+  showWarningMessage(message);
+  emit('uploadError', { error, msg: message });
 }
 
 async function handleOk() {
-  const uploadApi = props.uploadApi;
-  if (uploadApi && isFunction(uploadApi)) {
-    if (!previewSource.value) {
-      showWarningMessage('未选择图片');
-      return;
-    }
+  if (!previewSource.value) {
+    showWarningMessage('未选择图片');
+    return;
+  }
+
+  try {
     const blob = dataURLtoBlob(previewSource.value);
-    try {
-      modalLoading(true);
-      const url = await uploadApi({ file: blob, filename, name: 'file' });
-      emit('uploadSuccess', { data: url, source: previewSource.value });
-      await modalApi.close();
-    } finally {
-      modalLoading(false);
-    }
+    modalLoading(true);
+    const result = await props.uploadApi({
+      file: blob,
+      filename,
+      name: 'file',
+    });
+    emit('uploadSuccess', { data: result, source: previewSource.value });
+    await modalApi.close();
+  } catch (error) {
+    reportUploadError($t('ui.cropper.uploadError'), error);
+  } finally {
+    modalLoading(false);
   }
 }
 </script>
@@ -113,27 +185,28 @@ async function handleOk() {
     :confirm-text="$t('ui.cropper.okText')"
     :fullscreen-button="false"
     :title="$t('ui.cropper.modalTitle')"
-    class="w-2/3"
+    class="w-[min(960px,calc(100vw-32px))]"
   >
-    <div class="flex h-96">
-      <!-- 左侧区域 -->
-      <div class="h-full w-3/5">
-        <!-- 裁剪器容器 -->
+    <div class="flex min-h-96 flex-col gap-6 md:flex-row">
+      <div class="w-full md:w-3/5">
         <div
           class="relative h-[300px] bg-gradient-to-b from-neutral-50 to-neutral-200"
         >
           <CropperImage
             v-if="src"
+            :key="cropperKey"
             :circled="circled"
             :src="src"
             height="300px"
             @cropend="handleCropend"
+            @cropend-error="
+              reportUploadError($t('ui.cropper.imageProcessError'), $event)
+            "
             @ready="handleReady"
           />
         </div>
 
-        <!-- 工具栏 -->
-        <div class="mt-4 flex items-center justify-between">
+        <div class="mt-4 flex flex-wrap items-center gap-2">
           <ElUpload
             :before-upload="handleBeforeUpload"
             :file-list="[]"
@@ -143,7 +216,11 @@ async function handleOk() {
               :content="$t('ui.cropper.selectImage')"
               placement="bottom"
             >
-              <ElButton size="small" type="primary">
+              <ElButton
+                :aria-label="$t('ui.cropper.selectImage')"
+                size="small"
+                type="primary"
+              >
                 <template #icon>
                   <div class="flex items-center justify-center">
                     <IconifyIcon icon="lucide:upload" />
@@ -152,9 +229,10 @@ async function handleOk() {
               </ElButton>
             </ElTooltip>
           </ElUpload>
-          <ElSpace>
+          <ElSpace wrap>
             <ElTooltip :content="$t('ui.cropper.btn_reset')" placement="bottom">
               <ElButton
+                :aria-label="$t('ui.cropper.btn_reset')"
                 :disabled="!src"
                 size="small"
                 type="primary"
@@ -172,6 +250,7 @@ async function handleOk() {
               placement="bottom"
             >
               <ElButton
+                :aria-label="$t('ui.cropper.btn_rotate_left')"
                 :disabled="!src"
                 size="small"
                 type="primary"
@@ -189,6 +268,7 @@ async function handleOk() {
               placement="bottom"
             >
               <ElButton
+                :aria-label="$t('ui.cropper.btn_rotate_right')"
                 :disabled="!src"
                 size="small"
                 type="primary"
@@ -206,6 +286,7 @@ async function handleOk() {
               placement="bottom"
             >
               <ElButton
+                :aria-label="$t('ui.cropper.btn_scale_x')"
                 :disabled="!src"
                 size="small"
                 type="primary"
@@ -223,6 +304,7 @@ async function handleOk() {
               placement="bottom"
             >
               <ElButton
+                :aria-label="$t('ui.cropper.btn_scale_y')"
                 :disabled="!src"
                 size="small"
                 type="primary"
@@ -240,6 +322,7 @@ async function handleOk() {
               placement="bottom"
             >
               <ElButton
+                :aria-label="$t('ui.cropper.btn_zoom_in')"
                 :disabled="!src"
                 size="small"
                 type="primary"
@@ -257,6 +340,7 @@ async function handleOk() {
               placement="bottom"
             >
               <ElButton
+                :aria-label="$t('ui.cropper.btn_zoom_out')"
                 :disabled="!src"
                 size="small"
                 type="primary"
@@ -273,11 +357,10 @@ async function handleOk() {
         </div>
       </div>
 
-      <!-- 右侧区域 -->
-      <div class="h-full w-2/5">
-        <!-- 预览区域 -->
+      <div class="w-full md:w-2/5">
         <div
-          class="mx-auto h-56 w-56 overflow-hidden rounded-full border border-gray-200"
+          :class="circled ? 'rounded-full' : 'rounded-md'"
+          class="mx-auto h-56 w-56 max-w-full overflow-hidden border border-gray-200"
         >
           <img
             v-if="previewSource"
@@ -286,7 +369,6 @@ async function handleOk() {
             class="h-full w-full object-cover"
           />
         </div>
-        <!-- 头像组合预览 -->
         <template v-if="previewSource">
           <div
             class="mt-2 flex items-center justify-around border-t border-gray-200 pt-2"

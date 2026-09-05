@@ -158,14 +158,15 @@ async function removeFactor(factor: SystemUserProfileApi.MfaFactor) {
       confirmButtonText: '移除',
       type: 'warning',
     });
-    await withStepUp('profile:mfa:remove-factor', async () => {
-      await removeUserMfaFactor(factor.id);
-      showSuccessMessage('MFA 因子已移除');
-      await loadMethods();
-    });
-  } catch (error) {
-    logError('profile:mfa:remove-factor', error);
+  } catch {
+    // 用户取消确认属于预期交互，不记录为系统错误。
+    return;
   }
+  await withStepUp('profile:mfa:remove-factor', async () => {
+    await removeUserMfaFactor(factor.id);
+    showSuccessMessage('MFA 因子已移除');
+    await loadMethods();
+  });
 }
 
 async function resetRecoveryCodes() {

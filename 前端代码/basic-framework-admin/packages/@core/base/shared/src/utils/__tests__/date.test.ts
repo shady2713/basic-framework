@@ -4,7 +4,9 @@ import utc from 'dayjs/plugin/utc';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  dateFormatter,
   formatDate,
+  formatDate2,
   formatDateTime,
   getCurrentTimezone,
   getSystemTimezone,
@@ -56,7 +58,7 @@ describe('dateUtils', () => {
 
     it('should return original input if date is invalid', () => {
       const invalid = 'not-a-date';
-      const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       const formatted = formatDate(invalid);
       expect(formatted).toBe(invalid);
       expect(spy).toHaveBeenCalledOnce();
@@ -66,6 +68,17 @@ describe('dateUtils', () => {
       const formatted = formatDate(sampleISO, 'YYYY-MM-DD HH:mm');
       expect(formatted).toMatch(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}/);
     });
+
+    it('should preserve the valid Unix epoch timestamp', () => {
+      expect(formatDate(0, 'YYYY')).toBe('1970');
+    });
+
+    it.each([undefined, null, ''] as const)(
+      'should render an absent value %s as empty',
+      (value) => {
+        expect(formatDate(value)).toBe('');
+      },
+    );
   });
 
   // ===============================
@@ -76,6 +89,39 @@ describe('dateUtils', () => {
       const result = formatDateTime(sampleISO);
       expect(result).toMatch(/2024-10-30 \d{2}:\d{2}:\d{2}/);
     });
+  });
+
+  describe('formatDate2', () => {
+    it('should use its default and custom formats', () => {
+      const date = new Date(2024, 0, 2, 3, 4, 5);
+      expect(formatDate2(date)).toBe('2024-01-02 03:04:05');
+      expect(formatDate2(date, 'YYYY/MM/DD')).toBe('2024/01/02');
+    });
+
+    it.each([undefined, null] as const)(
+      'should render an absent date %s as empty',
+      (value) => {
+        expect(formatDate2(value)).toBe('');
+      },
+    );
+  });
+
+  describe('dateFormatter', () => {
+    it.each([
+      sampleTimestamp,
+      sampleISO,
+      new Date(sampleISO),
+      dayjs(sampleISO),
+    ])('should format the supported value %s', (value) => {
+      expect(dateFormatter({}, {}, value)).toMatch(/^2024-10-30/);
+    });
+
+    it.each([undefined, null, {}, true])(
+      'should reject the unsupported value %s',
+      (value) => {
+        expect(dateFormatter({}, {}, value)).toBe('');
+      },
+    );
   });
 
   // ===============================

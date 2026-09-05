@@ -109,8 +109,12 @@ describe('auth API contracts', () => {
   });
 
   it('keeps refresh credentials in cookies and access tokens in headers', async () => {
-    const captcha = { captchaType: 'blockPuzzle' };
-    const captchaCheck = { captchaVerification: 'captcha' };
+    const captcha = { captchaType: 'blockPuzzle' as const };
+    const captchaCheck = {
+      captchaType: 'blockPuzzle' as const,
+      pointJson: '{"x":1,"y":5}',
+      token: 'captcha-token',
+    };
     const sms = { mobile: '13800138000', scene: 1 };
     const reset = { code: '123456', mobile: sms.mobile, password: 'new-pass' };
 

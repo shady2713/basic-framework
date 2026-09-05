@@ -14,6 +14,8 @@ import { BasicLayout, IFrameView } from '#/layouts';
 const forbiddenComponent = () => import('#/views/_core/fallback/forbidden.vue');
 
 async function generateAccess(options: GenerateMenuAndRoutesOptions) {
+  // Vite expands this registry into generated lazy-loader functions.
+  /* v8 ignore next */
   const pageMap: ComponentRecordType = import.meta.glob('../views/**/*.vue');
   const accessStore = useAccessStore();
 

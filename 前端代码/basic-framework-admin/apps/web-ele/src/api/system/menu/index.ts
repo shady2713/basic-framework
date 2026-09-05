@@ -27,7 +27,7 @@ export async function getSimpleMenusList() {
 }
 
 /** 查询菜单列表 */
-export async function getMenuList(params?: Record<string, any>) {
+export async function getMenuList(params?: Record<string, unknown>) {
   return requestClient.get<SystemMenuApi.Menu[]>('/system/menu/list', {
     params,
   });

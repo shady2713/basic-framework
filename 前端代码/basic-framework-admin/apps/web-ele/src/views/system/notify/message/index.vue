@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 /** 站内信管理页面 */
 import type { VxeTableGridOptions } from '#/adapter/vxe-table';
+import type { SystemNotifyMessageApi } from '#/api/system/notify/message';
 
 import { Page, useVbenModal } from '@vben/common-ui';
 
@@ -22,16 +23,11 @@ function handleRefresh() {
 }
 
 /** 查看详情 */
-function handleDetail(row: {
-  [key: string]: unknown;
-  content: string;
-  id: number;
-  title: string;
-}) {
+function handleDetail(row: SystemNotifyMessageApi.Message) {
   detailModalApi.setData(row).open();
 }
 
-const [Grid, gridApi] = useVbenVxeGrid({
+const [Grid, gridApi] = useVbenVxeGrid<SystemNotifyMessageApi.Message>({
   formOptions: {
     schema: useGridFormSchema(),
   },
@@ -58,7 +54,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
       refresh: true,
       search: true,
     },
-  } as VxeTableGridOptions,
+  } as VxeTableGridOptions<SystemNotifyMessageApi.Message>,
 });
 </script>
 

@@ -43,10 +43,13 @@ const canVerify = computed(() => {
   return code.value.trim().length > 0;
 });
 
-function selectDefaultMethod(availableMethods: StepUpMethod[]) {
+function selectDefaultMethod(
+  availableMethods: readonly unknown[],
+): StepUpMethod | undefined {
   if (availableMethods.includes('WEBAUTHN')) return 'WEBAUTHN';
   if (availableMethods.includes('TOTP')) return 'TOTP';
-  return 'RECOVERY_CODE';
+  if (availableMethods.includes('RECOVERY_CODE')) return 'RECOVERY_CODE';
+  return undefined;
 }
 
 function clearPrompt() {
@@ -70,11 +73,21 @@ async function openPrompt() {
     loading.value = true;
     startMfaStepUpApi()
       .then((result) => {
+        const availableMethods = Array.isArray(result.mfaMethods)
+          ? result.mfaMethods
+          : [];
+        const defaultMethod = selectDefaultMethod(availableMethods);
+        if (!result.mfaToken || !defaultMethod) {
+          throw new MfaStepUpCancelledError(
+            'MFA step-up challenge is incomplete',
+          );
+        }
         challenge.value = result;
-        method.value = selectDefaultMethod(result.mfaMethods ?? []);
+        method.value = defaultMethod;
         visible.value = true;
       })
       .catch(() => {
+        visible.value = false;
         clearPrompt();
         reject(new MfaStepUpCancelledError('MFA step-up could not start'));
       })

@@ -115,6 +115,17 @@ describe('auth store logout', () => {
     expect(router.push).toHaveBeenCalledOnce();
   });
 
+  it('rejects an incomplete MFA completion response', async () => {
+    const store = useAuthStore();
+
+    await expect(
+      store.completeMfaLogin({ expiresTime: 0, userId: 1 }),
+    ).rejects.toThrow('MFA login result did not include an access token');
+
+    expect(accessStore.setAccessToken).not.toHaveBeenCalled();
+    expect(router.push).not.toHaveBeenCalled();
+  });
+
   it('restores an access token from the HttpOnly refresh session once', async () => {
     vi.mocked(refreshTokenApi).mockResolvedValue({
       data: { data: { accessToken: 'restored-access-token' } },

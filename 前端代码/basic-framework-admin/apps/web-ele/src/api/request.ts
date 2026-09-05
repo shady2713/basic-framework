@@ -53,9 +53,8 @@ function createRequestClient(baseURL: string, options?: RequestClientOptions) {
     const accessStore = useAccessStore();
     const resp = await refreshTokenApi();
     const newToken = resp?.data?.data?.accessToken;
-    // 这里一定要抛出 resp.data，从而触发 authenticateResponseInterceptor 中的刷新令牌失败逻辑。
     if (!newToken) {
-      throw resp.data;
+      throw new Error('Refresh token response did not include an access token');
     }
     accessStore.setAccessToken(newToken);
     return newToken;
@@ -124,3 +123,5 @@ export const baseRequestClient = new RequestClient({
   baseURL: apiURL,
   withCredentials: true,
 });
+
+export { createRequestClient };

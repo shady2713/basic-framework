@@ -11,6 +11,15 @@ import { ElCard, ElCol, ElRow, ElTree } from 'element-plus';
 
 import { getSimpleDeptList } from '#/api/system/dept';
 
+type DeptSelectModalData = {
+  selectedList?: SystemDeptApi.Dept[];
+};
+
+type DeptTreeInstance = {
+  getCheckedKeys: () => (number | string)[];
+  setCheckedKeys: (keys: (number | string)[]) => void;
+};
+
 defineOptions({ name: 'DeptSelectModal' });
 
 const props = withDefaults(
@@ -40,20 +49,20 @@ const emit = defineEmits<{
 }>();
 
 // 部门树形结构
-const deptTree = ref<any[]>([]);
+const deptTree = ref<SystemDeptApi.Dept[]>([]);
 // 选中的部门 ID 列表
 const selectedDeptIds = ref<number[]>([]);
 // 部门数据
 const deptData = ref<SystemDeptApi.Dept[]>([]);
 // Tree 组件引用
-const treeRef = ref();
+const treeRef = ref<DeptTreeInstance>();
 
 // 对话框配置
 const [Modal, modalApi] = useVbenModal({
   async onConfirm() {
     // 获取选中的部门ID
     const selectedIds: number[] = props.checkStrictly
-      ? treeRef.value?.getCheckedKeys() || []
+      ? (treeRef.value?.getCheckedKeys() ?? []).map(Number)
       : selectedDeptIds.value;
 
     const deptArray = deptData.value.filter((dept) =>
@@ -70,7 +79,7 @@ const [Modal, modalApi] = useVbenModal({
       return;
     }
     // 加载数据
-    const data = modalApi.getData();
+    const data = modalApi.getData<DeptSelectModalData>();
     if (!data) {
       return;
     }
@@ -83,10 +92,10 @@ const [Modal, modalApi] = useVbenModal({
       // 设置已选择的部门
       if (data.selectedList?.length) {
         const selectedIds = data.selectedList
-          .map((dept: SystemDeptApi.Dept) => dept.id)
-          .filter((id: number) => id !== undefined);
+          .map((dept) => dept.id)
+          .filter((id): id is number => id !== undefined);
         selectedDeptIds.value = selectedIds;
-        treeRef.value.setCheckedKeys(selectedIds);
+        treeRef.value?.setCheckedKeys(selectedIds);
       }
     } finally {
       modalApi.unlock();
@@ -110,7 +119,7 @@ function handleCheck(
   } else {
     // 单选模式下，只保留最后选择的节点
     const lastSelectedId = keys[keys.length - 1];
-    if (lastSelectedId) {
+    if (lastSelectedId !== undefined) {
       selectedDeptIds.value = [lastSelectedId];
       treeRef.value?.setCheckedKeys([lastSelectedId]);
     }

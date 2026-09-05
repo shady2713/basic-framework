@@ -12,7 +12,7 @@ import { getSimpleDeptList } from '#/api/system/dept';
 
 const emit = defineEmits(['select']);
 const deptList = ref<SystemDeptApi.Dept[]>([]); // 部门列表
-const deptTree = ref<any[]>([]); // 部门树
+const deptTree = ref<SystemDeptApi.Dept[]>([]); // 部门树
 const expandedKeys = ref<number[]>([]); // 展开的节点
 const loading = ref(false); // 加载状态
 const searchValue = ref(''); // 搜索值

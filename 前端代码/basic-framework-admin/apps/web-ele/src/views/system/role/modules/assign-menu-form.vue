@@ -1,6 +1,4 @@
 <script lang="ts" setup>
-import type { Recordable } from '@vben/types';
-
 import type { SystemMenuApi } from '#/api/system/menu';
 import type { SystemRoleApi } from '#/api/system/role';
 
@@ -33,6 +31,18 @@ type TreeNodeLike = {
   id?: number;
 };
 
+interface AssignMenuValues {
+  id: number;
+  menuIds: number[];
+}
+
+interface TreeRenderNode {
+  index: number;
+  value?: {
+    type?: number;
+  };
+}
+
 const [Form, formApi] = useVbenForm({
   commonConfig: {
     componentProps: {
@@ -54,7 +64,7 @@ const [Modal, modalApi] = useVbenModal({
     }
     modalApi.lock();
     // 提交表单
-    const data = await formApi.getValues();
+    const data = await formApi.getValues<AssignMenuValues>();
     try {
       await assignRoleMenu({
         roleId: data.id,
@@ -133,7 +143,7 @@ function getAllNodeIds(nodes: TreeNodeLike[], ids: number[] = []): number[] {
   return ids;
 }
 
-function getNodeClass(node: Recordable<any>) {
+function getNodeClass(node: TreeRenderNode) {
   const classes: string[] = [];
   if (node.value?.type === SystemMenuTypeEnum.BUTTON) {
     classes.push('inline-flex');

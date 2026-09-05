@@ -1,3 +1,7 @@
+import type { DeepPartial } from '@vben-core/typings';
+
+import type { Preferences } from '../src/types';
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { defaultPreferences } from '../src/config';
@@ -30,8 +34,21 @@ describe('preferences', () => {
     expect(preferences).toEqual(defaultPreferences);
   });
 
+  it('clears all persisted preference entries', () => {
+    const storageKeys = [
+      '-preferences',
+      '-preferences-locale',
+      '-preferences-theme',
+    ];
+    storageKeys.forEach((key) => localStorage.setItem(key, 'persisted'));
+
+    preferenceManager.clearCache();
+
+    storageKeys.forEach((key) => expect(localStorage.getItem(key)).toBeNull());
+  });
+
   it('initializes preferences with overrides', async () => {
-    const overrides: any = {
+    const overrides: DeepPartial<Preferences> = {
       app: {
         locale: 'en-US',
       },
@@ -53,6 +70,19 @@ describe('preferences', () => {
     };
 
     expect(preferenceManager.getPreferences()).toEqual(expected);
+  });
+
+  it('ignores repeated initialization', async () => {
+    await preferenceManager.initPreferences({
+      namespace: 'firstNamespace',
+      overrides: { app: { name: 'First App' } },
+    });
+    await preferenceManager.initPreferences({
+      namespace: 'secondNamespace',
+      overrides: { app: { name: 'Second App' } },
+    });
+
+    expect(preferenceManager.getPreferences().app.name).toBe('First App');
   });
 
   it('updates theme mode correctly', () => {
@@ -135,11 +165,11 @@ describe('preferences', () => {
   });
   it('updates the navigation style type correctly', () => {
     preferenceManager.updatePreferences({
-      navigation: { styleType: 'flat' },
-    } as any);
+      navigation: { styleType: 'plain' },
+    });
 
     expect(preferenceManager.getPreferences().navigation.styleType).toBe(
-      'flat',
+      'plain',
     );
   });
 
@@ -164,7 +194,7 @@ describe('preferences', () => {
 
     preferenceManager.updatePreferences({
       app: { nonexistentField: 'value' },
-    } as any);
+    } as unknown as DeepPartial<Preferences>);
 
     expect(preferenceManager.getPreferences()).toEqual(originalPreferences);
   });
@@ -208,13 +238,16 @@ describe('preferences', () => {
   });
 
   it('applies updates immediately after initialization', async () => {
-    const overrides: any = {
+    const overrides: DeepPartial<Preferences> = {
       app: {
         locale: 'en-US',
       },
     };
 
-    await preferenceManager.initPreferences(overrides);
+    await preferenceManager.initPreferences({
+      namespace: 'testNamespace',
+      overrides,
+    });
 
     preferenceManager.updatePreferences({
       theme: { mode: 'light' },

@@ -4,18 +4,21 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ModalApi } from '../modal-api';
 
+interface MockStoreOptions {
+  onUpdate: () => void;
+}
+
 vi.mock('@vben-core/shared/store', () => {
   return {
-    isFunction: (fn: any) => typeof fn === 'function',
     Store: class {
       get state() {
         return this._state;
       }
       private _state: ModalState;
 
-      private options: any;
+      private options: MockStoreOptions;
 
-      constructor(initialState: ModalState, options: any) {
+      constructor(initialState: ModalState, options: MockStoreOptions) {
         this._state = initialState;
         this.options = options;
       }
@@ -54,16 +57,17 @@ describe('modalApi', () => {
     expect(modalApi.store.state.isOpen).toBe(true);
   });
 
-  it('should close the modal if onBeforeClose allows it', () => {
-    modalApi.close();
+  it('should close the modal if onBeforeClose allows it', async () => {
+    modalApi.open();
+    await modalApi.close();
     expect(modalApi.store.state.isOpen).toBe(false);
   });
 
-  it('should not close the modal if onBeforeClose returns false', () => {
+  it('should not close the modal if onBeforeClose returns false', async () => {
     const onBeforeClose = vi.fn(() => false);
     const modalApiWithHook = new ModalApi({ onBeforeClose });
     modalApiWithHook.open();
-    modalApiWithHook.close();
+    await modalApiWithHook.close();
     expect(modalApiWithHook.store.state.isOpen).toBe(true);
     expect(onBeforeClose).toHaveBeenCalled();
   });

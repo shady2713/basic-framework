@@ -33,6 +33,12 @@ type TreeNodeLike = {
   id?: number;
 };
 
+interface AssignDataPermissionValues {
+  dataScope: number;
+  dataScopeDeptIds: number[];
+  id: number;
+}
+
 const [Form, formApi] = useVbenForm({
   commonConfig: {
     componentProps: {
@@ -53,7 +59,7 @@ const [Modal, modalApi] = useVbenModal({
       return;
     }
     modalApi.lock();
-    const data = await formApi.getValues();
+    const data = await formApi.getValues<AssignDataPermissionValues>();
     try {
       await assignRoleDataScope({
         roleId: data.id,
@@ -61,7 +67,7 @@ const [Modal, modalApi] = useVbenModal({
         dataScopeDeptIds:
           data.dataScope === SystemDataScopeEnum.DEPT_CUSTOM
             ? data.dataScopeDeptIds
-            : undefined,
+            : [],
       });
       await modalApi.close();
       emit('success');

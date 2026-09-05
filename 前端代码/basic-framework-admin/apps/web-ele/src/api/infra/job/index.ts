@@ -73,5 +73,5 @@ export function runJob(id: number) {
 
 /** 获得定时任务的下 n 次执行时间 */
 export function getJobNextTimes(id: number) {
-  return requestClient.get(`/infra/job/get_next_times?id=${id}`);
+  return requestClient.get<Date[]>(`/infra/job/next-times?id=${id}`);
 }

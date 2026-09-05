@@ -15,8 +15,32 @@ import {
 import { getDeptList } from '#/api/system/dept';
 import { getSimpleUserList } from '#/api/system/user';
 
-let userList: SystemUserApi.User[] = [];
-getSimpleUserList().then((data) => (userList = data));
+export type DepartmentRow = SystemDeptApi.Dept & {
+  leaderUserName: string;
+};
+
+type DepartmentTreeOption = Pick<
+  SystemDeptApi.Dept,
+  'id' | 'name' | 'parentId'
+> & {
+  children?: DepartmentTreeOption[];
+};
+
+export function attachDepartmentLeaderNames(
+  departments: SystemDeptApi.Dept[],
+  users: Array<Pick<SystemUserApi.User, 'id' | 'nickname'>>,
+): DepartmentRow[] {
+  const namesById = new Map(
+    users.map((user) => [String(user.id), user.nickname]),
+  );
+  return departments.map((department) => ({
+    ...department,
+    leaderUserName:
+      department.leaderUserId === null
+        ? '-'
+        : (namesById.get(String(department.leaderUserId)) ?? '-'),
+  }));
+}
 
 export function useFormSchema(): VbenFormSchema[] {
   return [
@@ -35,7 +59,7 @@ export function useFormSchema(): VbenFormSchema[] {
       componentProps: {
         clearable: true,
         api: async () => {
-          const data = await getDeptList();
+          const data: DepartmentTreeOption[] = await getDeptList();
           data.unshift({
             id: 0,
             name: '顶级部门',
@@ -116,7 +140,7 @@ export function useFormSchema(): VbenFormSchema[] {
   ];
 }
 
-export function useGridColumns(): VxeTableGridOptions<SystemDeptApi.Dept>['columns'] {
+export function useGridColumns(): VxeTableGridOptions<DepartmentRow>['columns'] {
   return [
     { type: 'checkbox', width: 40, fixed: 'left' },
     {
@@ -127,12 +151,9 @@ export function useGridColumns(): VxeTableGridOptions<SystemDeptApi.Dept>['colum
       treeNode: true,
     },
     {
-      field: 'leaderUserId',
+      field: 'leaderUserName',
       title: '负责人',
       minWidth: 150,
-      formatter: ({ cellValue }) =>
-        userList.find((user) => String(user.id) === String(cellValue))
-          ?.nickname || '-',
     },
     {
       field: 'sort',

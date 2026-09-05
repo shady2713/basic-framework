@@ -17,7 +17,7 @@ export namespace SystemDictTypeApi {
 /** 查询字典（精简)列表 */
 export function getSimpleDictTypeList() {
   return requestClient.get<SystemDictTypeApi.DictType[]>(
-    '/system/dict-type/list-all-simple',
+    '/system/dict-type/simple-list',
   );
 }
 

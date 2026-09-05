@@ -11,6 +11,11 @@ import { showSuccessMessage } from '#/utils/feedback';
 import { useAssignRoleFormSchema } from '../data';
 
 const emit = defineEmits(['success']);
+
+interface AssignRoleValues {
+  id: number;
+  roleIds: number[];
+}
 const [Form, formApi] = useVbenForm({
   commonConfig: {
     componentProps: {
@@ -32,7 +37,7 @@ const [Modal, modalApi] = useVbenModal({
     }
     modalApi.lock();
     // 提交表单
-    const values = await formApi.getValues();
+    const values = await formApi.getValues<AssignRoleValues>();
     try {
       await assignUserRole({
         userId: values.id,

@@ -1,4 +1,11 @@
-import type { AuthPermissionInfo } from '@vben/types';
+import type { AxiosResponse, HttpResponse } from '@vben/request';
+import type {
+  AuthPermissionInfo,
+  CaptchaChallenge,
+  CaptchaCheckRequest,
+  CaptchaGetRequest,
+  CaptchaProtocolResponse,
+} from '@vben/types';
 
 import { baseRequestClient, requestClient } from '#/api/request';
 
@@ -175,7 +182,9 @@ export async function finishMfaStepUpWebAuthnApi(
 
 /** 刷新 accessToken */
 export async function refreshTokenApi() {
-  return baseRequestClient.post('/system/auth/refresh-token', {});
+  return baseRequestClient.post<
+    AxiosResponse<HttpResponse<AuthApi.LoginResult>>
+  >('/system/auth/refresh-token', {});
 }
 
 /** 退出登录 */
@@ -201,13 +210,18 @@ export async function getAuthPermissionInfoApi() {
 }
 
 /** 获取验证码 */
-export async function getCaptcha(data: { captchaType: string }) {
-  return baseRequestClient.post('/system/captcha/get', data);
+export async function getCaptcha(data: CaptchaGetRequest) {
+  return baseRequestClient.post<
+    AxiosResponse<CaptchaProtocolResponse<CaptchaChallenge>>
+  >('/system/captcha/get', data);
 }
 
 /** 校验验证码 */
-export async function checkCaptcha(data: { captchaVerification: string }) {
-  return baseRequestClient.post('/system/captcha/check', data);
+export async function checkCaptcha(data: CaptchaCheckRequest) {
+  return baseRequestClient.post<AxiosResponse<CaptchaProtocolResponse>>(
+    '/system/captcha/check',
+    data,
+  );
 }
 
 /** 获取登录验证码 */

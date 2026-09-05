@@ -1,5 +1,3 @@
-import type { Recordable } from '@vben/types';
-
 import type { VbenFormSchema } from '#/adapter/form';
 import type { VxeTableGridOptions } from '#/adapter/vxe-table';
 import type { SystemMenuApi } from '#/api/system/menu';
@@ -19,6 +17,20 @@ import { z } from '#/adapter/form';
 import { getMenuList } from '#/api/system/menu';
 import { $t } from '#/locales';
 import { componentKeys } from '#/router/routes';
+
+const DIRECTORY_OR_MENU_TYPES = [
+  SystemMenuTypeEnum.DIR,
+  SystemMenuTypeEnum.MENU,
+] as const;
+const MENU_ONLY_TYPES = [SystemMenuTypeEnum.MENU] as const;
+const MENU_OR_BUTTON_TYPES = [
+  SystemMenuTypeEnum.BUTTON,
+  SystemMenuTypeEnum.MENU,
+] as const;
+
+function isMenuType(value: unknown, allowedTypes: readonly number[]): boolean {
+  return typeof value === 'number' && allowedTypes.includes(value);
+}
 
 /** 新增/修改的表单 */
 export function useFormSchema(): VbenFormSchema[] {
@@ -49,7 +61,7 @@ export function useFormSchema(): VbenFormSchema[] {
         valueField: 'id',
         childrenField: 'children',
         placeholder: '请选择上级菜单',
-        filterTreeNode(input: string, node: Recordable<any>) {
+        filterTreeNode(input: string, node: { label?: string }) {
           if (!input || input.length === 0) {
             return true;
           }
@@ -106,9 +118,7 @@ export function useFormSchema(): VbenFormSchema[] {
       dependencies: {
         triggerFields: ['type'],
         show: (values) => {
-          return [SystemMenuTypeEnum.DIR, SystemMenuTypeEnum.MENU].includes(
-            values.type,
-          );
+          return isMenuType(values.type, DIRECTORY_OR_MENU_TYPES);
         },
       },
     },
@@ -124,13 +134,11 @@ export function useFormSchema(): VbenFormSchema[] {
       dependencies: {
         triggerFields: ['type', 'parentId'],
         show: (values) => {
-          return [SystemMenuTypeEnum.DIR, SystemMenuTypeEnum.MENU].includes(
-            values.type,
-          );
+          return isMenuType(values.type, DIRECTORY_OR_MENU_TYPES);
         },
         rules: (values) => {
           const schema = z.string().min(1, '路由地址不能为空');
-          if (isHttpUrl(values.path)) {
+          if (typeof values.path === 'string' && isHttpUrl(values.path)) {
             return schema;
           }
           if (values.parentId === 0) {
@@ -156,7 +164,7 @@ export function useFormSchema(): VbenFormSchema[] {
       dependencies: {
         triggerFields: ['type'],
         show: (values) => {
-          return [SystemMenuTypeEnum.MENU].includes(values.type);
+          return isMenuType(values.type, MENU_ONLY_TYPES);
         },
       },
     },
@@ -166,11 +174,14 @@ export function useFormSchema(): VbenFormSchema[] {
       component: 'AutoComplete',
       componentProps: {
         clearable: true,
-        fetchSuggestions(queryString: string, cb: any) {
+        fetchSuggestions(
+          queryString: string,
+          cb: (options: Array<{ value: string }>) => void,
+        ) {
           const options = componentKeys.map((v) => ({ value: v }));
           const createFilter = (qs: string) => {
-            return (restaurant: any) => {
-              return restaurant.value.toLowerCase().includes(qs.toLowerCase());
+            return (option: { value: string }) => {
+              return option.value.toLowerCase().includes(qs.toLowerCase());
             };
           };
           const results = queryString
@@ -183,7 +194,7 @@ export function useFormSchema(): VbenFormSchema[] {
       dependencies: {
         triggerFields: ['type'],
         show: (values) => {
-          return [SystemMenuTypeEnum.MENU].includes(values.type);
+          return isMenuType(values.type, MENU_ONLY_TYPES);
         },
       },
     },
@@ -196,9 +207,7 @@ export function useFormSchema(): VbenFormSchema[] {
       },
       dependencies: {
         show: (values) => {
-          return [SystemMenuTypeEnum.BUTTON, SystemMenuTypeEnum.MENU].includes(
-            values.type,
-          );
+          return isMenuType(values.type, MENU_OR_BUTTON_TYPES);
         },
         triggerFields: ['type'],
       },
@@ -240,9 +249,7 @@ export function useFormSchema(): VbenFormSchema[] {
       dependencies: {
         triggerFields: ['type'],
         show: (values) => {
-          return [SystemMenuTypeEnum.DIR, SystemMenuTypeEnum.MENU].includes(
-            values.type,
-          );
+          return isMenuType(values.type, DIRECTORY_OR_MENU_TYPES);
         },
       },
     },
@@ -262,7 +269,7 @@ export function useFormSchema(): VbenFormSchema[] {
       dependencies: {
         triggerFields: ['type'],
         show: (values) => {
-          return [SystemMenuTypeEnum.MENU].includes(values.type);
+          return isMenuType(values.type, MENU_ONLY_TYPES);
         },
       },
     },
@@ -282,7 +289,7 @@ export function useFormSchema(): VbenFormSchema[] {
       dependencies: {
         triggerFields: ['type'],
         show: (values) => {
-          return [SystemMenuTypeEnum.MENU].includes(values.type);
+          return isMenuType(values.type, MENU_ONLY_TYPES);
         },
       },
     },

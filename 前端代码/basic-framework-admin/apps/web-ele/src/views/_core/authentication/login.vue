@@ -60,9 +60,24 @@ const pendingLogin = ref<AuthApi.LoginResult>();
 const totpSetup = ref<AuthApi.TotpSetupResult>();
 const qrCodeDataUrl = ref('');
 const recoveryCodes = ref<string[]>([]);
-const availableMfaMethods = computed<MfaMethod[]>(
-  () => pendingLogin.value?.mfaMethods ?? [],
+const availableMfaMethods = computed<MfaMethod[]>(() =>
+  normalizeMfaMethods(pendingLogin.value?.mfaMethods),
 );
+const isTotpCodeValid = computed(() => /^\d{6}$/.test(mfaCode.value));
+const normalizedRecoveryCode = computed(() =>
+  recoveryCode.value.trim().toUpperCase(),
+);
+const canSubmitMfa = computed(() => {
+  if (totpSetup.value || mfaMode.value === 'TOTP') {
+    return isTotpCodeValid.value;
+  }
+  if (mfaMode.value === 'RECOVERY_CODE') {
+    return /^[A-Z0-9]{4}(?:-[A-Z0-9]{4}){3}$/.test(
+      normalizedRecoveryCode.value,
+    );
+  }
+  return true;
+});
 
 const captchaType = 'blockPuzzle';
 
@@ -94,8 +109,20 @@ async function submitCredentials(values: AuthApi.LoginParams) {
   if (!loginResult.mfaRequired) {
     return;
   }
-  pendingLogin.value = loginResult;
-  mfaMode.value = selectDefaultMfaMethod(loginResult.mfaMethods ?? []);
+  const methods = normalizeMfaMethods(loginResult.mfaMethods);
+  const defaultMethod = selectDefaultMfaMethod(methods);
+  const supportsEnrollment = methods.some(
+    (method) => method === 'TOTP' || method === 'WEBAUTHN',
+  );
+  if (
+    !loginResult.mfaToken ||
+    !defaultMethod ||
+    (loginResult.mfaEnrollmentRequired && !supportsEnrollment)
+  ) {
+    throw new Error('MFA login challenge is incomplete');
+  }
+  pendingLogin.value = { ...loginResult, mfaMethods: methods };
+  mfaMode.value = defaultMethod;
   mfaVisible.value = true;
 }
 
@@ -134,6 +161,7 @@ async function startWebAuthnEnrollment() {
       options.ceremonyToken,
       credentialJson,
     );
+    assertCompletedLoginResult(result);
     recoveryCodes.value = result.recoveryCodes ?? [];
     pendingLogin.value = result;
   } catch (error) {
@@ -145,7 +173,7 @@ async function startWebAuthnEnrollment() {
 }
 
 async function submitMfa() {
-  if (!pendingLogin.value) return;
+  if (!pendingLogin.value || !canSubmitMfa.value) return;
   mfaLoading.value = true;
   try {
     let result: AuthApi.LoginResult;
@@ -154,6 +182,7 @@ async function submitMfa() {
         totpSetup.value.enrollmentToken,
         mfaCode.value,
       );
+      assertCompletedLoginResult(result);
       recoveryCodes.value = result.recoveryCodes ?? [];
       pendingLogin.value = result;
       return;
@@ -170,8 +199,12 @@ async function submitMfa() {
     } else if (mfaMode.value === 'TOTP') {
       result = await verifyTotpApi(mfaToken, mfaCode.value);
     } else {
-      result = await verifyRecoveryCodeApi(mfaToken, recoveryCode.value);
+      result = await verifyRecoveryCodeApi(
+        mfaToken,
+        normalizedRecoveryCode.value,
+      );
     }
+    assertCompletedLoginResult(result);
     mfaVisible.value = false;
     await authStore.completeMfaLogin(result);
   } catch (error) {
@@ -182,10 +215,27 @@ async function submitMfa() {
   }
 }
 
-function selectDefaultMfaMethod(methods: MfaMethod[]): MfaMethod {
+function normalizeMfaMethods(methods: readonly unknown[] | undefined) {
+  if (!Array.isArray(methods)) return [];
+  return methods.filter(
+    (method): method is MfaMethod =>
+      method === 'RECOVERY_CODE' || method === 'TOTP' || method === 'WEBAUTHN',
+  );
+}
+
+function selectDefaultMfaMethod(
+  methods: readonly MfaMethod[],
+): MfaMethod | undefined {
   if (methods.includes('WEBAUTHN')) return 'WEBAUTHN';
   if (methods.includes('TOTP')) return 'TOTP';
-  return 'RECOVERY_CODE';
+  if (methods.includes('RECOVERY_CODE')) return 'RECOVERY_CODE';
+  return undefined;
+}
+
+function assertCompletedLoginResult(result: AuthApi.LoginResult) {
+  if (!result.accessToken) {
+    throw new Error('MFA verification result did not include an access token');
+  }
 }
 
 function mfaMethodLabel(method: MfaMethod) {
@@ -310,7 +360,7 @@ const formSchema = computed((): VbenFormSchema[] => {
         />
         <ElButton
           class="mt-4 w-full"
-          :disabled="mfaCode.length !== 6"
+          :disabled="!canSubmitMfa"
           :loading="mfaLoading"
           type="primary"
           @click="submitMfa"
@@ -387,6 +437,7 @@ const formSchema = computed((): VbenFormSchema[] => {
         />
         <ElButton
           class="mt-4 w-full"
+          :disabled="!canSubmitMfa"
           :loading="mfaLoading"
           type="primary"
           @click="submitMfa"

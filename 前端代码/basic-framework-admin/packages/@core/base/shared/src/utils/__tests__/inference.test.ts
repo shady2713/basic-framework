@@ -1,14 +1,21 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   getFirstNonNullOrUndefined,
   isBoolean,
   isEmpty,
   isHttpUrl,
+  isMacOs,
+  isNumber,
   isObject,
   isUndefined,
   isWindow,
+  isWindowsOs,
 } from '../inference';
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe('isHttpUrl', () => {
   it("should return true when given 'http://example.com'", () => {
@@ -94,6 +101,27 @@ describe('isWindow', () => {
     expect(isWindow({})).toBe(false);
     expect(isWindow([])).toBe(false);
     expect(isWindow(null)).toBe(false);
+  });
+});
+
+describe('platform inference', () => {
+  it('detects macOS and Windows user agents', () => {
+    const userAgent = vi.spyOn(window.navigator, 'userAgent', 'get');
+    userAgent.mockReturnValue('Mozilla/5.0 (Macintosh; Intel Mac OS X)');
+    expect(isMacOs()).toBe(true);
+    expect(isWindowsOs()).toBe(false);
+
+    userAgent.mockReturnValue('Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
+    expect(isMacOs()).toBe(false);
+    expect(isWindowsOs()).toBe(true);
+  });
+
+  it('accepts only finite numbers', () => {
+    expect(isNumber(0)).toBe(true);
+    expect(isNumber(-1.5)).toBe(true);
+    expect(isNumber(Number.NaN)).toBe(false);
+    expect(isNumber(Number.POSITIVE_INFINITY)).toBe(false);
+    expect(isNumber('1')).toBe(false);
   });
 });
 

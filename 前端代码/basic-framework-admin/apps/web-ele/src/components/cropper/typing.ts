@@ -3,10 +3,20 @@ import type { ButtonProps } from 'element-plus';
 
 import type { CSSProperties } from 'vue';
 
-export interface apiFunParams {
+export interface CropperUploadParams {
   file: Blob;
   filename: string;
   name: string;
+}
+
+export interface CropperUploadSuccess {
+  data: unknown;
+  source: string;
+}
+
+export interface CropperUploadError {
+  error?: unknown;
+  msg: string;
 }
 
 export interface CropendResult {
@@ -22,7 +32,7 @@ export interface CropperProps {
   height?: number | string;
   crossorigin?: '' | 'anonymous' | 'use-credentials' | undefined;
   imageStyle?: CSSProperties;
-  options?: Cropper.Options;
+  options?: Cropper.Options<HTMLImageElement>;
 }
 
 export interface CropperAvatarProps {
@@ -31,13 +41,13 @@ export interface CropperAvatarProps {
   showBtn?: boolean;
   btnProps?: ButtonProps;
   btnText?: string;
-  uploadApi?: (params: apiFunParams) => Promise<any>;
+  uploadApi?: (params: CropperUploadParams) => Promise<unknown>;
   size?: number;
 }
 
 export interface CropperModalProps {
   circled?: boolean;
-  uploadApi?: (params: apiFunParams) => Promise<any>;
+  uploadApi?: (params: CropperUploadParams) => Promise<unknown>;
   src?: string;
   size?: number;
 }

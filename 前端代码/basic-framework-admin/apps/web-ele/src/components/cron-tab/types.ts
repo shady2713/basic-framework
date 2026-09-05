@@ -13,12 +13,14 @@ export interface CronLoop<TStart = number, TEnd = number> {
   end: TEnd | undefined;
 }
 
+export type CronFieldType = '0' | '1' | '2' | '3' | '4' | '5' | '-1';
+
 export interface CronItem<
   TRange = number,
   TLoopStart = number,
   TLoopEnd = number,
 > {
-  type: string;
+  type: CronFieldType;
   range: CronRange<TRange>;
   loop: CronLoop<TLoopStart, TLoopEnd>;
   appoint: string[];
@@ -47,7 +49,7 @@ export interface CronData {
   day: string[];
   month: string[];
   week: WeekOption[];
-  year: number[];
+  year: string[];
 }
 
 const getYear = (): number[] => {
@@ -269,5 +271,5 @@ export const CronDataDefault: CronData = {
       label: '周六',
     },
   ],
-  year: getYear(),
+  year: getYear().map(String),
 };

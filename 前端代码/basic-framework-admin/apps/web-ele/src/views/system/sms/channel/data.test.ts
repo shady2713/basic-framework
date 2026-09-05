@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { useFormSchema } from './data';
+import { useFormSchema, useGridColumns } from './data';
 
 vi.mock('@vben/constants', () => ({
   CommonStatusEnum: { ENABLE: 0 },
@@ -15,17 +15,48 @@ vi.mock('@vben/hooks', () => ({
 }));
 
 describe('sms channel credential form', () => {
-  it('创建渠道时 API Secret 必填、编辑时允许留空保留', () => {
-    const field = useFormSchema().find(
-      (item) => item.fieldName === 'apiSecret',
-    ) as any;
+  it.each(['apiKey', 'apiSecret'])(
+    '创建渠道时 %s 必填、编辑时允许留空保留',
+    async (fieldName) => {
+      const field = useFormSchema().find(
+        (item) => item.fieldName === fieldName,
+      );
+      const rules = field?.dependencies?.rules;
 
-    expect(field.component).toBe('VbenInputPassword');
-    expect(
-      field.dependencies.rules({ id: undefined }).safeParse('').success,
-    ).toBe(false);
-    expect(field.dependencies.rules({ id: 1 }).safeParse('').success).toBe(
-      true,
+      if (!field || typeof rules !== 'function') {
+        throw new TypeError(`${fieldName} field must provide dependency rules`);
+      }
+
+      const actions = {} as Parameters<typeof rules>[1];
+      const createRule = await rules({ id: undefined }, actions);
+      const updateRule = await rules({ id: 1 }, actions);
+      if (!hasSafeParse(createRule) || !hasSafeParse(updateRule)) {
+        throw new TypeError(
+          `${fieldName} dependency rules must return Zod schemas`,
+        );
+      }
+
+      expect(createRule.safeParse('').success).toBe(false);
+      expect(updateRule.safeParse('').success).toBe(true);
+    },
+  );
+
+  it('列表不展示供应商账号', () => {
+    expect(useGridColumns()).not.toContainEqual(
+      expect.objectContaining({ field: 'apiKey' }),
     );
   });
 });
+
+interface SafeParseRule {
+  safeParse: (value: unknown) => { success: boolean };
+}
+
+function hasSafeParse(value: unknown): value is SafeParseRule {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'safeParse' in value &&
+    typeof value.safeParse === 'function'
+  );
+}

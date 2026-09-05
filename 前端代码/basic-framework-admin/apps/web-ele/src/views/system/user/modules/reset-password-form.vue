@@ -11,6 +11,11 @@ import { showSuccessMessage } from '#/utils/feedback';
 import { useResetPasswordFormSchema } from '../data';
 
 const emit = defineEmits(['success']);
+
+interface ResetPasswordValues {
+  id: number;
+  newPassword: string;
+}
 const [Form, formApi] = useVbenForm({
   commonConfig: {
     componentProps: {
@@ -32,7 +37,7 @@ const [Modal, modalApi] = useVbenModal({
     }
     modalApi.lock();
     // 提交表单
-    const data = await formApi.getValues();
+    const data = await formApi.getValues<ResetPasswordValues>();
     try {
       await resetUserPassword(data.id, data.newPassword);
       // 关闭并提示

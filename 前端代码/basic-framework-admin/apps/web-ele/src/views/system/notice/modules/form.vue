@@ -35,11 +35,9 @@ const [Modal, modalApi] = useVbenModal({
       return;
     }
     modalApi.lock();
-    // 提交表单
     const data = (await formApi.getValues()) as SystemNoticeApi.Notice;
     try {
       await (formData.value?.id ? updateNotice(data) : createNotice(data));
-      // 关闭并提示
       await modalApi.close();
       emit('success');
       showSuccessMessage($t('ui.actionMessage.operationSuccess'));
@@ -66,7 +64,6 @@ const [Modal, modalApi] = useVbenModal({
     modalApi.lock();
     try {
       formData.value = await getNotice(data.id);
-      // 设置到 values
       await formApi.setValues(formData.value);
     } finally {
       modalApi.unlock();

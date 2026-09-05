@@ -4,7 +4,7 @@ import type { DescInstance, DescriptionProps } from './typing';
 
 import { h, reactive } from 'vue';
 
-import Description from './description.vue';
+import Description from './description';
 
 export function useDescription(options?: Partial<DescriptionProps>) {
   const propsState = reactive<Partial<DescriptionProps>>(options || {});

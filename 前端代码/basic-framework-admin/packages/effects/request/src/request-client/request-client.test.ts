@@ -1,3 +1,5 @@
+import type { AxiosResponse } from 'axios';
+
 import axios from 'axios';
 import MockAdapter from 'axios-mock-adapter';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -20,7 +22,8 @@ describe('requestClient', () => {
   it('should successfully make a GET request', async () => {
     mock.onGet('test/url').reply(200, { data: 'response' });
 
-    const response = await requestClient.get('test/url');
+    const response =
+      await requestClient.get<AxiosResponse<{ data: string }>>('test/url');
 
     expect(response.data).toEqual({ data: 'response' });
   });
@@ -29,7 +32,10 @@ describe('requestClient', () => {
     const postData = { key: 'value' };
     const mockData = { data: 'response' };
     mock.onPost('/test/post', postData).reply(200, mockData);
-    const response = await requestClient.post('/test/post', postData);
+    const response = await requestClient.post<AxiosResponse<typeof mockData>>(
+      '/test/post',
+      postData,
+    );
     expect(response.data).toEqual(mockData);
   });
 
@@ -37,14 +43,20 @@ describe('requestClient', () => {
     const putData = { key: 'updatedValue' };
     const mockData = { data: 'updated response' };
     mock.onPut('/test/put', putData).reply(200, mockData);
-    const response = await requestClient.put('/test/put', putData);
+    const response = await requestClient.put<AxiosResponse<typeof mockData>>(
+      '/test/put',
+      putData,
+    );
     expect(response.data).toEqual(mockData);
   });
 
   it('should successfully make a DELETE request', async () => {
     const mockData = { data: 'delete response' };
     mock.onDelete('/test/delete').reply(200, mockData);
-    const response = await requestClient.delete('/test/delete');
+    const response =
+      await requestClient.delete<AxiosResponse<typeof mockData>>(
+        '/test/delete',
+      );
     expect(response.data).toEqual(mockData);
   });
 
@@ -53,7 +65,11 @@ describe('requestClient', () => {
     try {
       await requestClient.get('/test/error');
       expect(true).toBe(false);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      expect(axios.isAxiosError(error)).toBe(true);
+      if (!axios.isAxiosError(error)) {
+        throw error;
+      }
       expect(error.isAxiosError).toBe(true);
       expect(error.message).toBe('Network Error');
     }
@@ -64,7 +80,11 @@ describe('requestClient', () => {
     try {
       await requestClient.get('/test/timeout');
       expect(true).toBe(false);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      expect(axios.isAxiosError(error)).toBe(true);
+      if (!axios.isAxiosError(error)) {
+        throw error;
+      }
       expect(error.isAxiosError).toBe(true);
       expect(error.code).toBe('ECONNABORTED');
     }
@@ -79,9 +99,9 @@ describe('requestClient', () => {
         : [400, { error: 'Bad Request' }];
     });
 
-    const response = await requestClient.upload('/test/upload', {
-      file: fileData,
-    });
+    const response = await requestClient.upload<
+      AxiosResponse<{ data: string }>
+    >('/test/upload', { file: fileData });
     expect(response.data).toEqual({ data: 'file uploaded' });
   });
 
@@ -92,7 +112,8 @@ describe('requestClient', () => {
 
     mock.onGet('/test/download').reply(200, mockFileContent);
 
-    const res = await requestClient.download('/test/download');
+    const res =
+      await requestClient.download<AxiosResponse<Blob>>('/test/download');
 
     expect(res.data).toBeInstanceOf(Blob);
   });

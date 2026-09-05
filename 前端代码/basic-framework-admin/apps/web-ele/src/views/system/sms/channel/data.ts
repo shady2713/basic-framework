@@ -25,7 +25,10 @@ export function useFormSchema(): VbenFormSchema[] {
         options: getDictOptions(DICT_TYPE.SYSTEM_SMS_CHANNEL_CODE, 'string'),
         placeholder: '请选择短信渠道',
       },
-      rules: 'required',
+      rules: z
+        .string()
+        .min(1, '请输入短信签名')
+        .max(12, '短信签名最多 12 个字符'),
     },
     {
       component: 'Input',
@@ -46,13 +49,22 @@ export function useFormSchema(): VbenFormSchema[] {
       rules: z.number().default(CommonStatusEnum.ENABLE),
     },
     {
-      component: 'Input',
+      component: 'VbenInputPassword',
       fieldName: 'apiKey',
       label: 'API Key',
       componentProps: {
-        placeholder: '请输入 API Key',
+        placeholder: '创建时必填；修改时留空则保留原账号',
       },
-      rules: 'required',
+      dependencies: {
+        triggerFields: ['id'],
+        rules: (values) =>
+          values.id
+            ? z.string().max(128, 'API Key 最多 128 个字符').optional()
+            : z
+                .string()
+                .min(1, '请输入 API Key')
+                .max(128, 'API Key 最多 128 个字符'),
+      },
     },
     {
       component: 'VbenInputPassword',
@@ -65,8 +77,11 @@ export function useFormSchema(): VbenFormSchema[] {
         triggerFields: ['id'],
         rules: (values) =>
           values.id
-            ? z.string().optional()
-            : z.string().min(1, '请输入 API Secret'),
+            ? z.string().max(256, 'API Secret 最多 256 个字符').optional()
+            : z
+                .string()
+                .min(1, '请输入 API Secret')
+                .max(256, 'API Secret 最多 256 个字符'),
       },
     },
     {
@@ -76,6 +91,13 @@ export function useFormSchema(): VbenFormSchema[] {
       componentProps: {
         placeholder: '请输入回调地址',
       },
+      rules: z
+        .string()
+        .max(255, '回调地址最多 255 个字符')
+        .url('回调地址格式不正确')
+        .refine((value) => /^https?:\/\//.test(value), '仅支持 HTTP 或 HTTPS')
+        .optional()
+        .or(z.literal('')),
     },
     {
       fieldName: 'remark',
@@ -84,6 +106,7 @@ export function useFormSchema(): VbenFormSchema[] {
       componentProps: {
         placeholder: '请输入备注',
       },
+      rules: z.string().max(255, '备注最多 255 个字符').optional(),
     },
   ];
 }
@@ -159,11 +182,6 @@ export function useGridColumns(): VxeTableGridOptions['columns'] {
       field: 'remark',
       title: '备注',
       minWidth: 200,
-    },
-    {
-      field: 'apiKey',
-      title: 'API Key',
-      minWidth: 180,
     },
     {
       field: 'callbackUrl',

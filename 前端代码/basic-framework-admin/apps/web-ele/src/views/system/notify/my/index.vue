@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import type { SystemNotifyMessageApi } from '#/api/system/notify/message';
+
 import { onMounted, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
@@ -22,7 +24,7 @@ import { showSuccessMessage } from '#/utils/feedback';
 defineOptions({ name: 'MyNotifyMessage' });
 
 const loading = ref(false);
-const messages = ref<any[]>([]);
+const messages = ref<SystemNotifyMessageApi.Message[]>([]);
 const total = ref(0);
 const currentPage = ref(1);
 const pageSize = ref(10);

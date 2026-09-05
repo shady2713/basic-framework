@@ -10,6 +10,14 @@ import { ElMessage, ElMessageBox, ElNotification } from 'element-plus';
 const REQUEST_PARAM_PREFIX_RE =
   /^\u8BF7\u6C42\u53C2\u6570\u4E0D\u6B63\u786E[:\uFF1A]\s*/;
 
+type UnknownRecord = Record<string, unknown>;
+
+function toRecord(value: unknown): UnknownRecord {
+  return typeof value === 'object' && value !== null
+    ? (value as UnknownRecord)
+    : {};
+}
+
 function toMessage(value: unknown): string {
   if (typeof value === 'string') {
     return value;
@@ -35,9 +43,11 @@ export function extractErrorMessage(error: unknown, fallback = '') {
     return normalizeErrorMessage(error) || fallback;
   }
 
-  const errorObject = error as Record<string, any>;
-  const responseData =
-    errorObject.response?.data ?? errorObject.data ?? errorObject.error ?? {};
+  const errorObject = toRecord(error);
+  const response = toRecord(errorObject.response);
+  const responseData = toRecord(
+    response.data ?? errorObject.data ?? errorObject.error,
+  );
   const candidates = [
     responseData.error,
     responseData.message,
@@ -71,12 +81,13 @@ export function showError(
  * 展示由全局请求拦截器消费的错误。401 由重新认证流程接管，不重复弹出 toast。
  */
 export function showRequestError(error: unknown, fallback: string) {
-  const errorObject = error as Record<string, any>;
-  const status = errorObject?.response?.status;
+  const errorObject = toRecord(error);
+  const response = toRecord(errorObject.response);
+  const status = response.status;
   if (status === 401) {
     return;
   }
-  const responseData = errorObject?.response?.data ?? {};
+  const responseData = toRecord(response.data);
   const responseMessage = [
     responseData.error,
     responseData.message,

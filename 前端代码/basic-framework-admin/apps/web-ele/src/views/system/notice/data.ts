@@ -24,7 +24,10 @@ export function useFormSchema(): VbenFormSchema[] {
       componentProps: {
         placeholder: '请输入公告标题',
       },
-      rules: 'required',
+      rules: z
+        .string()
+        .min(1, '请输入公告标题')
+        .max(50, '公告标题不能超过 50 个字符'),
     },
     {
       fieldName: 'type',
@@ -52,14 +55,6 @@ export function useFormSchema(): VbenFormSchema[] {
         options: getDictOptions(DICT_TYPE.COMMON_STATUS, 'number'),
       },
       rules: z.number().default(CommonStatusEnum.ENABLE),
-    },
-    {
-      fieldName: 'remark',
-      label: '备注',
-      component: 'Textarea',
-      componentProps: {
-        placeholder: '请输入备注',
-      },
     },
   ];
 }

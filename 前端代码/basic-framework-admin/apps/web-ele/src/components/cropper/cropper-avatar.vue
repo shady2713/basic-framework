@@ -1,9 +1,9 @@
 <script lang="ts" setup>
 import type { CSSProperties } from 'vue';
 
-import type { CropperAvatarProps } from './typing';
+import type { CropperAvatarProps, CropperUploadSuccess } from './typing';
 
-import { computed, ref, unref, watch, watchEffect } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -14,6 +14,7 @@ import { ElButton } from 'element-plus';
 import { showSuccessMessage } from '#/utils/feedback';
 
 import cropperModal from './cropper-modal.vue';
+import { toCssDimension } from './cropper-utils';
 
 defineOptions({ name: 'CropperAvatar' });
 
@@ -21,56 +22,49 @@ const props = withDefaults(defineProps<CropperAvatarProps>(), {
   width: 200,
   value: '',
   showBtn: true,
-  btnProps: () => ({}) as any,
+  btnProps: () => ({}),
   btnText: '',
   uploadApi: () => Promise.resolve(),
   size: 5,
 });
 
-const emit = defineEmits(['update:value', 'change']);
+const emit = defineEmits<{
+  change: [payload: CropperUploadSuccess];
+  'update:value': [value: string];
+}>();
 
 const sourceValue = ref(props.value || '');
 const [CropperModal, modalApi] = useVbenModal({
   connectedComponent: cropperModal,
 });
 
-const getWidth = computed(() => `${`${props.width}`.replace(/px/, '')}px`);
+const getWidth = computed(() => toCssDimension(props.width));
+const isDisabled = computed(() => Boolean(props.btnProps.disabled));
 
-const getIconWidth = computed(
-  () => `${Number.parseInt(`${props.width}`.replace(/px/, '')) / 2}px`,
-);
-
-const getStyle = computed((): CSSProperties => ({ width: unref(getWidth) }));
+const getStyle = computed((): CSSProperties => ({ width: getWidth.value }));
 
 const getImageWrapperStyle = computed(
-  (): CSSProperties => ({ height: unref(getWidth), width: unref(getWidth) }),
+  (): CSSProperties => ({ height: getWidth.value, width: getWidth.value }),
 );
 
-watchEffect(() => {
-  sourceValue.value = props.value || '';
-});
-
 watch(
-  () => sourceValue.value,
-  (v: string) => {
-    emit('update:value', v);
+  () => props.value,
+  (value) => {
+    sourceValue.value = value || '';
   },
 );
 
-function handleUploadSuccess({
-  data,
-  source,
-}: {
-  data: string;
-  source: string;
-}) {
+function handleUploadSuccess({ data, source }: CropperUploadSuccess) {
   sourceValue.value = source;
+  emit('update:value', source);
   emit('change', { data, source });
   showSuccessMessage($t('ui.cropper.uploadSuccess'));
 }
 
 const closeModal = () => modalApi.close();
-const openModal = () => modalApi.open();
+const openModal = () => {
+  if (!isDisabled.value) modalApi.open();
+};
 
 defineExpose({
   closeModal,
@@ -79,44 +73,37 @@ defineExpose({
 </script>
 
 <template>
-  <!-- 头像容器 -->
   <div class="inline-block text-center" :style="getStyle">
-    <!-- 图片包装器 -->
-    <div
-      class="group relative cursor-pointer overflow-hidden rounded-full border border-gray-200 bg-white"
+    <button
+      :aria-label="$t('ui.cropper.selectImage')"
+      :disabled="isDisabled"
+      class="group relative overflow-hidden rounded-full border border-gray-200 bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
       :style="getImageWrapperStyle"
+      type="button"
       @click="openModal"
     >
-      <!-- 遮罩层 -->
       <div
-        class="duration-400 absolute inset-0 flex cursor-pointer items-center justify-center rounded-full bg-black bg-opacity-40 opacity-0 transition-opacity group-hover:opacity-100"
+        aria-hidden="true"
+        class="absolute inset-0 flex items-center justify-center rounded-full bg-black bg-opacity-40 opacity-60 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-visible:opacity-100"
         :style="getImageWrapperStyle"
       >
         <IconifyIcon
           icon="lucide:cloud-upload"
-          class="m-auto text-gray-400"
-          :style="{
-            ...getImageWrapperStyle,
-            width: getIconWidth,
-            height: getIconWidth,
-            lineHeight: getIconWidth,
-          }"
+          class="m-auto h-1/2 w-1/2 text-gray-200"
         />
       </div>
-      <!-- 头像图片 -->
       <img
         v-if="sourceValue"
         :src="sourceValue"
-        alt="avatar"
+        :alt="$t('ui.cropper.preview')"
         class="h-full w-full object-cover"
       />
-    </div>
-    <!-- 上传按钮 -->
+    </button>
     <ElButton
       v-if="showBtn"
+      v-bind="btnProps"
       class="mx-auto mt-2"
       @click="openModal"
-      v-bind="btnProps"
     >
       {{ btnText ? btnText : $t('ui.cropper.selectImage') }}
     </ElButton>

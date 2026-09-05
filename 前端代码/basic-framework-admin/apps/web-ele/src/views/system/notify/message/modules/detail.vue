@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import type { SystemNotifyMessageApi } from '#/api/system/notify/message';
+
 import { ref } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
@@ -7,7 +9,7 @@ import { useDescription } from '#/components/description';
 
 import { useDetailSchema } from '../data';
 
-const formData = ref<any>();
+const formData = ref<SystemNotifyMessageApi.Message>();
 
 const [Descriptions] = useDescription({
   border: true,
@@ -21,7 +23,7 @@ const [Modal, modalApi] = useVbenModal({
       formData.value = undefined;
       return;
     }
-    const data = modalApi.getData<any>();
+    const data = modalApi.getData<SystemNotifyMessageApi.Message>();
     if (!data || !data.id) {
       return;
     }

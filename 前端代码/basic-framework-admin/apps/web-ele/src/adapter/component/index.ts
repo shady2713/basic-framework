@@ -5,7 +5,6 @@
 import type { Component } from 'vue';
 
 import type { BaseFormComponentType } from '@vben/common-ui';
-import type { Recordable } from '@vben/types';
 
 import { defineAsyncComponent, defineComponent, h, ref } from 'vue';
 
@@ -146,18 +145,15 @@ const ElRate = defineAsyncComponent(() =>
 const withDefaultPlaceholder = <T extends Component>(
   component: T,
   type: 'input' | 'select',
-  componentProps: Recordable<any> = {},
+  componentProps: Record<string, unknown> = {},
 ) => {
   return defineComponent({
     name: component.name,
     inheritAttrs: false,
-    setup: (props: any, { attrs, expose, slots }) => {
-      const placeholder =
-        props?.placeholder ||
-        attrs?.placeholder ||
-        $t(`ui.placeholder.${type}`);
+    setup: (_props, { attrs, expose, slots }) => {
+      const placeholder = attrs.placeholder || $t(`ui.placeholder.${type}`);
       // 透传组件暴露的方法
-      const innerRef = ref();
+      const innerRef = ref<Record<PropertyKey, unknown>>();
       expose(
         new Proxy(
           {},
@@ -170,7 +166,7 @@ const withDefaultPlaceholder = <T extends Component>(
       return () =>
         h(
           component,
-          { ...componentProps, placeholder, ...props, ...attrs, ref: innerRef },
+          { ...componentProps, placeholder, ...attrs, ref: innerRef },
           slots,
         );
     },
@@ -271,11 +267,11 @@ async function initComponentAdapter() {
     // 自定义默认按钮
     DefaultButton: (props, { attrs, slots }) => {
       // 调整 type 为 default ，info 有点丑
-      return h(ElButton, { ...props, attrs, type: 'default' }, slots);
+      return h(ElButton, { ...props, ...attrs, type: 'default' }, slots);
     },
     // 自定义主要按钮
     PrimaryButton: (props, { attrs, slots }) => {
-      return h(ElButton, { ...props, attrs, type: 'primary' }, slots);
+      return h(ElButton, { ...props, ...attrs, type: 'primary' }, slots);
     },
     Divider: ElDivider,
     IconPicker: withDefaultPlaceholder(IconPicker, 'select', {
@@ -306,13 +302,13 @@ async function initComponentAdapter() {
       );
     },
     Select: (props, { attrs, slots }) => {
-      return h(ElSelectV2, { ...props, attrs }, slots);
+      return h(ElSelectV2, { ...props, ...attrs }, slots);
     },
     Space: ElSpace,
     Switch: ElSwitch,
     TimePicker: (props, { attrs, slots }) => {
       const { name, id, isRange } = props;
-      const extraProps: Recordable<any> = {};
+      const extraProps: Record<string, string[]> = {};
       if (isRange) {
         if (name && !Array.isArray(name)) {
           extraProps.name = [name, `${name}_end`];
@@ -333,7 +329,7 @@ async function initComponentAdapter() {
     },
     RangePicker: (props, { attrs, slots }) => {
       const { name, id } = props;
-      const extraProps: Recordable<any> = {};
+      const extraProps: Record<string, string[]> = {};
       if (name && !Array.isArray(name)) {
         extraProps.name = [name, `${name}_end`];
       }
@@ -354,7 +350,7 @@ async function initComponentAdapter() {
     Rate: ElRate,
     DatePicker: (props, { attrs, slots }) => {
       const { name, id, type } = props;
-      const extraProps: Recordable<any> = {};
+      const extraProps: Record<string, string[]> = {};
       if (type && type.includes('range')) {
         if (name && !Array.isArray(name)) {
           extraProps.name = [name, `${name}_end`];

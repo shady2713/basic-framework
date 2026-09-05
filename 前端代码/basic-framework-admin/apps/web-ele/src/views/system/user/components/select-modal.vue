@@ -36,6 +36,10 @@ type DeptSourceNode = {
   name?: string;
 };
 
+type UserSelectModalData = {
+  userIds?: number[];
+};
+
 defineOptions({ name: 'UserSelectModal' });
 
 withDefaults(
@@ -83,7 +87,7 @@ const [Modal, modalApi] = useVbenModal({
       return;
     }
     // 加载数据
-    const data = modalApi.getData();
+    const data = modalApi.getData<UserSelectModalData>();
     if (!data) {
       return;
     }
@@ -152,7 +156,7 @@ const rightListState = ref({
 // 计算属性：Transfer 数据源
 const transferDataSource = computed(() => {
   // 使用 Map 来去重，确保每个用户只出现一次
-  const userMap = new Map<number, any>();
+  const userMap = new Map<number, SystemUserApi.User>();
 
   // 先添加左侧数据
   for (const user of leftListState.value.dataSource) {
@@ -220,28 +224,24 @@ const filteredDeptTree = computed(() => {
 
 // 加载用户数据
 async function loadUserData(pageNo: number, pageSize: number) {
-  try {
-    const { list, total } = await getUserPage({
-      pageNo,
-      pageSize,
-      deptId: selectedDeptId.value,
-      username: leftListState.value.searchValue || undefined,
-    });
+  const { list, total } = await getUserPage({
+    pageNo,
+    pageSize,
+    deptId: selectedDeptId.value,
+    username: leftListState.value.searchValue || undefined,
+  });
 
-    leftListState.value.dataSource = list;
-    leftListState.value.pagination.total = total;
-    leftListState.value.pagination.current = pageNo;
-    leftListState.value.pagination.pageSize = pageSize;
+  leftListState.value.dataSource = list;
+  leftListState.value.pagination.total = total;
+  leftListState.value.pagination.current = pageNo;
+  leftListState.value.pagination.pageSize = pageSize;
 
-    // 更新用户列表缓存
-    const newUsers = list.filter(
-      (user) => !userList.value.some((u) => u.id === user.id),
-    );
-    if (newUsers.length > 0) {
-      userList.value.push(...newUsers);
-    }
-  } finally {
-    //
+  // 更新用户列表缓存
+  const newUsers = list.filter(
+    (user) => !userList.value.some((u) => u.id === user.id),
+  );
+  if (newUsers.length > 0) {
+    userList.value.push(...newUsers);
   }
 }
 

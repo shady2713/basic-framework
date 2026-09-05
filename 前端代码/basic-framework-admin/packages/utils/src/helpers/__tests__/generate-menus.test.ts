@@ -1,10 +1,15 @@
 import type { Router, RouteRecordRaw } from 'vue-router';
 
+import type { AppRouteRecordRaw } from '@vben-core/typings';
+
 import { createRouter, createWebHistory } from 'vue-router';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { generateMenus } from '../generate-menus';
+import {
+  convertServerMenuToRouteRecordStringComponent,
+  generateMenus,
+} from '../generate-menus';
 
 // Nested route setup to test child inclusion and hideChildrenInMenu functionality
 
@@ -37,6 +42,17 @@ describe('generateMenus', () => {
       { name: 'about', path: '/about' },
       { name: 'team', path: '/about/team' },
     ]),
+    resolve: vi.fn((target: unknown) => {
+      if (
+        typeof target === 'object' &&
+        target !== null &&
+        'path' in target &&
+        typeof target.path === 'string'
+      ) {
+        return { path: target.path };
+      }
+      throw new TypeError('Expected a route location with a path');
+    }),
   };
 
   it('the correct menu list should be generated according to the route', async () => {
@@ -69,7 +85,7 @@ describe('generateMenus', () => {
       },
     ];
 
-    const menus = generateMenus(mockRoutes, mockRouter as any);
+    const menus = generateMenus(mockRoutes, mockRouter as unknown as Router);
     expect(menus).toEqual(expectedMenus);
   });
 
@@ -82,7 +98,10 @@ describe('generateMenus', () => {
       },
     ] as RouteRecordRaw[];
 
-    const menus = generateMenus(mockRoutesWithMeta, mockRouter as any);
+    const menus = generateMenus(
+      mockRoutesWithMeta,
+      mockRouter as unknown as Router,
+    );
     expect(menus).toEqual([
       {
         badge: undefined,
@@ -109,7 +128,10 @@ describe('generateMenus', () => {
       },
     ] as RouteRecordRaw[];
 
-    const menus = generateMenus(mockRoutesWithParams, mockRouter as any);
+    const menus = generateMenus(
+      mockRoutesWithParams,
+      mockRouter as unknown as Router,
+    );
     expect(menus).toEqual([
       {
         badge: undefined,
@@ -127,12 +149,25 @@ describe('generateMenus', () => {
     ]);
   });
 
-  it('processes routes with redirects correctly', async () => {
+  it('uses static redirects and falls back for dynamic redirects', async () => {
     const mockRoutesWithRedirect = [
       {
+        meta: { hideChildrenInMenu: true, title: 'String redirect' },
         name: 'redirectedRoute',
         path: '/old-path',
         redirect: '/new-path',
+      },
+      {
+        meta: { hideChildrenInMenu: true, title: 'Object redirect' },
+        name: 'objectRedirect',
+        path: '/object-source',
+        redirect: { path: '/object-target' },
+      },
+      {
+        meta: { hideChildrenInMenu: true, title: 'Dynamic redirect' },
+        name: 'dynamicRedirect',
+        path: '/dynamic-source',
+        redirect: () => '/dynamic-target',
       },
       {
         meta: { icon: 'path-icon', title: 'New Path' },
@@ -141,21 +176,49 @@ describe('generateMenus', () => {
       },
     ] as RouteRecordRaw[];
 
-    const menus = generateMenus(mockRoutesWithRedirect, mockRouter as any);
+    const menus = generateMenus(
+      mockRoutesWithRedirect,
+      mockRouter as unknown as Router,
+    );
     expect(menus).toEqual([
-      // Assuming your generateMenus function excludes redirect routes from the menu
       {
         badge: undefined,
         badgeType: undefined,
         badgeVariants: undefined,
         icon: undefined,
-        name: 'redirectedRoute',
+        name: 'String redirect',
         order: undefined,
         parent: undefined,
         parents: undefined,
-        path: '/old-path',
+        path: '/new-path',
         show: true,
         children: [],
+      },
+      {
+        badge: undefined,
+        badgeType: undefined,
+        badgeVariants: undefined,
+        children: [],
+        icon: undefined,
+        name: 'Object redirect',
+        order: undefined,
+        parent: undefined,
+        parents: undefined,
+        path: '/object-target',
+        show: true,
+      },
+      {
+        badge: undefined,
+        badgeType: undefined,
+        badgeVariants: undefined,
+        children: [],
+        icon: undefined,
+        name: 'Dynamic redirect',
+        order: undefined,
+        parent: undefined,
+        parents: undefined,
+        path: '/dynamic-source',
+        show: true,
       },
       {
         badge: undefined,
@@ -173,13 +236,47 @@ describe('generateMenus', () => {
     ]);
   });
 
-  const routes: any = [
+  it('adds parent paths to visible child menus', () => {
+    const child = {
+      meta: { title: 'Child' },
+      name: 'child',
+      path: 'child',
+    };
+    const menus = generateMenus(
+      [
+        {
+          children: [child],
+          meta: { title: 'Parent' },
+          name: 'parent',
+          path: '/parent',
+        },
+      ] as RouteRecordRaw[],
+      {
+        ...mockRouter,
+        getRoutes: vi.fn(() => [
+          { name: 'parent', path: '/parent' },
+          { name: 'child', path: '/parent/child' },
+        ]),
+      } as unknown as Router,
+    );
+
+    expect(menus[0]?.children?.[0]).toEqual(
+      expect.objectContaining({
+        parent: '/parent',
+        parents: ['/parent'],
+      }),
+    );
+  });
+
+  const routes: RouteRecordRaw[] = [
     {
+      component: () => null,
       meta: { order: 2, title: 'Home' },
       name: 'home',
       path: '/',
     },
     {
+      component: () => null,
       meta: { order: 1, title: 'About' },
       name: 'about',
       path: '/about',
@@ -226,8 +323,164 @@ describe('generateMenus', () => {
   });
 
   it('should handle empty routes', async () => {
-    const emptyRoutes: any[] = [];
+    const emptyRoutes: RouteRecordRaw[] = [];
     const menus = generateMenus(emptyRoutes, router);
     expect(menus).toEqual([]);
+  });
+});
+
+describe('convertServerMenuToRouteRecordStringComponent', () => {
+  it('converts nested menus without mutating the server response', () => {
+    const source = [
+      {
+        children: [
+          {
+            component: 'system/user/index?tab=active&source=menu',
+            icon: 'user',
+            id: 2,
+            keepAlive: true,
+            name: '用户管理',
+            parentId: 1,
+            path: 'user',
+            sort: 2,
+            visible: true,
+          },
+        ],
+        component: 'Layout',
+        icon: 'system',
+        id: 1,
+        name: '系统管理',
+        parentId: 0,
+        path: 'system',
+        sort: 1,
+        visible: true,
+      },
+    ] satisfies AppRouteRecordRaw[];
+    const snapshot = structuredClone(source);
+
+    const routes = convertServerMenuToRouteRecordStringComponent(source);
+
+    expect(routes).toEqual([
+      expect.objectContaining({
+        component: 'BasicLayout',
+        name: '系统管理',
+        path: '/system',
+        children: [
+          expect.objectContaining({
+            component: 'system/user/index',
+            meta: expect.objectContaining({
+              query: { source: 'menu', tab: 'active' },
+            }),
+            path: '/system/user',
+          }),
+        ],
+      }),
+    ]);
+    expect(source).toEqual(snapshot);
+  });
+
+  it('converts external links and strips the iframe marker', () => {
+    const routes = convertServerMenuToRouteRecordStringComponent([
+      {
+        icon: 'docs',
+        id: 8,
+        name: '文档',
+        parentId: 0,
+        path: 'https://example.com/docs?_iframe=1&lang=zh',
+        sort: 3,
+        visible: false,
+      },
+      {
+        id: 9,
+        name: '官网',
+        parentId: 0,
+        path: 'https://example.com',
+        sort: 4,
+        visible: true,
+      },
+    ] satisfies AppRouteRecordRaw[]);
+
+    expect(routes[0]).toEqual(
+      expect.objectContaining({
+        component: 'IFrameView',
+        meta: expect.objectContaining({
+          hideInMenu: true,
+          iframeSrc: 'https://example.com/docs?lang=zh',
+          link: undefined,
+        }),
+        path: '8',
+      }),
+    );
+    expect(routes[1]?.meta?.link).toBe('https://example.com');
+  });
+
+  it('makes duplicate route names deterministic and reports the conflict', () => {
+    const consoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+    const routes = convertServerMenuToRouteRecordStringComponent([
+      {
+        component: 'first',
+        id: 10,
+        name: '相同名称',
+        parentId: 0,
+        path: 'first',
+        sort: 1,
+        visible: true,
+      },
+      {
+        component: 'second',
+        id: 11,
+        name: '相同名称',
+        parentId: 0,
+        path: 'second',
+        sort: 2,
+        visible: true,
+      },
+    ] satisfies AppRouteRecordRaw[]);
+
+    expect(routes.map(({ name }) => name)).toEqual(['相同名称', '相同名称11']);
+    expect(consoleError).toHaveBeenCalledOnce();
+    consoleError.mockRestore();
+  });
+
+  it('normalizes nested groups and legacy Layout leaf components', () => {
+    const routes = convertServerMenuToRouteRecordStringComponent([
+      {
+        children: [
+          {
+            children: [
+              {
+                component: 'Layout',
+                id: 23,
+                name: '叶节点',
+                parentId: 22,
+                path: 'leaf',
+                visible: true,
+              },
+            ],
+            component: 'ignored',
+            id: 22,
+            name: '分组',
+            parentId: 21,
+            path: 'group',
+            visible: true,
+          },
+        ],
+        component: 'ignored',
+        id: 21,
+        name: '根节点',
+        parentId: 0,
+        path: 'root',
+        visible: true,
+      },
+    ] satisfies AppRouteRecordRaw[]);
+
+    expect(routes[0]?.children?.[0]).toEqual(
+      expect.objectContaining({
+        component: '',
+        children: [expect.objectContaining({ component: 'BasicLayout' })],
+      }),
+    );
   });
 });

@@ -12,8 +12,6 @@ import { $t } from '@vben/locales';
 import { createFile, getFilePresignedUrl, uploadFile } from '#/api/infra/file';
 import { baseRequestClient } from '#/api/request';
 
-const { apiURL } = useAppConfig(import.meta.env, import.meta.env.PROD);
-
 /**
  * 上传类型
  */
@@ -87,9 +85,14 @@ export function useUploadType(options: UploadTypeOptions) {
  * 上传钩子函数
  * @param directory 上传目录
  * @param errorMode 上传失败的反馈消费方式
+ * @param publicRead 是否允许匿名读取；默认私有
  * @returns 上传 URL 和自定义上传方法
  */
-export function useUpload(directory?: string, errorMode: ErrorMode = 'global') {
+export function useUpload(
+  directory?: string,
+  errorMode: ErrorMode = 'global',
+  publicRead = false,
+) {
   // 后端上传地址
   const uploadUrl = getUploadUrl();
   // 是否使用前端直连上传
@@ -105,23 +108,29 @@ export function useUpload(directory?: string, errorMode: ErrorMode = 'global') {
       // 1.1 生成文件名称
       const fileName = await generateFileName(file);
       // 1.2 获取文件预签名地址
-      const presignedInfo = await getFilePresignedUrl(fileName, directory);
+      const presignedInfo = await getFilePresignedUrl(
+        fileName,
+        file.size,
+        file.type || undefined,
+        directory,
+        publicRead,
+      );
       // 1.3 上传文件
-      return baseRequestClient
-        .put(presignedInfo.uploadUrl, file, {
-          headers: {
-            'Content-Type': file.type,
-          },
-        })
-        .then(() => {
-          // 1.4. 记录文件信息到后端（异步）
-          createFile0(presignedInfo, file);
-          // 通知成功，数据格式保持与后端上传的返回结果一致
-          return { url: presignedInfo.url };
-        });
+      await baseRequestClient.put(presignedInfo.uploadUrl, file, {
+        headers: {
+          'Content-Type': file.type,
+        },
+      });
+      // 1.4 对象与元数据均写入成功后，才向上传组件报告成功。
+      const url = await createFile0(presignedInfo);
+      return { url };
     } else {
       // 模式二：后端上传
-      return uploadFile({ file, directory }, onUploadProgress, errorMode);
+      return uploadFile(
+        { file, directory, publicRead },
+        onUploadProgress,
+        errorMode,
+      );
     }
   }
 
@@ -135,6 +144,7 @@ export function useUpload(directory?: string, errorMode: ErrorMode = 'global') {
  * 获得上传 URL
  */
 export function getUploadUrl(): string {
+  const { apiURL } = useAppConfig(import.meta.env, import.meta.env.PROD);
   return `${apiURL}/infra/file/upload`;
 }
 
@@ -142,29 +152,14 @@ export function getUploadUrl(): string {
  * 创建文件信息
  *
  * @param vo 文件预签名信息
- * @param file 文件
  */
-function createFile0(
+async function createFile0(
   vo: InfraFileApi.FilePresignedUrlRespVO,
-  file: File,
-): InfraFileApi.File {
-  const fileVO = {
-    configId: vo.configId,
-    url: vo.url,
-    path: vo.path,
-    name: file.name,
-    type: file.type,
-    size: file.size,
-  };
-  createFile(fileVO);
-  return fileVO;
+): Promise<string> {
+  return createFile({ uploadToken: vo.uploadToken });
 }
 
-/**
- * 生成文件名称（使用算法SHA256）
- *
- * @param file 要上传的文件
- */
+/** 保留原始文件名；存储路径由服务端预签名接口隔离生成。 */
 async function generateFileName(file: File) {
   return file.name;
 }
