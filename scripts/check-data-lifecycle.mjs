@@ -3,7 +3,7 @@
 // 都必须在 docs/contracts/data-lifecycle.json 中显式登记。
 
 import { readdirSync, readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -25,14 +25,14 @@ function migrationVersion(fileName) {
   return match ? Number.parseInt(match[1], 10) : Number.MAX_SAFE_INTEGER;
 }
 
-function readMigrations() {
-  return readdirSync(MIGRATION_DIR)
+export function readMigrations(migrationDir = MIGRATION_DIR) {
+  return readdirSync(migrationDir)
     .filter((name) => /^V\d+__.*\.sql$/.test(name))
     .sort((left, right) => migrationVersion(left) - migrationVersion(right))
-    .map((name) => ({ name, sql: readFileSync(join(MIGRATION_DIR, name), 'utf8') }));
+    .map((name) => ({ name, sql: readFileSync(join(migrationDir, name), 'utf8') }));
 }
 
-function finalTables(migrations) {
+export function finalTables(migrations) {
   const tables = new Set();
   const statementPattern =
     /(CREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?|DROP\s+TABLE\s+IF\s+EXISTS)\s+`?([A-Za-z0-9_]+)`?/gi;
@@ -48,19 +48,35 @@ function finalTables(migrations) {
   return tables;
 }
 
-function physicalForeignKeys(migrations) {
-  const constraints = new Set();
-  const constraintPattern =
-    /CONSTRAINT\s+`?([A-Za-z0-9_]+)`?\s+FOREIGN\s+KEY/gi;
+export function physicalForeignKeys(migrations) {
+  const constraints = new Map();
+  const tableDefinitionPattern =
+    /CREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?\s+`?([A-Za-z0-9_]+)`?\s*\(([\s\S]*?)\)\s*ENGINE[^;]*;|ALTER\s+TABLE\s+`?([A-Za-z0-9_]+)`?([\s\S]*?);/gi;
   for (const { sql } of migrations) {
-    for (const match of sql.matchAll(constraintPattern)) {
-      constraints.add(match[1]);
+    for (const definition of sql.matchAll(tableDefinitionPattern)) {
+      const table = definition[1] ?? definition[3];
+      const body = definition[2] ?? definition[4];
+      for (const match of body.matchAll(
+        /CONSTRAINT\s+`?([A-Za-z0-9_]+)`?\s+FOREIGN\s+KEY/gi,
+      )) {
+        constraints.set(match[1], table);
+      }
+      for (const match of body.matchAll(
+        /\bDROP\s+FOREIGN\s+KEY\s+`?([A-Za-z0-9_]+)`?/gi,
+      )) {
+        constraints.delete(match[1]);
+      }
     }
   }
-  return constraints;
+  const existingTables = finalTables(migrations);
+  return new Set(
+    [...constraints.entries()]
+      .filter(([, table]) => existingTables.has(table))
+      .map(([constraint]) => constraint),
+  );
 }
 
-function tablesWithDeletedColumn(migrations) {
+export function tablesWithDeletedColumn(migrations) {
   const tables = new Set();
   const schemaEventPattern =
     /CREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?\s+`?([A-Za-z0-9_]+)`?\s*\(([\s\S]*?)\)\s*ENGINE[^;]*;|ALTER\s+TABLE\s+`?([A-Za-z0-9_]+)`?([\s\S]*?);/gi;
@@ -85,7 +101,7 @@ function tablesWithDeletedColumn(migrations) {
   return tables;
 }
 
-function compareSets(actual, expected, label, errors) {
+export function compareSets(actual, expected, label, errors) {
   for (const value of [...actual].sort()) {
     if (!expected.has(value)) {
       errors.push(`${label} 未登记：${value}`);
@@ -191,4 +207,6 @@ function main() {
   }
 }
 
-main();
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main();
+}

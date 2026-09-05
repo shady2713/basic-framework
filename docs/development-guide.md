@@ -19,7 +19,7 @@
 
 1. **数据库迁移**：在 `basic-framework-server/src/main/resources/db/migration/` 新增 `V{n}__<说明>.sql`。表、列、索引 snake_case；约束命名 `pk_/uk_/idx_`；审计五件套（`creator/create_time/updater/update_time/deleted`）照抄同库现有表；已在共享环境执行的迁移文件永不修改。首发前合并基线也必须先写 ADR，禁止开发者自行改历史。
 2. **字段契约登记**：每个字段在字段目录登记语义类型（名称/手机号/金额/……）、长度、必填、敏感级别。不允许拍脑袋写 `varchar(255)`。
-3. **生成骨架**：用 infra 代码生成器产出 DO/Mapper/Service/Controller/前端页面骨架，然后按下文规则修正——生成物是起点不是终点。修改生成配置时字段列表不能为空且列 ID 必须属于当前表，不得伪造 `tableId` 或跨表引用关系字段；子表必须引用活动的主表模板并同时指定自身关联字段和关系类型，树表必须指定两个不同的自身字段。管理后台场景可在导入草稿阶段暂不选择父菜单，但更新完成配置和执行生成前必须选择根菜单或活动的目录/菜单；APP 场景不得保留父菜单。被代码生成配置引用的菜单不可删除或改为按钮，被引用的主表不可删除或改为非主表模板，被引用字段需先解除配置才能同步删除，校验失败不得进入生成阶段。
+3. **搭建骨架**：按现有模块结构手工建立 DO/Mapper/Service/Controller 和前端页面，复制相邻业务文件时只保留当前实体需要的字段、权限与行为，不引入示例业务。应用端接口通过 `controller.app` 扩展点按业务鉴权和资源归属规则实现；接入微信小程序、APP 或 H5 会员体系时，应用模块还必须注册声明 MEMBER 类型的 `UserSessionCommonApi` Provider，未接入时 `/app-api` 认证按关闭失败处理。
 4. **后端分层**：
    - DTO/VO：Create/Update/PageReqVO/RespVO 分开（存量 SaveReqVO 见第 0 节口径）；Controller 只做协议映射、边界校验、鉴权声明。
    - Service：公共写方法加 `@Transactional(rollbackFor = Exception.class)`；业务失败 `throw exception(ErrorCode)`，错误码进所属模块 `ErrorCodeConstants`；禁止 hutool Assert 做业务校验。
@@ -50,14 +50,15 @@
 | 新表、删除或关联 | 先更新 [`docs/data-lifecycle.md`](data-lifecycle.md) 及机器台账；逐表声明软删、硬删、追加保留或平台托管，物理 FK 与逻辑引用均不得隐式新增 |
 | MFA 登录、管理与 step-up | 第一因子成功后只接收服务端一次性 `mfaToken`，不得提前签发或持久化 access/refresh Token；WebAuthn 注册/认证还必须使用服务端一次性 ceremony、精确 RP ID/Origin 和 REQUIRED user verification，TOTP/恢复码沿同一状态机完成后再建会话。首次自助注册的完成挑战必须绑定当前用户；已有因子的新增、轮换、移除和恢复码重置全部标记 `@MfaStepUp`。高风险分级以 [`docs/security/high-risk-operations.md`](security/high-risk-operations.md) 为准。客户端统一承接 HTTP 403 + `1_002_000_016`，完成 `/system/auth/mfa/step-up/*` 后只重试原请求一次，业务页面不得复制挑战弹窗。短时状态只绑定当前 access token，刷新不继承；WebAuthn 多凭据复用同一 opaque user handle，TOTP 轮换与最后因子检查使用条件更新/行锁，业务端点不得自行比较验证码或读 Redis |
 | 浏览器会话 | access token 仅保存在页面内存并通过 `Authorization` 发送；refresh token 仅存在于 host-only、`HttpOnly`、`SameSite=Strict` Cookie，生产环境强制 `Secure`。刷新端点只读 Cookie，每次成功刷新必须轮换 refresh token 且旧值立即失效；refresh token 绝不能作为 access token 认证。前端请求客户端统一启用 credentials，页面重载最多尝试恢复一次会话；登出同时撤销 token family 并清除 Cookie。任何业务模块不得自行持久化、读取或转发 refresh token |
-| ZIP 上传 | 统一走文件服务；存储前校验条目路径、条目数、总展开量和压缩比，阈值由 `basic-framework.file.archive.*` 配置拥有；业务代码不得自行解压不可信压缩包 |
+| 文件上传 | 统一走文件服务；元数据列宽、相对路径和失败补偿遵循 ADR 0012。新文件默认私有，公开展示必须显式传 `publicRead=true`；私有文件必须记录业务所有者并使用受控读取的存储配置，业务代码不得把不可猜路径当作授权。ZIP 在存储前校验条目路径、条目数、总展开量和压缩比，阈值由 `basic-framework.file.archive.*` 配置拥有；业务代码不得自行解压不可信压缩包 |
 | Redis Stream 消费 | 按 at-least-once 设计；以消息 `messageId` 建 inbox/唯一约束后再产生业务副作用；确定性业务错误覆盖监听器 `isRetryable` 返回 `false`，DLQ 人工回放/丢弃统一走 `RedisStreamDeadLetterService`，禁止直接改 Redis；管理入口必须校验专用权限/MFA，`operator` 只取服务端认证身份 |
 | 定时任务 | 实现 `JobHandler`，处理器必须可重入/幂等或持有业务唯一键；停机错过的 cron 默认跳过，不能依赖重启补跑；需要人工补偿时设计独立、有审计的命令 |
-| 密钥/密码 | 部署级秘密只来自环境变量/Secret 管理；由管理员维护的客户端、渠道和基础设施凭据只经高风险写接口进入，按数据分级规则进行不可逆哈希或版本化加密。任何秘密都不得有可运行默认值、进入日志或被普通查询接口回显 |
+| 密钥/密码 | 部署级秘密只来自环境变量/Secret 管理；由管理员维护的客户端、渠道和基础设施凭据只经高风险写接口进入，按数据分级规则进行不可逆哈希或版本化加密。用户自选密码的设密边界见 ADR 0011：不 trim，至少 15 码点且最多 72 UTF-8 字节，所有设密服务入口还要执行上下文弱密码检查；登录入口为兼容历史哈希只校验非空。部署品牌保留词由 `basic-framework.security.password-policy.reserved-terms` 统一配置。任何秘密都不得有可运行默认值、进入日志或被普通查询接口回显 |
+| 登录防爆破 | 客户端 IP 限流与账号级 Redis 失败计数同时生效。账号密码在配置窗口内达到阈值后短时锁定；正确的密码或短信认证、密码重置以及经权限与 MFA step-up 保护的管理员命令可清除状态。业务代码不得自行拼接锁定 Redis Key 或绕过 `LoginProtectionService` |
 
 ## 3. 禁止事项（Code Review 一票否决）
 
-1. Controller 里写业务事务；Service/DAL 导入 controller VO（ArchUnit 规则 D 拦截，存量违例冻结在 `archunit_store` 基线，只减不增）。
+1. Controller 里写业务事务；Service/DAL 导入 controller VO（ArchUnit 规则 D 硬拦截，当前零违例，新增导入即失败）。
 2. hutool Assert、裸 `IllegalArgumentException`、`exception0(code, "内联文案")` 承载业务分支。
 3. `ex.getMessage()`、Spring/SQL 原始异常文案进入响应体。
 4. 手写正则（手机号/密码/邮箱等）出现在权威文件之外。
