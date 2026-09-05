@@ -4,6 +4,8 @@ import type {
   ContextMenuRadioItemProps,
 } from 'reka-ui';
 
+import type { HTMLAttributes } from 'vue';
+
 import { computed } from 'vue';
 
 import { cn } from '@vben-core/shared/utils';
@@ -15,7 +17,9 @@ import {
   useForwardPropsEmits,
 } from 'reka-ui';
 
-const props = defineProps<ContextMenuRadioItemProps & { class?: any }>();
+const props = defineProps<
+  ContextMenuRadioItemProps & { class?: HTMLAttributes['class'] }
+>();
 const emits = defineEmits<ContextMenuRadioItemEmits>();
 
 const delegatedProps = computed(() => {

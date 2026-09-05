@@ -2,14 +2,16 @@ import type { RouteRecordNormalized } from 'vue-router';
 
 import { useRouter } from 'vue-router';
 
-import { isHttpUrl, openRouteInNewWindow, openWindow } from '@vben/utils';
+import { openRouteInNewWindow, openWindow } from '@vben/utils';
+
+import { resolveNavigationDestination } from '../../navigation-destination';
 
 function useNavigation() {
   const router = useRouter();
   const routeMetaMap = new Map<string, RouteRecordNormalized>();
 
-  // 初始化路由映射
   const initRouteMetaMap = () => {
+    routeMetaMap.clear();
     const routes = router.getRoutes();
     routes.forEach((route) => {
       routeMetaMap.set(route.path, route);
@@ -18,18 +20,15 @@ function useNavigation() {
 
   initRouteMetaMap();
 
-  // 监听路由变化
   router.afterEach(() => {
     initRouteMetaMap();
   });
 
-  // 检查是否应该在新窗口打开
   const shouldOpenInNewWindow = (path: string): boolean => {
-    if (isHttpUrl(path)) {
+    if (resolveNavigationDestination(path)?.kind === 'external') {
       return true;
     }
     const route = routeMetaMap.get(path);
-    // 如果有外链或者设置了在新窗口打开，返回 true
     return !!(route?.meta?.link || route?.meta?.openInNewWindow);
   };
 
@@ -38,29 +37,23 @@ function useNavigation() {
   };
 
   const navigation = async (path: string) => {
-    try {
-      const route = routeMetaMap.get(path);
-      const { openInNewWindow = false, query = {}, link } = route?.meta ?? {};
-
-      // 检查是否有外链
-      if (link && typeof link === 'string') {
-        openWindow(link, { target: '_blank' });
-        return;
-      }
-
-      if (isHttpUrl(path)) {
-        openWindow(path, { target: '_blank' });
-      } else if (openInNewWindow) {
-        openRouteInNewWindow(resolveHref(path));
-      } else {
-        await router.push({
-          path,
-          query,
-        });
-      }
-    } catch (error) {
-      console.error('Navigation failed:', error);
-      throw error;
+    const route = routeMetaMap.get(path);
+    const { openInNewWindow = false, query = {}, link } = route?.meta ?? {};
+    const destination = resolveNavigationDestination(
+      typeof link === 'string' ? link : path,
+    );
+    if (!destination) {
+      throw new TypeError('Unsupported navigation destination.');
+    }
+    if (destination.kind === 'external') {
+      openWindow(destination.url, { target: '_blank' });
+    } else if (openInNewWindow) {
+      openRouteInNewWindow(resolveHref(destination.path));
+    } else {
+      await router.push({
+        path: destination.path,
+        query,
+      });
     }
   };
 

@@ -8,9 +8,11 @@ import type { App, Directive, DirectiveBinding } from 'vue';
 
 import { useAccess } from './use-access';
 
+type AccessRequirement = string | string[] | undefined;
+
 function isAccessible(
   el: Element,
-  binding: DirectiveBinding<string | string[]>,
+  binding: DirectiveBinding<AccessRequirement>,
 ) {
   const { accessMode, hasAccessByCodes, hasAccessByRoles } = useAccess();
 
@@ -29,11 +31,11 @@ function isAccessible(
   }
 }
 
-const mounted = (el: Element, binding: DirectiveBinding<string | string[]>) => {
+const mounted = (el: Element, binding: DirectiveBinding<AccessRequirement>) => {
   isAccessible(el, binding);
 };
 
-const authDirective: Directive = {
+const authDirective: Directive<Element, AccessRequirement> = {
   mounted,
 };
 

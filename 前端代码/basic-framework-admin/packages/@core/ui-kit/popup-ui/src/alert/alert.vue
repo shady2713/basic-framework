@@ -1,19 +1,10 @@
 <script lang="ts" setup>
-import type { Component } from 'vue';
-
 import type { AlertProps } from './alert';
 
-import { computed, h, nextTick, ref } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 
 import { useSimpleLocale } from '@vben-core/composables';
-import {
-  CircleAlert,
-  CircleCheckBig,
-  CircleHelp,
-  CircleX,
-  Info,
-  X,
-} from '@vben-core/icons';
+import { X } from '@vben-core/icons';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,6 +20,7 @@ import { globalShareState } from '@vben-core/shared/global-state';
 import { cn } from '@vben-core/shared/utils';
 
 import { provideAlertContext } from './alert';
+import { resolveAlertIcon } from './icons';
 
 const props = withDefaults(defineProps<AlertProps>(), {
   bordered: true,
@@ -50,48 +42,7 @@ function onEscapeKeyDown() {
   isConfirm.value = false;
 }
 
-const getIconRender = computed(() => {
-  let iconRender: Component | null = null;
-  if (props.icon) {
-    if (typeof props.icon === 'string') {
-      switch (props.icon) {
-        case 'error': {
-          iconRender = h(CircleX, {
-            style: { color: 'hsl(var(--destructive))' },
-          });
-          break;
-        }
-        case 'info': {
-          iconRender = h(Info, { style: { color: 'hsl(var(--info))' } });
-          break;
-        }
-        case 'question': {
-          iconRender = CircleHelp;
-          break;
-        }
-        case 'success': {
-          iconRender = h(CircleCheckBig, {
-            style: { color: 'hsl(var(--success))' },
-          });
-          break;
-        }
-        case 'warning': {
-          iconRender = h(CircleAlert, {
-            style: { color: 'hsl(var(--warning))' },
-          });
-          break;
-        }
-        default: {
-          iconRender = null;
-          break;
-        }
-      }
-    }
-  } else {
-    iconRender = props.icon ?? null;
-  }
-  return iconRender;
-});
+const getIconRender = computed(() => resolveAlertIcon(props.icon));
 
 function doCancel() {
   handleCancel();

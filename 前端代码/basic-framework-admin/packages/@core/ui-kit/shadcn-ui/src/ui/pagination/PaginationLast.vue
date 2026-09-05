@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { PaginationLastProps } from 'reka-ui';
 
+import type { HTMLAttributes } from 'vue';
+
 import { computed } from 'vue';
 
 import { cn } from '@vben-core/shared/utils';
@@ -11,7 +13,7 @@ import { PaginationLast } from 'reka-ui';
 import { Button } from '../button';
 
 const props = withDefaults(
-  defineProps<PaginationLastProps & { class?: any }>(),
+  defineProps<PaginationLastProps & { class?: HTMLAttributes['class'] }>(),
   {
     asChild: true,
   },

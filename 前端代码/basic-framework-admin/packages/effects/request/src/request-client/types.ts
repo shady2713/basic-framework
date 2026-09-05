@@ -7,7 +7,7 @@ import type {
 
 type ErrorMode = 'global' | 'inline' | 'silent';
 
-type ExtendOptions<T = any> = {
+type ExtendOptions<T = unknown> = {
   /**
    * 错误消费方式。
    * - global: 由全局拦截器提示（默认）。
@@ -36,9 +36,10 @@ type ExtendOptions<T = any> = {
    */
   responseReturn?: 'body' | 'data' | 'raw';
 };
-type RequestClientConfig<T = any> = AxiosRequestConfig<T> & ExtendOptions<T>;
+type RequestClientConfig<T = unknown> = AxiosRequestConfig<T> &
+  ExtendOptions<T>;
 
-type RequestResponse<T = any> = AxiosResponse<T> & {
+type RequestResponse<T = unknown> = AxiosResponse<T> & {
   config: RequestClientConfig<T>;
 };
 
@@ -48,7 +49,11 @@ type RequestContentType =
   | 'application/x-www-form-urlencoded;charset=utf-8'
   | 'multipart/form-data;charset=utf-8';
 
-type RequestClientOptions = CreateAxiosDefaults & ExtendOptions;
+type RequestClientOptions = CreateAxiosDefaults<unknown> &
+  ExtendOptions<unknown>;
+
+type InterceptorRequestConfig = ExtendOptions<unknown> &
+  InternalAxiosRequestConfig<unknown>;
 
 /**
  * SSE 请求选项
@@ -60,23 +65,19 @@ interface SseRequestOptions extends RequestInit {
 
 interface RequestInterceptorConfig {
   fulfilled?: (
-    config: ExtendOptions & InternalAxiosRequestConfig,
-  ) =>
-    | (ExtendOptions & InternalAxiosRequestConfig<any>)
-    | Promise<ExtendOptions & InternalAxiosRequestConfig<any>>;
-  rejected?: (error: any) => any;
+    config: InterceptorRequestConfig,
+  ) => InterceptorRequestConfig | Promise<InterceptorRequestConfig>;
+  rejected?: (error: unknown) => unknown;
 }
 
-interface ResponseInterceptorConfig<T = any> {
-  fulfilled?: (
-    response: RequestResponse<T>,
-  ) => Promise<RequestResponse> | RequestResponse;
-  rejected?: (error: any) => any;
+interface ResponseInterceptorConfig<T = unknown> {
+  fulfilled?: (response: RequestResponse<T>) => Promise<unknown> | unknown;
+  rejected?: (error: unknown) => unknown;
 }
 
-type MakeErrorMessageFn = (message: string, error: any) => void;
+type MakeErrorMessageFn = (message: string, error: unknown) => void;
 
-interface HttpResponse<T = any> {
+interface HttpResponse<T = unknown> {
   /**
    * 0 表示成功 其他表示失败
    * 0 means success, others means fail
@@ -87,7 +88,7 @@ interface HttpResponse<T = any> {
 }
 
 interface PageParam {
-  [key: string]: any;
+  [key: string]: unknown;
   pageNo: number;
   pageSize: number;
 }
@@ -100,6 +101,7 @@ interface PageResult<T> {
 export type {
   ErrorMode,
   HttpResponse,
+  InterceptorRequestConfig,
   MakeErrorMessageFn,
   PageParam,
   PageResult,

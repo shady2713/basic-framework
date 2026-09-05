@@ -2,7 +2,14 @@ import type { RouteRecordRaw } from 'vue-router';
 
 import type { MenuRecordRaw } from '@vben-core/typings';
 
+import type { LockScreenCredential } from '../security/lock-screen-credential';
+
 import { acceptHMRUpdate, defineStore } from 'pinia';
+
+import {
+  createLockScreenCredential,
+  verifyLockScreenCredential,
+} from '../security/lock-screen-credential';
 
 type AccessToken = null | string;
 
@@ -32,9 +39,9 @@ interface AccessState {
    */
   isLockScreen: boolean;
   /**
-   * 锁屏密码
+   * 锁屏口令派生凭据；不保留口令原文
    */
-  lockScreenPassword?: string;
+  lockScreenCredential?: LockScreenCredential;
   /**
    * 登录是否过期
    */
@@ -65,9 +72,10 @@ export const useAccessStore = defineStore('core-access', {
       }
       return findMenu(this.accessMenus, path);
     },
-    lockScreen(password: string) {
+    async lockScreen(password: string) {
+      const credential = await createLockScreenCredential(password);
+      this.lockScreenCredential = credential;
       this.isLockScreen = true;
-      this.lockScreenPassword = password;
     },
     setAccessCodes(codes: string[]) {
       this.accessCodes = codes;
@@ -89,7 +97,10 @@ export const useAccessStore = defineStore('core-access', {
     },
     unlockScreen() {
       this.isLockScreen = false;
-      this.lockScreenPassword = undefined;
+      this.lockScreenCredential = undefined;
+    },
+    verifyLockScreenPassword(password: string) {
+      return verifyLockScreenCredential(password, this.lockScreenCredential);
     },
   },
   state: (): AccessState => ({
@@ -99,7 +110,7 @@ export const useAccessStore = defineStore('core-access', {
     accessToken: null,
     isAccessChecked: false,
     isLockScreen: false,
-    lockScreenPassword: undefined,
+    lockScreenCredential: undefined,
     loginExpired: false,
   }),
 });

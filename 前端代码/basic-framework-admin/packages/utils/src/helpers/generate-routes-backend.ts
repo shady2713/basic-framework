@@ -29,35 +29,30 @@ async function generateRoutesByBackend(
     forbiddenComponent,
   } = options;
 
-  try {
-    const menuRoutes = await fetchMenuListAsync?.();
-    if (!menuRoutes) {
-      return [];
-    }
-
-    const normalizePageMap: ComponentRecordType = {};
-
-    for (const [key, value] of Object.entries(pageMap)) {
-      normalizePageMap[normalizeViewPath(key)] = value;
-    }
-
-    let routes = convertRoutes(menuRoutes, layoutMap, normalizePageMap);
-
-    if (forbiddenComponent) {
-      routes = mapTree(routes, (route) => {
-        if (menuHasVisibleWithForbidden(route)) {
-          route.component = forbiddenComponent;
-        }
-        return route;
-      });
-    }
-
-    // 合并静态路由和动态路由
-    return [...options.routes, ...routes];
-  } catch (error) {
-    console.error(error);
-    throw error;
+  const menuRoutes = await fetchMenuListAsync?.();
+  if (!menuRoutes) {
+    return [];
   }
+
+  const normalizePageMap: ComponentRecordType = {};
+
+  for (const [key, value] of Object.entries(pageMap)) {
+    normalizePageMap[normalizeViewPath(key)] = value;
+  }
+
+  let routes = convertRoutes(menuRoutes, layoutMap, normalizePageMap);
+
+  if (forbiddenComponent) {
+    routes = mapTree(routes, (route) => {
+      if (menuHasVisibleWithForbidden(route)) {
+        route.component = forbiddenComponent;
+      }
+      return route;
+    });
+  }
+
+  // 合并静态路由和动态路由
+  return [...options.routes, ...routes];
 }
 
 function convertRoutes(
@@ -66,11 +61,11 @@ function convertRoutes(
   pageMap: ComponentRecordType,
 ): RouteRecordRaw[] {
   return mapTree(routes, (node) => {
-    const route = node as unknown as RouteRecordRaw;
+    const route = { ...node } as unknown as RouteRecordRaw;
     const { component, name } = node;
 
     if (!name) {
-      console.error('route name is required', route);
+      throw new Error(`Backend route is missing required name: ${node.path}`);
     }
 
     // layout转换
@@ -85,8 +80,13 @@ function convertRoutes(
       if (pageMap[pageKey]) {
         route.component = pageMap[pageKey];
       } else {
-        console.error(`route component is invalid: ${pageKey}`, route);
-        route.component = pageMap['/_core/fallback/not-found.vue'];
+        const fallbackComponent = pageMap['/_core/fallback/not-found.vue'];
+        if (!fallbackComponent) {
+          throw new Error(
+            `Backend route component is invalid and no fallback is configured: ${pageKey}`,
+          );
+        }
+        route.component = fallbackComponent;
       }
     }
 

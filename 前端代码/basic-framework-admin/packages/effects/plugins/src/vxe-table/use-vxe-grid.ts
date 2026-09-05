@@ -21,17 +21,17 @@ type FilteredSlots<T> = {
 
 /** 创建 VxeGrid 表格组件及其 API 实例的 composable 函数 */
 export function useVbenVxeGrid<
-  T extends Record<string, any> = any,
+  T extends object = Record<string, unknown>,
   D extends BaseFormComponentType = BaseFormComponentType,
 >(options: VxeGridProps<T, D>) {
-  const api = new VxeGridApi(options);
+  const api = new VxeGridApi<T, D>(options);
   const extendedApi: ExtendedVxeGridApi<T, D> = api as ExtendedVxeGridApi<T, D>;
   extendedApi.useStore = (selector) => {
     return useStore(api.store, selector);
   };
 
   const Grid = defineComponent(
-    (props: VxeGridProps<T>, { attrs, slots }) => {
+    (props: VxeGridProps<T, D>, { attrs, slots }) => {
       onBeforeUnmount(() => {
         api.unmount();
       });

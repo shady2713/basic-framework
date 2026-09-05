@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import type { Recordable } from '@vben/types';
-
 import type { SettingProps } from './types';
 
 import {
@@ -18,7 +16,7 @@ withDefaults(defineProps<SettingProps>(), {
 });
 
 const emit = defineEmits<{
-  change: [Recordable<any>];
+  change: [{ fieldName: string; value: boolean }];
 }>();
 
 function handleChange(fieldName: string, value: boolean) {

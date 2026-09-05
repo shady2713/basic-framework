@@ -107,13 +107,22 @@ onMounted(() => {
           <input
             ref="searchInputRef"
             v-model="keyword"
+            :aria-label="$t('ui.widgets.search.searchNavigate')"
             :placeholder="$t('ui.widgets.search.searchNavigate')"
-            class="ring-none placeholder:text-muted-foreground w-[80%] rounded-md border border-none bg-transparent p-2 pl-0 text-sm font-normal outline-none ring-0 ring-offset-transparent focus-visible:ring-transparent"
+            autocomplete="off"
+            class="ring-none placeholder:text-muted-foreground focus-visible:ring-primary w-[80%] rounded-md border border-none bg-transparent p-2 pl-0 text-sm font-normal outline-none ring-0 ring-offset-transparent focus-visible:ring-1"
+            spellcheck="false"
+            type="search"
           />
         </div>
       </template>
 
-      <SearchPanel :keyword="keyword" :menus="menus" @close="handleClose" />
+      <SearchPanel
+        :active="open === true"
+        :keyword="keyword"
+        :menus="menus"
+        @close="handleClose"
+      />
       <template #footer>
         <div class="flex w-full justify-start text-xs">
           <div class="mr-2 flex items-center">
@@ -132,8 +141,10 @@ onMounted(() => {
         </div>
       </template>
     </Modal>
-    <div
-      class="md:bg-accent group flex h-8 cursor-pointer items-center gap-3 rounded-2xl border-none bg-none px-2 py-0.5 outline-none"
+    <button
+      :aria-label="$t('ui.widgets.search.title')"
+      class="md:bg-accent focus-visible:ring-ring group flex h-8 cursor-pointer items-center gap-3 rounded-2xl border-none bg-none px-2 py-0.5 outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+      type="button"
       @click="toggleOpen()"
     >
       <Search
@@ -151,7 +162,6 @@ onMounted(() => {
         {{ isWindowsOs() ? 'Ctrl' : '⌘' }}
         <kbd>K</kbd>
       </span>
-      <span v-else></span>
-    </div>
+    </button>
   </div>
 </template>

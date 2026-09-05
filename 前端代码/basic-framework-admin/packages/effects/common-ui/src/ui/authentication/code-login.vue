@@ -1,7 +1,5 @@
 <script setup lang="ts">
-import type { Recordable } from '@vben/types';
-
-import type { VbenFormSchema } from '@vben-core/form-ui';
+import type { FormValues, VbenFormSchema } from '@vben-core/form-ui';
 
 import { computed, reactive } from 'vue';
 import { useRouter } from 'vue-router';
@@ -55,7 +53,7 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const emit = defineEmits<{
-  submit: [Recordable<any>];
+  submit: [FormValues];
 }>();
 
 const router = useRouter();

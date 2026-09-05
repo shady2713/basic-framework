@@ -15,17 +15,23 @@ interface DictState {
   dictCache: Dict;
 }
 
+interface DictApiItem extends Record<string, unknown> {
+  colorType?: string;
+  cssClass?: string;
+  dictType: string;
+}
+
+type DictApiParams = Record<string, unknown>;
+
 export const useDictStore = defineStore('core-dict', {
   actions: {
-    getDictData(dictType: string, value: any) {
+    getDictData(dictType: string, value: unknown) {
       const dict = this.dictCache[dictType];
       if (!dict) {
         return undefined;
       }
-      return (
-        dict.find((d) => d.value === value || d.value === value.toString()) ??
-        undefined
-      );
+      const normalizedValue = typeof value === 'string' ? value : String(value);
+      return dict.find((item) => item.value === normalizedValue);
     },
     getDictOptions(dictType: string) {
       const dictOptions = this.dictCache[dictType];
@@ -38,12 +44,12 @@ export const useDictStore = defineStore('core-dict', {
       this.dictCache = dicts;
     },
     setDictCacheByApi(
-      api: (params: Record<string, any>) => Promise<Record<string, any>[]>,
-      params: Record<string, any> = {},
+      api: (params: DictApiParams) => Promise<DictApiItem[]>,
+      params: DictApiParams = {},
       labelField: string = 'label',
       valueField: string = 'value',
     ) {
-      api(params).then((dicts) => {
+      return api(params).then((dicts) => {
         const dictCacheData: Dict = {};
         dicts.forEach((dict) => {
           dictCacheData[dict.dictType] = dicts
@@ -51,8 +57,8 @@ export const useDictStore = defineStore('core-dict', {
             .map((d) => ({
               colorType: d.colorType,
               cssClass: d.cssClass,
-              label: d[labelField],
-              value: d[valueField],
+              label: String(d[labelField] ?? ''),
+              value: String(d[valueField] ?? ''),
             }));
         });
         this.setDictCache(dictCacheData);

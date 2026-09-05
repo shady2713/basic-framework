@@ -1,3 +1,5 @@
+import type { CaptchaCheckApi, CaptchaGetApi, CaptchaType } from '@vben/types';
+
 interface VerificationProps {
   arith?: number;
   barSize?: {
@@ -8,7 +10,7 @@ interface VerificationProps {
     height: string;
     width: string;
   };
-  captchaType?: 'blockPuzzle' | 'clickWord';
+  captchaType?: CaptchaType;
   explain?: string;
   figure?: number;
   imgSize?: {
@@ -18,8 +20,8 @@ interface VerificationProps {
   mode?: 'fixed' | 'pop';
   space?: number;
   type?: '1' | '2';
-  checkCaptchaApi?: (data: any) => Promise<any>;
-  getCaptchaApi?: (data: any) => Promise<any>;
+  checkCaptchaApi?: CaptchaCheckApi;
+  getCaptchaApi?: CaptchaGetApi;
 }
 
 export type { VerificationProps };

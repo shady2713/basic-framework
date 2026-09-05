@@ -1,6 +1,7 @@
 import type {
   FormItemDependencies,
   FormSchemaRuleType,
+  FormValues,
   MaybeComponentProps,
 } from '../types';
 
@@ -17,10 +18,7 @@ import { injectRenderFormProps } from './context';
  * @param values 表单值
  * @param fieldName 字段名
  */
-function resolveValueByFieldName(
-  values: Record<string, any>,
-  fieldName: string,
-) {
+function resolveValueByFieldName(values: FormValues, fieldName: string) {
   // vee-validate：[] 表示禁用嵌套
   if (fieldName.startsWith('[') && fieldName.endsWith(']')) {
     const rawKey = fieldName.slice(1, -1);
@@ -33,7 +31,7 @@ function resolveValueByFieldName(
 export default function useDependencies(
   getDependencies: () => FormItemDependencies | undefined,
 ) {
-  const values = useFormValues();
+  const values = useFormValues<FormValues>();
 
   const formRenderProps = injectRenderFormProps();
 

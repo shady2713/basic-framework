@@ -1,13 +1,17 @@
 <script setup lang="ts">
 import type { PinInputRootEmits, PinInputRootProps } from 'reka-ui';
 
+import type { HTMLAttributes } from 'vue';
+
 import { computed } from 'vue';
 
 import { cn } from '@vben-core/shared/utils';
 
 import { PinInputRoot, useForwardPropsEmits } from 'reka-ui';
 
-const props = defineProps<PinInputRootProps & { class?: any }>();
+const props = defineProps<
+  PinInputRootProps & { class?: HTMLAttributes['class'] }
+>();
 const emits = defineEmits<PinInputRootEmits>();
 
 const delegatedProps = computed(() => {

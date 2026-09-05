@@ -1,6 +1,6 @@
 import type { DefaultProps, Props } from 'tippy.js';
 
-import type { App, SetupContext } from 'vue';
+import type { App, Component, FunctionalComponent } from 'vue';
 
 import { h, watchEffect } from 'vue';
 import { setDefaultProps, Tippy as TippyComponent } from 'vue-tippy';
@@ -31,7 +31,7 @@ export type TippyProps = Partial<
   }
 >;
 
-export function initTippy(app: App<Element>, options?: DefaultProps) {
+export function initTippy(app: App<Element>, options?: Partial<DefaultProps>) {
   setDefaultProps({
     allowHTML: true,
     delay: [500, 200],
@@ -47,7 +47,10 @@ export function initTippy(app: App<Element>, options?: DefaultProps) {
   app.directive('tippy', useTippyDirective(isDark));
 }
 
-export const Tippy = (props: any, { attrs, slots }: SetupContext) => {
+export const Tippy: FunctionalComponent<TippyProps> = (
+  props,
+  { attrs, slots },
+) => {
   let theme: string = (attrs.theme as string) ?? 'auto';
   if (theme === 'auto') {
     theme = isDark.value ? '' : 'light';
@@ -56,7 +59,7 @@ export const Tippy = (props: any, { attrs, slots }: SetupContext) => {
     theme = '';
   }
   return h(
-    TippyComponent,
+    TippyComponent as Component,
     {
       ...props,
       ...attrs,

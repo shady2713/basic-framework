@@ -135,9 +135,9 @@ function handleOpenLock() {
   lockModalApi.open();
 }
 
-function handleSubmitLock(lockScreenPassword: string) {
+async function handleSubmitLock(lockScreenPassword: string) {
+  await accessStore.lockScreen(lockScreenPassword);
   lockModalApi.close();
-  accessStore.lockScreen(lockScreenPassword);
 }
 
 function handleLogout() {

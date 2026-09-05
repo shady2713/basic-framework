@@ -21,12 +21,52 @@ export interface VxePaginationInfo {
   total: number;
 }
 
+export type VxeGridRow = Record<string, unknown>;
+export type VxeGridFormValues = Record<string, unknown>;
+export type VxeGlobalGridOptions<T = VxeGridRow> = VxeTableGridProps<T>;
+
+type NativeProxyAjax<T> = NonNullable<
+  NonNullable<VxeTableGridProps<T>['proxyConfig']>['ajax']
+>;
+type QueryParams<T> = Parameters<NonNullable<NativeProxyAjax<T>['query']>>[0];
+type QueryAllParams<T> = Parameters<
+  NonNullable<NativeProxyAjax<T>['queryAll']>
+>[0];
+
+interface VxeGridProxyAjax<T> extends Omit<
+  NativeProxyAjax<T>,
+  'query' | 'queryAll'
+> {
+  query?: (
+    params: QueryParams<T>,
+    formValues: VxeGridFormValues,
+    ...args: unknown[]
+  ) => Promise<unknown>;
+  queryAll?: (
+    params: QueryAllParams<T>,
+    formValues: VxeGridFormValues,
+    ...args: unknown[]
+  ) => Promise<unknown>;
+}
+
+interface VxeGridProxyConfig<T> extends Omit<
+  NonNullable<VxeTableGridProps<T>['proxyConfig']>,
+  'ajax'
+> {
+  ajax?: VxeGridProxyAjax<T>;
+}
+
 interface ToolbarConfigOptions extends VxeGridPropTypes.ToolbarConfig {
   /** 是否显示切换搜索表单的按钮 */
   search?: boolean;
 }
 
-export interface VxeTableGridOptions<T = any> extends VxeTableGridProps<T> {
+export interface VxeTableGridOptions<T = VxeGridRow> extends Omit<
+  VxeTableGridProps<T>,
+  'proxyConfig' | 'toolbarConfig'
+> {
+  /** 数据代理；查询方法的第二参数固定为当前搜索表单值。 */
+  proxyConfig?: VxeGridProxyConfig<T>;
   /** 工具栏配置 */
   toolbarConfig?: ToolbarConfigOptions;
 }
@@ -37,7 +77,7 @@ export interface SeparatorOptions {
 }
 
 export interface VxeGridProps<
-  T extends Record<string, any> = any,
+  T extends object = VxeGridRow,
   D extends BaseFormComponentType = BaseFormComponentType,
 > {
   /**
@@ -79,11 +119,11 @@ export interface VxeGridProps<
 }
 
 export type ExtendedVxeGridApi<
-  D extends Record<string, any> = any,
+  D extends object = VxeGridRow,
   F extends BaseFormComponentType = BaseFormComponentType,
-> = VxeGridApi<D> & {
+> = VxeGridApi<D, F> & {
   useStore: <T = NoInfer<VxeGridProps<D, F>>>(
-    selector?: (state: NoInfer<VxeGridProps<any, any>>) => T,
+    selector?: (state: NoInfer<VxeGridProps<D, F>>) => T,
   ) => Readonly<Ref<T>>;
 };
 

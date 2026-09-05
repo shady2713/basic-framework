@@ -1,5 +1,4 @@
 import type { Sortable } from '@vben-core/composables';
-import type { EmitType } from '@vben-core/typings';
 
 import type { TabsProps } from './types';
 
@@ -7,7 +6,13 @@ import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { useIsMobile, useSortable } from '@vben-core/composables';
 
-// 可能会找到拖拽的子元素，这里需要确保拖拽的dom时tab元素
+type TabsDragEmit = (
+  event: 'sortTabs',
+  oldIndex: number,
+  newIndex: number,
+) => void;
+
+// Sortable events may originate from a tab's child element.
 function findParentElement(element: HTMLElement) {
   const parentCls = 'group';
   return element.classList.contains(parentCls)
@@ -15,24 +20,34 @@ function findParentElement(element: HTMLElement) {
     : element.closest(`.${parentCls}`);
 }
 
-export function useTabsDrag(props: TabsProps, emit: EmitType) {
+export function useTabsDrag(props: TabsProps, emit: TabsDragEmit) {
   const sortableInstance = ref<null | Sortable>(null);
+  const tabsViewRef = ref<HTMLElement>();
+  let initializationGeneration = 0;
 
-  async function initTabsSortable() {
+  function destroySortable() {
+    initializationGeneration += 1;
+    sortableInstance.value?.destroy();
+    sortableInstance.value = null;
+  }
+
+  async function initTabsSortable(generation: number) {
     await nextTick();
 
-    const el = document.querySelectorAll(
-      `.${props.contentClass}`,
-    )?.[0] as HTMLElement;
+    if (generation !== initializationGeneration) return;
 
-    if (!el) {
+    const contentClass = props.contentClass;
+    const el = contentClass
+      ? tabsViewRef.value?.getElementsByClassName(contentClass)[0]
+      : undefined;
+
+    if (!(el instanceof HTMLElement)) {
       console.warn('Element not found for sortable initialization');
       return;
     }
 
-    const resetElState = async () => {
+    const resetElState = () => {
       el.style.cursor = 'default';
-      // el.classList.remove('dragging');
       el.querySelector('.draggable')?.classList.remove('dragging');
     };
 
@@ -44,14 +59,7 @@ export function useTabsDrag(props: TabsProps, emit: EmitType) {
       },
       onEnd(evt) {
         const { newIndex, oldIndex } = evt;
-        const { srcElement } = (evt as any).originalEvent;
-
-        if (!srcElement) {
-          resetElState();
-          return;
-        }
-
-        const srcParent = findParentElement(srcElement);
+        const srcParent = findParentElement(evt.item);
 
         if (!srcParent) {
           resetElState();
@@ -89,35 +97,38 @@ export function useTabsDrag(props: TabsProps, emit: EmitType) {
       onStart: () => {
         el.style.cursor = 'grabbing';
         el.querySelector('.draggable')?.classList.add('dragging');
-        // el.classList.add('dragging');
       },
     });
 
-    sortableInstance.value = await initializeSortable();
+    const nextInstance = await initializeSortable();
+    if (generation !== initializationGeneration) {
+      nextInstance?.destroy();
+      return;
+    }
+
+    sortableInstance.value = nextInstance;
   }
 
   async function init() {
+    const generation = ++initializationGeneration;
     const { isMobile } = useIsMobile();
 
-    // 移动端下tab不需要拖拽
-    if (isMobile.value) {
-      return;
-    }
-    await nextTick();
-    initTabsSortable();
+    if (isMobile.value) return;
+
+    await initTabsSortable(generation);
   }
 
-  onMounted(init);
+  onMounted(() => void init());
 
   watch(
     () => props.styleType,
     () => {
-      sortableInstance.value?.destroy();
-      init();
+      destroySortable();
+      void init();
     },
   );
 
-  onUnmounted(() => {
-    sortableInstance.value?.destroy();
-  });
+  onUnmounted(destroySortable);
+
+  return { tabsViewRef };
 }

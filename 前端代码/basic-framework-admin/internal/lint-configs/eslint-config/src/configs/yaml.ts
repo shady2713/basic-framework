@@ -1,6 +1,6 @@
 import type { Linter } from 'eslint';
 
-import { interopDefault } from '../util';
+import { interopDefault, toEslintPlugin } from '../util';
 
 export async function yaml(): Promise<Linter.Config[]> {
   const [pluginYaml, parserYaml] = await Promise.all([
@@ -12,7 +12,7 @@ export async function yaml(): Promise<Linter.Config[]> {
     {
       files: ['**/*.y?(a)ml'],
       plugins: {
-        yaml: pluginYaml as any,
+        yaml: toEslintPlugin(pluginYaml),
       },
       languageOptions: {
         parser: parserYaml,

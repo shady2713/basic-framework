@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { SelectItemProps } from 'reka-ui';
 
+import type { HTMLAttributes } from 'vue';
+
 import { computed } from 'vue';
 
 import { cn } from '@vben-core/shared/utils';
@@ -13,7 +15,9 @@ import {
   useForwardProps,
 } from 'reka-ui';
 
-const props = defineProps<SelectItemProps & { class?: any }>();
+const props = defineProps<
+  SelectItemProps & { class?: HTMLAttributes['class'] }
+>();
 
 const delegatedProps = computed(() => {
   const { class: _, ...delegated } = props;

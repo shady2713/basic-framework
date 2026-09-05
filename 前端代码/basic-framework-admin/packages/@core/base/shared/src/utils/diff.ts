@@ -1,57 +1,50 @@
-// 比较两个数组是否相等
-
-function arraysEqual<T>(a: T[], b: T[]): boolean {
-  if (a.length !== b.length) return false;
+function arraysEqual<T>(left: readonly T[], right: readonly T[]): boolean {
+  if (left.length !== right.length) return false;
   const counter = new Map<T, number>();
-  for (const value of a) {
-    counter.set(value, (counter.get(value) || 0) + 1);
+  for (const value of left) {
+    counter.set(value, (counter.get(value) ?? 0) + 1);
   }
-  for (const value of b) {
+  for (const value of right) {
     const count = counter.get(value);
-    if (count === undefined || count === 0) {
-      return false;
-    }
+    if (!count) return false;
     counter.set(value, count - 1);
   }
   return true;
 }
 
-type DiffResult<T> = Partial<{
-  [K in keyof T]: T[K] extends object ? DiffResult<T[K]> : T[K];
-}>;
+type DiffResult<T> = T extends readonly unknown[]
+  ? T
+  : T extends object
+    ? { [K in keyof T]?: DiffResult<T[K]> }
+    : T;
 
-function diff<T extends Record<string, any>>(obj1: T, obj2: T): DiffResult<T> {
-  function findDifferences(o1: any, o2: any): any {
-    if (Array.isArray(o1) && Array.isArray(o2)) {
-      if (!arraysEqual(o1, o2)) {
-        return o2;
-      }
-      return undefined;
-    }
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 
-    if (
-      typeof o1 === 'object' &&
-      typeof o2 === 'object' &&
-      o1 !== null &&
-      o2 !== null
-    ) {
-      const diffResult: any = {};
-
-      const keys = new Set([...Object.keys(o1), ...Object.keys(o2)]);
-      keys.forEach((key) => {
-        const valueDiff = findDifferences(o1[key], o2[key]);
-        if (valueDiff !== undefined) {
-          diffResult[key] = valueDiff;
-        }
-      });
-
-      return Object.keys(diffResult).length > 0 ? diffResult : undefined;
-    }
-
-    return o1 === o2 ? undefined : o2;
+function findDifferences(left: unknown, right: unknown): unknown {
+  if (Array.isArray(left) && Array.isArray(right)) {
+    return arraysEqual(left, right) ? undefined : right;
   }
 
-  return findDifferences(obj1, obj2);
+  if (isRecord(left) && isRecord(right)) {
+    const entries: [string, unknown][] = [];
+    const keys = new Set([...Object.keys(left), ...Object.keys(right)]);
+    for (const key of keys) {
+      const valueDiff = findDifferences(left[key], right[key]);
+      if (valueDiff !== undefined) entries.push([key, valueDiff]);
+    }
+    return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+  }
+
+  return Object.is(left, right) ? undefined : right;
+}
+
+function diff<TTarget extends object>(
+  source: object,
+  target: TTarget,
+): DiffResult<TTarget> | undefined {
+  return findDifferences(source, target) as DiffResult<TTarget> | undefined;
 }
 
 export { arraysEqual, diff };

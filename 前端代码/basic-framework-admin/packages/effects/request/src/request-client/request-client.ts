@@ -18,18 +18,20 @@ function getParamsSerializer(
   if (isString(paramsSerializer)) {
     switch (paramsSerializer) {
       case 'brackets': {
-        return (params: any) =>
+        return (params: Record<string, unknown>) =>
           qs.stringify(params, { arrayFormat: 'brackets' });
       }
       case 'comma': {
-        return (params: any) => qs.stringify(params, { arrayFormat: 'comma' });
+        return (params: Record<string, unknown>) =>
+          qs.stringify(params, { arrayFormat: 'comma' });
       }
       case 'indices': {
-        return (params: any) =>
+        return (params: Record<string, unknown>) =>
           qs.stringify(params, { arrayFormat: 'indices' });
       }
       case 'repeat': {
-        return (params: any) => qs.stringify(params, { arrayFormat: 'repeat' });
+        return (params: Record<string, unknown>) =>
+          qs.stringify(params, { arrayFormat: 'repeat' });
       }
     }
   }
@@ -46,8 +48,12 @@ class RequestClient {
   // 是否正在刷新token
   public isRefreshing = false;
   public postSSE: SSE['postSSE'];
+  public prepareRequestConfig: InterceptorManager['applyRequestInterceptors'];
   // 刷新token队列
-  public refreshTokenQueue: ((token: string) => void)[] = [];
+  public refreshTokenQueue: {
+    reject: () => void;
+    resolve: (token: string) => void;
+  }[] = [];
   public requestSSE: SSE['requestSSE'];
   public upload: FileUploader['upload'];
 
@@ -82,6 +88,8 @@ class RequestClient {
       interceptorManager.addRequestInterceptor.bind(interceptorManager);
     this.addResponseInterceptor =
       interceptorManager.addResponseInterceptor.bind(interceptorManager);
+    this.prepareRequestConfig =
+      interceptorManager.applyRequestInterceptors.bind(interceptorManager);
 
     // 实例化文件上传器
     const fileUploader = new FileUploader(this);
@@ -98,7 +106,7 @@ class RequestClient {
   /**
    * DELETE请求方法
    */
-  public delete<T = any>(
+  public delete<T = unknown>(
     url: string,
     config?: RequestClientConfig,
   ): Promise<T> {
@@ -108,7 +116,10 @@ class RequestClient {
   /**
    * GET请求方法
    */
-  public get<T = any>(url: string, config?: RequestClientConfig): Promise<T> {
+  public get<T = unknown>(
+    url: string,
+    config?: RequestClientConfig,
+  ): Promise<T> {
     return this.request<T>(url, { ...config, method: 'GET' });
   }
 
@@ -122,34 +133,34 @@ class RequestClient {
   /**
    * POST请求方法
    */
-  public post<T = any>(
+  public post<T = unknown, D = unknown>(
     url: string,
-    data?: any,
-    config?: RequestClientConfig,
+    data?: D,
+    config?: RequestClientConfig<D>,
   ): Promise<T> {
-    return this.request<T>(url, { ...config, data, method: 'POST' });
+    return this.request<T, D>(url, { ...config, data, method: 'POST' });
   }
 
   /**
    * PUT请求方法
    */
-  public put<T = any>(
+  public put<T = unknown, D = unknown>(
     url: string,
-    data?: any,
-    config?: RequestClientConfig,
+    data?: D,
+    config?: RequestClientConfig<D>,
   ): Promise<T> {
-    return this.request<T>(url, { ...config, data, method: 'PUT' });
+    return this.request<T, D>(url, { ...config, data, method: 'PUT' });
   }
 
   /**
    * 通用的请求方法
    */
-  public async request<T>(
+  public async request<T, D = unknown>(
     url: string,
-    config: RequestClientConfig,
+    config: RequestClientConfig<D>,
   ): Promise<T> {
     try {
-      const response: AxiosResponse<T> = await this.instance({
+      const response = await this.instance.request<T, AxiosResponse<T>, D>({
         url,
         ...config,
         ...(config.paramsSerializer
@@ -157,27 +168,13 @@ class RequestClient {
           : {}),
       });
       return response as T;
-    } catch (error: any) {
-      throw error.response ? error.response.data : error;
+    } catch (error: unknown) {
+      if (axios.isAxiosError(error) && error.response) {
+        throw error.response.data;
+      }
+      throw error;
     }
   }
 }
-
-/**
- * 构建排序字段，处理 vxe 排序条件
- *
- * Internal request helpers
- */
-export const buildSortingField = (sorts: any[]) => {
-  if (!sorts || sorts.length === 0) {
-    return {};
-  }
-  const result: Record<string, any> = {};
-  sorts.forEach((sort: any, index: number) => {
-    result[`sortingFields[${index}].field`] = sort.field;
-    result[`sortingFields[${index}].order`] = sort.order;
-  });
-  return result;
-};
 
 export { RequestClient };

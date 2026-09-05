@@ -1,10 +1,12 @@
 <script lang="ts" setup>
+import type { HTMLAttributes } from 'vue';
+
 import { cn } from '@vben-core/shared/utils';
 
 import { ChevronRight } from 'lucide-vue-next';
 
 const props = defineProps<{
-  class?: any;
+  class?: HTMLAttributes['class'];
 }>();
 </script>
 

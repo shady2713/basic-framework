@@ -1,7 +1,5 @@
 <script setup lang="ts">
-import type { Recordable } from '@vben-core/typings';
-
-import type { ExtendedFormApi, VbenFormProps } from './types';
+import type { ExtendedFormApi, FormValues, VbenFormProps } from './types';
 
 import { nextTick, onMounted, watch } from 'vue';
 
@@ -66,7 +64,7 @@ const handleValuesChangeDebounced = useDebounceFn(async () => {
   state?.value.submitOnChange && forward.value.formApi?.validateAndSubmitForm();
 }, 300);
 
-const valuesCache: Recordable<any> = {};
+const valuesCache: FormValues = {};
 
 onMounted(async () => {
   // 挂载完成后再监听，避免初始化赋值被误判为变更。
@@ -94,7 +92,7 @@ onMounted(async () => {
             // 向外抛出最新表单值和本次变更字段
             const values = await forward.value.formApi?.getValues();
             forward.value.handleValuesChange(
-              cloneDeep(values ?? {}) as Record<string, any>,
+              cloneDeep(values ?? {}) as FormValues,
               changedFields,
             );
           }

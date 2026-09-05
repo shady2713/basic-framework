@@ -46,7 +46,7 @@ export type FormFieldOptions = Partial<
 
 export interface FormShape {
   /** 默认值 */
-  default?: any;
+  default?: unknown;
   /** 字段名 */
   fieldName: string;
   /** 是否必填 */
@@ -61,7 +61,11 @@ export type MaybeComponentPropKey =
   | keyof HtmlHTMLAttributes
   | (Record<never, never> & string);
 
-export type MaybeComponentProps = { [K in MaybeComponentPropKey]?: any };
+export type MaybeComponentProps = {
+  [K in MaybeComponentPropKey]?: unknown;
+};
+
+export type FormValues = Record<string, unknown>;
 
 export type FormActions = FormContext<GenericObject>;
 
@@ -77,17 +81,17 @@ export type FormSchemaRuleType =
   | ZodTypeAny;
 
 type FormItemDependenciesCondition<T = boolean | PromiseLike<boolean>> = (
-  value: Partial<Record<string, any>>,
+  value: Partial<FormValues>,
   actions: FormActions,
 ) => T;
 
 type FormItemDependenciesConditionWithRules = (
-  value: Partial<Record<string, any>>,
+  value: Partial<FormValues>,
   actions: FormActions,
 ) => FormSchemaRuleType | PromiseLike<FormSchemaRuleType>;
 
 type FormItemDependenciesConditionWithProps = (
-  value: Partial<Record<string, any>>,
+  value: Partial<FormValues>,
   actions: FormActions,
 ) => MaybeComponentProps | PromiseLike<MaybeComponentProps>;
 
@@ -132,10 +136,7 @@ export interface FormItemDependencies {
 }
 
 type ComponentProps =
-  | ((
-      value: Partial<Record<string, any>>,
-      actions: FormActions,
-    ) => MaybeComponentProps)
+  | ((value: Partial<FormValues>, actions: FormActions) => MaybeComponentProps)
   | MaybeComponentProps;
 
 export interface FormCommonConfig {
@@ -211,23 +212,19 @@ export interface FormCommonConfig {
 }
 
 type RenderComponentContentType = (
-  value: Partial<Record<string, any>>,
+  value: Partial<FormValues>,
   api: FormActions,
-) => Record<string, any>;
+) => Record<string, unknown>;
 
-export type HandleSubmitFn = (
-  values: Record<string, any>,
-) => Promise<void> | void;
+export type HandleSubmitFn = (values: FormValues) => Promise<void> | void;
 
-export type HandleResetFn = (
-  values: Record<string, any>,
-) => Promise<void> | void;
+export type HandleResetFn = (values: FormValues) => Promise<void> | void;
 
 export type FieldMappingTime = [
   string,
   [string, string],
   (
-    | ((value: any, fieldName: string) => any)
+    | ((value: unknown, fieldName: string) => unknown)
     | [string, string]
     | null
     | string
@@ -248,7 +245,7 @@ export interface FormSchema<
   /** 组件参数 */
   componentProps?: ComponentProps;
   /** 默认值 */
-  defaultValue?: any;
+  defaultValue?: unknown;
   /** 依赖 */
   dependencies?: FormItemDependencies;
   /** 描述 */
@@ -344,7 +341,7 @@ export interface FormRenderProps<
 }
 
 export interface ActionButtonOptions extends VbenButtonProps {
-  [key: string]: any;
+  [key: string]: unknown;
   content?: MaybeComputedRef<string>;
   show?: boolean;
 }
@@ -396,10 +393,7 @@ export interface VbenFormProps<
   /**
    * 表单值变化回调
    */
-  handleValuesChange?: (
-    values: Record<string, any>,
-    fieldsChanged: string[],
-  ) => void;
+  handleValuesChange?: (values: FormValues, fieldsChanged: string[]) => void;
   /**
    * 重置按钮参数
    */
@@ -441,6 +435,24 @@ export type ExtendedFormApi = FormApi & {
   ) => Readonly<Ref<T>>;
 };
 
+export interface FormRuleContext {
+  field?: string;
+  form?: Record<string, unknown>;
+  label?: string;
+  name?: string;
+  rule?: {
+    name: string;
+    params?: Record<string, unknown> | unknown[];
+  };
+  value?: unknown;
+}
+
+export type FormRuleHandler = (
+  value: unknown,
+  params: unknown,
+  context: FormRuleContext,
+) => boolean | string;
+
 export interface VbenFormAdapterOptions<
   T extends BaseFormComponentType = BaseFormComponentType,
 > {
@@ -451,26 +463,5 @@ export interface VbenFormAdapterOptions<
     emptyStateValue?: null | undefined;
     modelPropNameMap?: Partial<Record<T, string>>;
   };
-  defineRules?: {
-    mobile?: (
-      value: any,
-      params: any,
-      ctx: Record<string, any>,
-    ) => boolean | string;
-    mobileRequired?: (
-      value: any,
-      params: any,
-      ctx: Record<string, any>,
-    ) => boolean | string;
-    required?: (
-      value: any,
-      params: any,
-      ctx: Record<string, any>,
-    ) => boolean | string;
-    selectRequired?: (
-      value: any,
-      params: any,
-      ctx: Record<string, any>,
-    ) => boolean | string;
-  };
+  defineRules?: Record<string, FormRuleHandler>;
 }

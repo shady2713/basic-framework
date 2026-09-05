@@ -4,7 +4,7 @@ import { interopDefault } from '../util';
 
 export async function test(): Promise<Linter.Config[]> {
   const [pluginTest, pluginNoOnlyTests] = await Promise.all([
-    interopDefault(import('eslint-plugin-vitest')),
+    interopDefault(import('@vitest/eslint-plugin')),
     // @ts-expect-error eslint-plugin-no-only-tests 未提供兼容当前配置类型的声明
     interopDefault(import('eslint-plugin-no-only-tests')),
   ] as const);

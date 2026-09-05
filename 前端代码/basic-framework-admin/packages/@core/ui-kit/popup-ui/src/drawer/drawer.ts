@@ -130,10 +130,6 @@ export interface DrawerProps {
 export interface DrawerState extends DrawerProps {
   /** 弹窗打开状态 */
   isOpen?: boolean;
-  /**
-   * 共享数据
-   */
-  sharedData?: Record<string, any>;
 }
 
 export type ExtendedDrawerApi = DrawerApi & {

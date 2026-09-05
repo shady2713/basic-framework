@@ -4,13 +4,8 @@ import type {
   UserConfig,
   UserConfigFnPromise,
 } from 'vite';
-import type { PluginOptions as DtsPluginOptions } from 'vite-plugin-dts';
-import type { Options as PwaPluginOptions } from 'vite-plugin-pwa';
 
 interface CommonPluginOptions {
-  devtools?: boolean;
-  env?: Record<string, string>;
-  injectMetadata?: boolean;
   isBuild?: boolean;
   mode?: string;
   root?: string;
@@ -18,25 +13,10 @@ interface CommonPluginOptions {
 }
 
 interface ApplicationPluginOptions extends CommonPluginOptions {
-  archiver?: boolean;
-  compress?: boolean;
-  compressTypes?: ('brotli' | 'gzip')[];
-  extraAppConfig?: boolean;
-  html?: boolean;
-  i18n?: boolean;
-  importmap?: boolean;
-  injectAppLoading?: boolean;
   injectGlobalScss?: boolean;
-  license?: boolean;
-  print?: boolean;
-  pwa?: boolean;
-  pwaOptions?: Partial<PwaPluginOptions>;
-  vxeTableLazyImport?: boolean;
 }
 
-interface LibraryPluginOptions extends CommonPluginOptions {
-  dts?: boolean | DtsPluginOptions;
-}
+type LibraryPluginOptions = CommonPluginOptions;
 
 interface ConditionPlugin {
   condition?: boolean;

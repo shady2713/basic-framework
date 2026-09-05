@@ -1,47 +1,23 @@
-import type {
-  ApplicationConfig,
-  VbenAdminProAppConfigRaw,
-} from '@vben/types/global';
+import type { ApplicationConfig } from '@vben/types/global';
 
 /**
  * 由 vite-inject-app-config 注入的全局配置
  */
 export function useAppConfig(
-  env: Record<string, any>,
+  env: Record<string, unknown>,
   isProduction: boolean,
 ): ApplicationConfig {
-  const config = isProduction
-    ? window._VBEN_ADMIN_PRO_APP_CONF_
-    : (env as VbenAdminProAppConfigRaw);
-
-  const {
-    VITE_GLOB_API_URL,
-    VITE_GLOB_AUTH_DINGDING_CORP_ID,
-    VITE_GLOB_AUTH_DINGDING_CLIENT_ID,
-  } = config;
-
-  const applicationConfig: ApplicationConfig = {
-    apiURL: VITE_GLOB_API_URL,
-    auth: {},
-  };
-  if (VITE_GLOB_AUTH_DINGDING_CORP_ID && VITE_GLOB_AUTH_DINGDING_CLIENT_ID) {
-    applicationConfig.auth.dingding = {
-      clientId: VITE_GLOB_AUTH_DINGDING_CLIENT_ID,
-      corpId: VITE_GLOB_AUTH_DINGDING_CORP_ID,
-    };
+  const apiURL = isProduction
+    ? window._VBEN_ADMIN_PRO_APP_CONF_.VITE_GLOB_API_URL
+    : env.VITE_GLOB_API_URL;
+  if (typeof apiURL !== 'string') {
+    throw new TypeError('VITE_GLOB_API_URL 必须是字符串');
   }
-
-  return applicationConfig;
-}
-
-export function isTenantEnable(): boolean {
-  return false;
+  return {
+    apiURL,
+  };
 }
 
 export function isCaptchaEnable(): boolean {
   return import.meta.env.VITE_APP_CAPTCHA_ENABLE === 'true';
-}
-
-export function isDocAlertEnable(): boolean {
-  return import.meta.env.VITE_APP_DOCALERT_ENABLE !== 'false';
 }

@@ -10,8 +10,8 @@ const { breadcrumbs, showIcon } = defineProps<Props>();
 
 const emit = defineEmits<{ select: [string] }>();
 
-function handleClick(index: number, path?: string) {
-  if (!path || index === breadcrumbs.length - 1) {
+function handleClick(path?: string) {
+  if (!path) {
     return;
   }
   emit('select', path);
@@ -25,9 +25,11 @@ function handleClick(index: number, path?: string) {
         :key="`${item.path}-${item.title}-${index}`"
       >
         <li>
-          <a
-            href="javascript:void 0"
-            @click.stop="handleClick(index, item.path)"
+          <button
+            v-if="index !== breadcrumbs.length - 1"
+            class="breadcrumb-node"
+            type="button"
+            @click.stop="handleClick(item.path)"
           >
             <span class="flex-center z-10 h-full">
               <VbenIcon
@@ -43,7 +45,17 @@ function handleClick(index: number, path?: string) {
                 >{{ item.title }}
               </span>
             </span>
-          </a>
+          </button>
+          <span v-else aria-current="page" class="breadcrumb-node">
+            <span class="flex-center z-10 h-full">
+              <VbenIcon
+                v-if="showIcon"
+                :icon="item.icon"
+                class="mr-1 size-4 flex-shrink-0"
+              />
+              <span class="font-normal text-foreground">{{ item.title }}</span>
+            </span>
+          </span>
         </li>
       </template>
     </TransitionGroup>
@@ -54,56 +66,56 @@ li {
   @apply h-7;
 }
 
-li a {
+.breadcrumb-node {
   @apply relative mr-9 flex h-7 items-center bg-accent py-0 pl-[5px] pr-2 text-[13px] text-muted-foreground;
 }
 
-li a > span {
+li .breadcrumb-node > span {
   @apply -ml-3;
 }
 
-li:first-child a > span {
+li:first-child .breadcrumb-node > span {
   @apply -ml-1;
 }
 
-li:first-child a {
+li:first-child .breadcrumb-node {
   @apply rounded-[4px_0_0_4px] pl-[15px];
 }
 
-li:first-child a::before {
+li:first-child .breadcrumb-node::before {
   @apply border-none;
 }
 
-li:last-child a {
+li:last-child .breadcrumb-node {
   @apply rounded-[0_4px_4px_0] pr-[15px];
 }
 
-li:last-child a::after {
+li:last-child .breadcrumb-node::after {
   @apply border-none;
 }
 
-li a::before,
-li a::after {
+li .breadcrumb-node::before,
+li .breadcrumb-node::after {
   @apply absolute top-0 h-0 w-0 border-[.875rem] border-solid border-accent content-[''];
 }
 
-li a::before {
+li .breadcrumb-node::before {
   @apply -left-7 z-10 border-l-transparent;
 }
 
-li a::after {
+li .breadcrumb-node::after {
   @apply left-full border-transparent border-l-accent;
 }
 
-li:not(:last-child) a:hover {
+li:not(:last-child) .breadcrumb-node:hover {
   @apply bg-accent-hover;
 }
 
-li:not(:last-child) a:hover::before {
+li:not(:last-child) .breadcrumb-node:hover::before {
   @apply border-accent-hover border-l-transparent;
 }
 
-li:not(:last-child) a:hover::after {
+li:not(:last-child) .breadcrumb-node:hover::after {
   @apply border-l-accent-hover;
 }
 </style>

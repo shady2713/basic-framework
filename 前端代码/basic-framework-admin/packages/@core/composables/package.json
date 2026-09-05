@@ -4,7 +4,8 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "build": "pnpm unbuild"
+    "build": "pnpm unbuild",
+    "typecheck": "tsc --noEmit"
   },
   "files": [
     "dist"
@@ -35,6 +36,7 @@
     "vue": "catalog:"
   },
   "devDependencies": {
-    "@types/sortablejs": "catalog:"
+    "@types/sortablejs": "catalog:",
+    "@vue/test-utils": "catalog:"
   }
 }

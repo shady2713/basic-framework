@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { ZodType } from 'zod';
 
-import type { FormSchema, MaybeComponentProps } from '../types';
+import type { FormCommonConfig, FormSchema, FormValues } from '../types';
 
 import { computed, nextTick, onUnmounted, useTemplateRef, watch } from 'vue';
 
@@ -25,6 +25,22 @@ import { injectRenderFormProps, useFormContext } from './context';
 import useDependencies from './dependencies';
 import FormLabel from './form-label.vue';
 import { isEventObjectLike } from './helper';
+
+type FieldValueHandler = (value: unknown) => unknown;
+
+interface ComponentFieldBindings {
+  modelValue?: unknown;
+  onChange?: FieldValueHandler;
+  'onUpdate:modelValue'?: FieldValueHandler;
+}
+
+interface FormFieldSlotProps {
+  componentField: ComponentFieldBindings;
+}
+
+type UnwrappableZodRule = ZodType & {
+  unwrap?: () => ZodType;
+};
 
 interface Props extends FormSchema {}
 
@@ -50,13 +66,13 @@ const {
   rules,
 } = defineProps<
   Props & {
-    commonComponentProps: MaybeComponentProps;
+    commonComponentProps: NonNullable<FormCommonConfig['componentProps']>;
   }
 >();
 
 const { componentBindEventMap, componentMap, isVertical } = useFormContext();
 const formRenderProps = injectRenderFormProps();
-const values = useFormValues();
+const values = useFormValues<FormValues>();
 const errors = useFieldError(fieldName);
 const fieldComponentRef = useTemplateRef<HTMLInputElement>('fieldComponentRef');
 const formApi = formRenderProps.form;
@@ -148,7 +164,7 @@ const fieldRules = computed(() => {
 
   const isOptional = !shouldRequired.value;
   if (!isOptional) {
-    const unwrappedRules = (rules as any)?.unwrap?.();
+    const unwrappedRules = (rules as UnwrappableZodRule).unwrap?.();
     if (unwrappedRules) {
       rules = unwrappedRules;
     }
@@ -157,12 +173,15 @@ const fieldRules = computed(() => {
 });
 
 const computedProps = computed(() => {
+  const finalCommonComponentProps = isFunction(commonComponentProps)
+    ? commonComponentProps(values.value, formApi!)
+    : commonComponentProps;
   const finalComponentProps = isFunction(componentProps)
     ? componentProps(values.value, formApi!)
     : componentProps;
 
   return {
-    ...commonComponentProps,
+    ...finalCommonComponentProps,
     ...finalComponentProps,
     ...dynamicComponentProps.value,
   };
@@ -195,17 +214,18 @@ const renderContentKey = computed(() => {
   return Object.keys(customContentRender.value);
 });
 
-const fieldProps = computed(() => {
+const fieldProps = computed<Record<string, unknown>>(() => {
   const rules = fieldRules.value;
+  const configuredFieldProps: Record<string, unknown> = formFieldProps ?? {};
   return {
     keepValue: true,
     label: isString(label) ? label : '',
     ...(rules ? { rules } : {}),
-    ...(formFieldProps as Record<string, any>),
+    ...configuredFieldProps,
   };
 });
 
-function fieldBindEvent(slotProps: Record<string, any>) {
+function fieldBindEvent(slotProps: FormFieldSlotProps) {
   const modelValue = slotProps.componentField.modelValue;
   const handler = slotProps.componentField['onUpdate:modelValue'];
 
@@ -227,7 +247,7 @@ function fieldBindEvent(slotProps: Record<string, any>) {
       [bindEventField]: value === undefined ? emptyStateValue : value,
       onChange: disabledOnChangeListener
         ? undefined
-        : (e: Record<string, any>) => {
+        : (e: unknown) => {
             const shouldUnwrap = isEventObjectLike(e);
             const onChange = slotProps?.componentField?.onChange;
             if (!shouldUnwrap) {
@@ -245,7 +265,7 @@ function fieldBindEvent(slotProps: Record<string, any>) {
   };
 }
 
-function createComponentProps(slotProps: Record<string, any>) {
+function createComponentProps(slotProps: FormFieldSlotProps) {
   const bindEvents = fieldBindEvent(slotProps);
 
   const binds = {

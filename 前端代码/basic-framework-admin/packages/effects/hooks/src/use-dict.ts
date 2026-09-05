@@ -26,7 +26,7 @@ export interface StringDictDataType extends DictDataType {
  * @param value 字典值
  * @returns 字典标签
  */
-export function getDictLabel(dictType: string, value: any) {
+export function getDictLabel(dictType: string, value: unknown) {
   const dictStore = useDictStore();
   const dictObj = dictStore.getDictData(dictType, value);
   return isObject(dictObj) ? dictObj.label : '';
@@ -39,7 +39,7 @@ export function getDictLabel(dictType: string, value: any) {
  * @param value 字典值
  * @returns 字典对象
  */
-export function getDictObj(dictType: string, value: any) {
+export function getDictObj(dictType: string, value: unknown) {
   const dictStore = useDictStore();
   const dictObj = dictStore.getDictData(dictType, value);
   return isObject(dictObj) ? dictObj : null;
@@ -51,37 +51,42 @@ export function getDictObj(dictType: string, value: any) {
  * @param dictType 字典类型
  * @param valueType 字典值类型，默认 string 类型
  * @returns 字典数组
+ * @throws {TypeError} 当运行时传入未支持的值类型或无效数字字典值时抛出
  */
 export function getDictOptions(
   dictType: string,
   valueType: 'boolean' | 'number' | 'string' = 'string',
 ): DictDataType[] {
   const dictStore = useDictStore();
-  const dictOpts = dictStore.getDictOptions(dictType);
-  const dictOptions: DictDataType[] = [];
-  if (dictOpts.length > 0) {
-    let dictValue: boolean | number | string = '';
-    dictOpts.forEach((d) => {
-      switch (valueType) {
-        case 'boolean': {
-          dictValue = `${d.value}` === 'true';
-          break;
-        }
-        case 'number': {
-          dictValue = Number.parseInt(`${d.value}`);
-          break;
-        }
-        case 'string': {
-          dictValue = `${d.value}`;
-          break;
-        }
-        // No default
+  return dictStore.getDictOptions(dictType).map((option) => ({
+    label: option.label,
+    value: convertDictValue(option.value, valueType),
+  }));
+}
+
+function convertDictValue(
+  value: string,
+  valueType: 'boolean' | 'number' | 'string',
+): boolean | number | string {
+  switch (valueType) {
+    case 'boolean': {
+      if (value !== 'true' && value !== 'false') {
+        throw new TypeError(`无效的布尔字典值：${value}`);
       }
-      dictOptions.push({
-        value: dictValue,
-        label: d.label,
-      });
-    });
+      return value === 'true';
+    }
+    case 'number': {
+      const numericValue = Number(value);
+      if (value.trim() === '' || !Number.isFinite(numericValue)) {
+        throw new TypeError(`无效的数字字典值：${value}`);
+      }
+      return numericValue;
+    }
+    case 'string': {
+      return value;
+    }
+    default: {
+      throw new TypeError(`不支持的字典值类型：${valueType}`);
+    }
   }
-  return dictOptions.length > 0 ? dictOptions : [];
 }

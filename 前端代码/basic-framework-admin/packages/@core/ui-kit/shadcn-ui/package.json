@@ -7,7 +7,8 @@
   "type": "module",
   "scripts": {
     "#build": "pnpm unbuild",
-    "#prepublishOnly": "npm run build"
+    "#prepublishOnly": "npm run build",
+    "typecheck": "vue-tsc --noEmit --skipLibCheck"
   },
   "files": [
     "dist"
@@ -43,5 +44,8 @@
     "reka-ui": "catalog:",
     "vee-validate": "catalog:",
     "vue": "catalog:"
+  },
+  "devDependencies": {
+    "@vue/test-utils": "catalog:"
   }
 }

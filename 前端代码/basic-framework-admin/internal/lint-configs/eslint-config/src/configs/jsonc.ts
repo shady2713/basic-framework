@@ -1,6 +1,6 @@
 import type { Linter } from 'eslint';
 
-import { interopDefault } from '../util';
+import { interopDefault, toEslintPlugin } from '../util';
 
 export async function jsonc(): Promise<Linter.Config[]> {
   const [pluginJsonc, parserJsonc] = await Promise.all([
@@ -12,10 +12,10 @@ export async function jsonc(): Promise<Linter.Config[]> {
     {
       files: ['**/*.json', '**/*.json5', '**/*.jsonc', '*.code-workspace'],
       languageOptions: {
-        parser: parserJsonc as any,
+        parser: parserJsonc as Linter.Parser,
       },
       plugins: {
-        jsonc: pluginJsonc as any,
+        jsonc: toEslintPlugin(pluginJsonc),
       },
       rules: {
         'jsonc/no-bigint-literals': 'error',

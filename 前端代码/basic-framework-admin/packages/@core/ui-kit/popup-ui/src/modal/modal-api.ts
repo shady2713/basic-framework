@@ -4,10 +4,6 @@ import { Store } from '@vben-core/shared/store';
 import { bindMethods, isFunction } from '@vben-core/shared/utils';
 
 export class ModalApi {
-  // 共享数据
-  public sharedData: Record<'payload', any> = {
-    payload: {},
-  };
   public store: Store<ModalState>;
 
   private api: Pick<
@@ -20,7 +16,10 @@ export class ModalApi {
     | 'onOpened'
   >;
 
-  // private prevState!: ModalState;
+  private readonly sharedData: Record<'payload', unknown> = {
+    payload: {},
+  };
+
   private state!: ModalState;
 
   constructor(options: ModalApiOptions = {}) {
@@ -111,7 +110,7 @@ export class ModalApi {
     }
   }
 
-  getData<T extends object = Record<string, any>>() {
+  getData<T extends object = Record<string, unknown>>() {
     return (this.sharedData?.payload ?? {}) as T;
   }
 

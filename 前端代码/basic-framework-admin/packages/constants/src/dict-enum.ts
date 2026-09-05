@@ -3,7 +3,6 @@ const COMMON_DICT = {
   USER_TYPE: 'user_type',
   COMMON_STATUS: 'common_status',
   TERMINAL: 'terminal', // 终端
-  DATE_INTERVAL: 'date_interval', // 数据间隔
 } as const;
 
 /** ========== SYSTEM - 系统模块 ========== */
@@ -28,9 +27,6 @@ const INFRA_DICT = {
   INFRA_JOB_STATUS: 'infra_job_status',
   INFRA_JOB_LOG_STATUS: 'infra_job_log_status',
   INFRA_CONFIG_TYPE: 'infra_config_type',
-  INFRA_CODEGEN_TEMPLATE_TYPE: 'infra_codegen_template_type',
-  INFRA_CODEGEN_FRONT_TYPE: 'infra_codegen_front_type',
-  INFRA_CODEGEN_SCENE: 'infra_codegen_scene',
   INFRA_FILE_STORAGE: 'infra_file_storage',
   INFRA_OPERATE_TYPE: 'infra_operate_type',
 } as const;

@@ -1,10 +1,76 @@
 import type { RequestClient } from './request-client';
-import type { MakeErrorMessageFn, ResponseInterceptorConfig } from './types';
+import type {
+  ErrorMode,
+  MakeErrorMessageFn,
+  RequestClientConfig,
+  ResponseInterceptorConfig,
+} from './types';
 
 import { $t } from '@vben/locales';
 import { isFunction, logError } from '@vben/utils';
 
 import axios from 'axios';
+
+type ResponseBody = Record<string, unknown>;
+type RetryRequestConfig = RequestClientConfig & {
+  __isRetryRequest?: boolean;
+  headers: Record<string, unknown>;
+  url: string;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function requestFailure(error: unknown):
+  | undefined
+  | {
+      config: RetryRequestConfig;
+      status?: number;
+    } {
+  if (!isRecord(error) || !isRecord(error.config)) {
+    return undefined;
+  }
+  const response = isRecord(error.response) ? error.response : undefined;
+  const status =
+    typeof response?.status === 'number' ? response.status : undefined;
+  const config = error.config;
+  if (!isRecord(config.headers)) {
+    config.headers = {};
+  }
+  if (typeof config.url !== 'string') {
+    config.url = '';
+  }
+  return {
+    config: config as unknown as RetryRequestConfig,
+    status,
+  };
+}
+
+function errorMode(error: unknown): ErrorMode {
+  if (!isRecord(error)) {
+    return 'global';
+  }
+  const directConfig = isRecord(error.config) ? error.config : undefined;
+  const response = isRecord(error.response) ? error.response : undefined;
+  const responseConfig =
+    response && isRecord(response.config) ? response.config : undefined;
+  const mode = directConfig?.errorMode ?? responseConfig?.errorMode;
+  return mode === 'inline' || mode === 'silent' ? mode : 'global';
+}
+
+function errorStatus(error: unknown): number | undefined {
+  if (!isRecord(error) || !isRecord(error.response)) {
+    return undefined;
+  }
+  return typeof error.response.status === 'number'
+    ? error.response.status
+    : undefined;
+}
+
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
 
 export const defaultResponseInterceptor = ({
   codeField = 'code',
@@ -14,10 +80,10 @@ export const defaultResponseInterceptor = ({
   /** 响应数据中代表访问结果的字段名 */
   codeField: string;
   /** 响应数据中装载实际数据的字段名，或者提供一个函数从响应数据中解析需要返回的数据 */
-  dataField: ((response: any) => any) | string;
+  dataField: ((response: ResponseBody) => unknown) | string;
   /** 当codeField所指定的字段值与successCode相同时，代表接口访问成功。如果提供一个函数，则返回true代表接口访问成功 */
-  successCode: ((code: any) => boolean) | number | string;
-}): ResponseInterceptorConfig => {
+  successCode: ((code: unknown) => boolean) | number | string;
+}): ResponseInterceptorConfig<ResponseBody> => {
   return {
     fulfilled: (response) => {
       const { config, data: responseData, status } = response;
@@ -59,11 +125,12 @@ export const authenticateResponseInterceptor = ({
 }): ResponseInterceptorConfig => {
   return {
     rejected: async (error) => {
-      const { config, response } = error;
+      const failure = requestFailure(error);
       // 401 仅以 HTTP status 判定（ADR 0003），body code 不再作为认证信号；非 401 直接抛出
-      if (response?.status !== 401) {
+      if (failure?.status !== 401) {
         throw error;
       }
+      const { config } = failure;
       // 判断是否启用了 refreshToken 功能
       // 如果没有启用或者已经是重试请求了，直接跳转到重新登录
       if (!enableRefreshToken || config.__isRetryRequest) {
@@ -72,10 +139,13 @@ export const authenticateResponseInterceptor = ({
       }
       // 如果正在刷新 token，则将请求加入队列，等待刷新完成
       if (client.isRefreshing) {
-        return new Promise((resolve) => {
-          client.refreshTokenQueue.push((newToken: string) => {
-            config.headers.Authorization = formatToken(newToken);
-            resolve(client.request(config.url, { ...config }));
+        return new Promise((resolve, reject) => {
+          client.refreshTokenQueue.push({
+            reject: () => reject(error),
+            resolve: (newToken: string) => {
+              config.headers.Authorization = formatToken(newToken);
+              resolve(client.request(config.url, { ...config }));
+            },
           });
         });
       }
@@ -89,14 +159,16 @@ export const authenticateResponseInterceptor = ({
         const newToken = await doRefreshToken();
 
         // 处理队列中的请求
-        client.refreshTokenQueue.forEach((callback) => callback(newToken));
+        client.refreshTokenQueue.forEach((callback) =>
+          callback.resolve(newToken),
+        );
         // 清空队列
         client.refreshTokenQueue = [];
 
-        return client.request(error.config.url, { ...error.config });
+        return client.request(config.url, { ...config });
       } catch (refreshError) {
         // 如果刷新 token 失败，处理错误（如强制登出或跳转登录页面）
-        client.refreshTokenQueue.forEach((callback) => callback(''));
+        client.refreshTokenQueue.forEach((callback) => callback.reject());
         client.refreshTokenQueue = [];
         logError('request:refresh-token', refreshError);
         await doReAuthenticate();
@@ -114,24 +186,20 @@ export const errorMessageResponseInterceptor = (
   makeErrorMessage?: MakeErrorMessageFn,
 ): ResponseInterceptorConfig => {
   return {
-    rejected: (error: any) => {
+    rejected: (error: unknown) => {
       if (axios.isCancel(error)) {
         return Promise.reject(error);
       }
 
-      const errorMode =
-        error?.config?.errorMode ??
-        error?.response?.config?.errorMode ??
-        'global';
-      if (errorMode !== 'global') {
+      if (errorMode(error) !== 'global') {
         return Promise.reject(error);
       }
 
-      const err: string = error?.toString?.() ?? '';
+      const err = errorText(error);
       let errMsg = '';
       if (err?.includes('Network Error')) {
         errMsg = $t('ui.fallback.http.networkError');
-      } else if (error?.message?.includes?.('timeout')) {
+      } else if (err.includes('timeout')) {
         errMsg = $t('ui.fallback.http.requestTimeout');
       }
       if (errMsg) {
@@ -141,7 +209,7 @@ export const errorMessageResponseInterceptor = (
 
       let errorMessage = '';
       // 归一化为 HTTP status：传输/认证语义只看 status（ADR 0003），body code 仅作业务子原因展示
-      const status = error?.response?.status;
+      const status = errorStatus(error);
 
       switch (status) {
         case 400: {

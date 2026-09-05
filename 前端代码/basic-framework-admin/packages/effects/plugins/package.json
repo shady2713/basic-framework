@@ -3,6 +3,9 @@
   "version": "5.6.0",
   "license": "MIT",
   "type": "module",
+  "scripts": {
+    "typecheck": "vue-tsc --noEmit --skipLibCheck"
+  },
   "sideEffects": [
     "**/*.css"
   ],
@@ -43,6 +46,7 @@
     "vxe-table": "catalog:"
   },
   "devDependencies": {
-    "@types/codemirror": "catalog:"
+    "@types/codemirror": "catalog:",
+    "@vue/test-utils": "catalog:"
   }
 }

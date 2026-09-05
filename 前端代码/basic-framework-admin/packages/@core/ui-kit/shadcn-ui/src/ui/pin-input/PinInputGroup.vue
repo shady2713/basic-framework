@@ -1,13 +1,17 @@
 <script setup lang="ts">
 import type { PrimitiveProps } from 'reka-ui';
 
+import type { HTMLAttributes } from 'vue';
+
 import { computed } from 'vue';
 
 import { cn } from '@vben-core/shared/utils';
 
 import { Primitive, useForwardProps } from 'reka-ui';
 
-const props = defineProps<PrimitiveProps & { class?: any }>();
+const props = defineProps<
+  PrimitiveProps & { class?: HTMLAttributes['class'] }
+>();
 const delegatedProps = computed(() => {
   const { class: _, ...delegated } = props;
   return delegated;

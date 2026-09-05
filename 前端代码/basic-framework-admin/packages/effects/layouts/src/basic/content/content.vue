@@ -12,6 +12,7 @@ import { preferences, usePreferences } from '@vben/preferences';
 import { getTabKey, storeToRefs, useTabbarStore } from '@vben/stores';
 
 import { IFrameRouterView } from '../../iframe';
+import { setVNodeComponentName } from './component-name';
 
 defineOptions({ name: 'LayoutContent' });
 
@@ -68,23 +69,7 @@ function transformComponent(
   if (!routeName) {
     return component;
   }
-  const componentName = (component?.type as any)?.name;
-
-  // 已经设置过 name，则直接返回
-  if (componentName) {
-    return component;
-  }
-
-  // componentName 与 routeName 一致，则直接返回
-  if (componentName === routeName) {
-    return component;
-  }
-
-  // 设置 name
-  component.type ||= {};
-  (component.type as any).name = routeName;
-
-  return component;
+  return setVNodeComponentName(component, routeName);
 }
 </script>
 

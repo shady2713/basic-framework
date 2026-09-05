@@ -145,10 +145,6 @@ export interface ModalProps {
 export interface ModalState extends ModalProps {
   /** 弹窗打开状态 */
   isOpen?: boolean;
-  /**
-   * 共享数据
-   */
-  sharedData?: Record<string, any>;
 }
 
 export type ExtendedModalApi = ModalApi & {

@@ -1,6 +1,4 @@
-import type { Component, VNode } from 'vue';
-
-import type { Recordable } from '@vben-core/typings';
+import type { VNode } from 'vue';
 
 import type { AlertProps, BeforeCloseScope, PromptProps } from './alert';
 
@@ -12,7 +10,22 @@ import { isFunction, isString } from '@vben-core/shared/utils';
 
 import Alert from './alert.vue';
 
-const alerts = ref<Array<{ container: HTMLElement; instance: Component }>>([]);
+interface AlertRegistration {
+  cancel: () => void;
+  container: HTMLElement;
+}
+
+type AlertInvocationProps = AlertProps & {
+  onOpened?: () => Promise<void> | void;
+};
+
+type AlertComponentProps = AlertInvocationProps & {
+  onClosed: () => void;
+  onConfirm: () => void;
+  open: boolean;
+};
+
+const alerts = new Set<AlertRegistration>();
 
 const { $t } = useSimpleLocale();
 
@@ -50,21 +63,15 @@ export function vbenAlert(
     if (arg2 && !isString(arg2)) {
       Object.assign(options, arg2);
     }
-    // 创建容器元素
     const container = document.createElement('div');
     document.body.append(container);
 
-    // 创建一个引用，用于在回调中访问实例
-    const alertRef = { container, instance: null as any };
-
     let isConfirmed = false;
     let isSettled = false;
+    let registration: AlertRegistration;
 
     function dispose() {
-      if (!container.parentNode) {
-        return;
-      }
-      alerts.value = alerts.value.filter((item) => item !== alertRef);
+      alerts.delete(registration);
       render(null, container);
       container.remove();
     }
@@ -88,7 +95,9 @@ export function vbenAlert(
       reject(new Error('dialog cancelled'));
     }
 
-    const props: AlertProps & Recordable<any> = {
+    registration = { cancel: doReject, container };
+
+    const props: AlertComponentProps = {
       onConfirm: doResolve,
       onClosed: () => {
         if (isConfirmed) {
@@ -102,17 +111,15 @@ export function vbenAlert(
       title: options.title ?? $t.value('prompt'),
     };
 
-    // 创建Alert组件的VNode
     const vnode = h(Alert, props);
-
-    // 渲染组件到容器
-    render(vnode, container);
-
-    // 保存组件实例引用
-    alertRef.instance = vnode.component?.proxy as Component;
-
-    // 将实例和容器添加到alerts数组中
-    alerts.value.push(alertRef);
+    alerts.add(registration);
+    try {
+      render(vnode, container);
+    } catch (error) {
+      alerts.delete(registration);
+      container.remove();
+      reject(error);
+    }
   });
 }
 
@@ -150,7 +157,7 @@ export function vbenConfirm(
   });
 }
 
-export async function vbenPrompt<T = any>(
+export async function vbenPrompt<T = unknown>(
   options: PromptProps<T>,
 ): Promise<T | undefined> {
   const {
@@ -165,14 +172,13 @@ export async function vbenPrompt<T = any>(
 
   const modelValue = ref<T | undefined>(defaultValue);
   const inputComponentRef = ref<null | VNode>(null);
-  const staticContents: Component[] = [
+  const staticContents: VNode[] = [
     h(VbenRenderContent, { content, renderBr: true }),
   ];
 
   const modelPropName = _modelPropName || 'modelValue';
   const componentProps = { ..._componentProps };
 
-  // 每次渲染时都会重新计算的内容函数
   const contentRenderer = () => {
     const currentProps = {
       ...componentProps,
@@ -182,26 +188,19 @@ export async function vbenPrompt<T = any>(
       },
     };
 
-    // 设置当前值
-
-    // 设置更新处理函数
-
-    // 创建输入组件
     inputComponentRef.value = h(
       _component || Input,
       currentProps,
       componentSlots,
     );
 
-    // 返回包含静态内容和输入组件的数组
-    return h(
-      'div',
-      { class: 'flex flex-col gap-2' },
-      { default: () => [...staticContents, inputComponentRef.value] },
-    );
+    return h('div', { class: 'flex flex-col gap-2' }, [
+      ...staticContents,
+      inputComponentRef.value,
+    ]);
   };
 
-  const props: AlertProps & Recordable<any> = {
+  const props: AlertInvocationProps = {
     ...delegated,
     async beforeClose(scope: BeforeCloseScope) {
       if (delegated.beforeClose) {
@@ -211,41 +210,30 @@ export async function vbenPrompt<T = any>(
         });
       }
     },
-    // 使用函数形式，每次渲染都会重新计算内容
     content: contentRenderer,
     contentMasking: true,
     async onOpened() {
       await nextTick();
       const componentRef: null | VNode = inputComponentRef.value;
       if (componentRef) {
-        if (
-          componentRef.component?.exposed &&
-          isFunction(componentRef.component.exposed.focus)
-        ) {
-          componentRef.component.exposed.focus();
-        } else {
-          if (componentRef.el) {
-            if (
-              isFunction(componentRef.el.focus) &&
-              ['BUTTON', 'INPUT', 'SELECT', 'TEXTAREA'].includes(
-                componentRef.el.tagName,
-              )
-            ) {
-              componentRef.el.focus();
-            } else if (isFunction(componentRef.el.querySelector)) {
-              const focusableElement = componentRef.el.querySelector(
+        const exposed = componentRef.component?.exposed as null | {
+          focus?: unknown;
+        };
+        if (isFunction(exposed?.focus)) {
+          exposed.focus();
+          return;
+        }
+        const element = componentRef.el;
+        if (element instanceof HTMLElement) {
+          const focusable = element.matches('button, input, select, textarea')
+            ? element
+            : element.querySelector<HTMLElement>(
                 'input, select, textarea, button',
               );
-              if (focusableElement && isFunction(focusableElement.focus)) {
-                focusableElement.focus();
-              }
-            } else if (
-              componentRef.el.nextElementSibling &&
-              isFunction(componentRef.el.nextElementSibling.focus)
-            ) {
-              componentRef.el.nextElementSibling.focus();
-            }
-          }
+          const sibling = element.nextElementSibling;
+          (
+            focusable ?? (sibling instanceof HTMLElement ? sibling : null)
+          )?.focus();
         }
       }
     },
@@ -256,12 +244,5 @@ export async function vbenPrompt<T = any>(
 }
 
 export function clearAllAlerts() {
-  alerts.value.forEach((alert) => {
-    // 从DOM中移除容器
-    render(null, alert.container);
-    if (alert.container.parentNode) {
-      alert.container.remove();
-    }
-  });
-  alerts.value = [];
+  [...alerts].forEach(({ cancel }) => cancel());
 }

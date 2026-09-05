@@ -1,10 +1,11 @@
-import type { Pinia } from 'pinia';
+import type { Pinia, StoreGeneric } from 'pinia';
 
 import type { App } from 'vue';
 
 import { createPinia } from 'pinia';
 
 let pinia: Pinia;
+const activeStores = new Set<StoreGeneric>();
 
 export interface InitStoreOptions {
   namespace: string;
@@ -16,6 +17,15 @@ export interface InitStoreOptions {
 export async function initStores(app: App, options: InitStoreOptions) {
   const { createPersistedState } = await import('pinia-plugin-persistedstate');
   pinia = createPinia();
+  activeStores.clear();
+  pinia.use(({ store }) => {
+    activeStores.add(store);
+    const dispose = store.$dispose.bind(store);
+    store.$dispose = () => {
+      activeStores.delete(store);
+      dispose();
+    };
+  });
   const { namespace } = options;
   pinia.use(
     createPersistedState({
@@ -32,8 +42,7 @@ export function resetAllStores() {
     console.error('Pinia is not installed');
     return;
   }
-  const allStores = (pinia as any)._s;
-  for (const [_key, store] of allStores) {
+  for (const store of activeStores) {
     store.$reset();
   }
 }

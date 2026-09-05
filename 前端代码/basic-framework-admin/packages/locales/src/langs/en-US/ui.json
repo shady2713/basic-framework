@@ -112,6 +112,7 @@
     "logoutTip": "Do you want to logout?",
     "viewAll": "View All Messages",
     "notifications": "Notifications",
+    "markAsRead": "Mark as read",
     "markAllAsRead": "Make All as Read",
     "clearNotifications": "Clear",
     "checkUpdatesTitle": "New Version Available",
@@ -151,11 +152,18 @@
     "maxNumber": "Only upload up to {0} files",
     "uploadSuccess": "Upload successfully",
     "uploadError": "Upload failed",
-    "imgUploading": "Image sending, please wait..."
+    "imgUploading": "Image sending, please wait...",
+    "dragDescription": "Click or drag files here to upload",
+    "previewUnavailable": "This file cannot be previewed safely",
+    "previewTitle": "Image preview"
   },
   "cropper": {
     "selectImage": "Select Image",
     "uploadSuccess": "Uploaded success!",
+    "uploadError": "Image upload failed. Please try again",
+    "imageReadError": "Unable to read the image. Please select it again",
+    "imageProcessError": "Unable to process the image. Please select it again",
+    "invalidImageType": "Please select a valid image file",
     "imageTooBig": "Image too big",
     "modalTitle": "Avatar upload",
     "okText": "Confirm and upload",

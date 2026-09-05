@@ -11,7 +11,7 @@ export function useAntdDesignTokens() {
   const rootStyles = getComputedStyle(document.documentElement);
 
   const tokens = reactive({
-    borderRadius: '' as any,
+    borderRadius: 0,
     colorBgBase: '',
     colorBgContainer: '',
     colorBgElevated: '',

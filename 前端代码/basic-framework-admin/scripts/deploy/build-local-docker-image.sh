@@ -3,7 +3,7 @@
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 LOG_FILE=${SCRIPT_DIR}/build-local-docker-image.log
 ERROR=""
-IMAGE_NAME="vben-admin-local"
+IMAGE_NAME="web-ele-local"
 
 function stop_and_remove_container() {
     # Stop and remove the existing container
@@ -13,18 +13,18 @@ function stop_and_remove_container() {
 
 function remove_image() {
     # Remove the existing image
-    docker rmi vben-admin-pro >/dev/null 2>&1
+    docker rmi ${IMAGE_NAME} >/dev/null 2>&1
 }
 
 function install_dependencies() {
-    # Install all dependencies
-    cd ${SCRIPT_DIR}
+    # Install all dependencies from the monorepo root
+    cd ${SCRIPT_DIR}/../..
     pnpm install || ERROR="install_dependencies failed"
 }
 
 function build_image() {
     # build docker
-    docker build ../../ -f Dockerfile -t ${IMAGE_NAME} || ERROR="build_image failed"
+    docker build ${SCRIPT_DIR}/../.. -f ${SCRIPT_DIR}/Dockerfile -t ${IMAGE_NAME} || ERROR="build_image failed"
 }
 
 function log_message() {

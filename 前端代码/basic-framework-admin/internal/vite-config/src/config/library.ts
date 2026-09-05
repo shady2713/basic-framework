@@ -18,8 +18,6 @@ function defineLibraryConfig(userConfigPromise?: DefineLibraryOptions) {
     const isBuild = command === 'build';
 
     const plugins = await loadLibraryPlugins({
-      dts: false,
-      injectMetadata: true,
       isBuild,
       mode,
       ...library,

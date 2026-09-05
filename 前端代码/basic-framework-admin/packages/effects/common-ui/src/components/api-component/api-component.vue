@@ -1,8 +1,6 @@
 <script lang="ts" setup>
 import type { Component } from 'vue';
 
-import type { AnyPromiseFunction } from '@vben/types';
-
 import { computed, nextTick, ref, unref, useAttrs, watch } from 'vue';
 
 import { LoaderCircle } from '@vben/icons';
@@ -12,12 +10,16 @@ import { cloneDeep, get, isEqual, isFunction } from '@vben-core/shared/utils';
 import { objectOmit } from '@vueuse/core';
 
 type OptionsItem = {
-  [name: string]: any;
+  [name: string]: unknown;
   children?: OptionsItem[];
   disabled?: boolean;
-  label?: string;
-  value?: string;
+  label?: unknown;
+  value?: unknown;
 };
+
+type ApiParams = Record<string, unknown>;
+type ApiResult = OptionsItem[] | Record<string, unknown>;
+type MaybePromise<T> = PromiseLike<T> | T;
 
 interface Props {
   /** 组件 */
@@ -25,9 +27,9 @@ interface Props {
   /** 是否将value从数字转为string */
   numberToString?: boolean;
   /** 获取options数据的函数 */
-  api?: (arg?: any) => Promise<OptionsItem[] | Record<string, any>>;
+  api?: (arg?: ApiParams) => Promise<ApiResult>;
   /** 传递给api的参数 */
-  params?: Record<string, any>;
+  params?: ApiParams;
   /** 从api返回的结果中提取options数组的字段名 */
   resultField?: string;
   /** label字段名 */
@@ -45,9 +47,13 @@ interface Props {
   /** 每次`visibleEvent`事件发生时都重新请求数据 */
   alwaysLoad?: boolean;
   /** 在api请求之前的回调函数 */
-  beforeFetch?: AnyPromiseFunction<any, any>;
+  beforeFetch?: (
+    params: ApiParams,
+  ) => MaybePromise<ApiParams | undefined | void>;
   /** 在api请求之后的回调函数 */
-  afterFetch?: AnyPromiseFunction<any, any>;
+  afterFetch?: (
+    result: ApiResult,
+  ) => MaybePromise<ApiResult | undefined | void>;
   /** 直接传入选项数据，也作为api返回空数据时的后备数据 */
   options?: OptionsItem[];
   /** 组件的插槽名称，用来显示一个"加载中"的图标 */
@@ -68,7 +74,7 @@ interface Props {
     | 'first'
     | 'last'
     | 'one'
-    | ((item: OptionsItem[]) => OptionsItem)
+    | ((item: OptionsItem[]) => OptionsItem | undefined)
     | false;
 }
 
@@ -96,13 +102,22 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const emit = defineEmits<{
+  fetchError: [error: unknown];
   optionsChange: [OptionsItem[]];
 }>();
 
-const modelValue = defineModel<any>({ default: undefined });
+const modelValue = defineModel<unknown>({ default: undefined });
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function normalizeOptions(value: unknown): OptionsItem[] {
+  return Array.isArray(value) ? value.filter((item) => isRecord(item)) : [];
+}
 
 const attrs = useAttrs();
-const innerParams = ref({});
+const innerParams = ref<ApiParams>({});
 const refOptions = ref<OptionsItem[]>([]);
 const loading = ref(false);
 // 首次是否加载过了
@@ -125,13 +140,19 @@ const getOptions = computed(() => {
     return data.map((item) => {
       const value = get(item, valueField);
       const disabled = get(item, disabledField);
+      const children = childrenField ? item[childrenField] : undefined;
       return {
-        ...objectOmit(item, [labelField, valueField, disabled, childrenField]),
+        ...objectOmit(item, [
+          labelField,
+          valueField,
+          disabledField,
+          childrenField,
+        ]),
         label: get(item, labelField),
-        value: numberToString ? `${value}` : value,
-        disabled: get(item, disabledField),
-        ...(childrenField && item[childrenField]
-          ? { children: transformData(item[childrenField]) }
+        value: numberToString && typeof value === 'number' ? `${value}` : value,
+        disabled: typeof disabled === 'boolean' ? disabled : undefined,
+        ...(childrenField && Array.isArray(children)
+          ? { children: transformData(normalizeOptions(children)) }
           : {}),
       };
     });
@@ -146,7 +167,7 @@ const bindProps = computed(() => {
   return {
     [props.modelPropName]: unref(modelValue),
     [props.optionsPropName]: unref(getOptions),
-    [`onUpdate:${props.modelPropName}`]: (val: string) => {
+    [`onUpdate:${props.modelPropName}`]: (val: unknown) => {
       modelValue.value = val;
     },
     ...objectOmit(attrs, [`onUpdate:${props.modelPropName}`]),
@@ -176,26 +197,33 @@ async function fetchApi() {
     loading.value = true;
     let finalParams = unref(mergedParams);
     if (beforeFetch && isFunction(beforeFetch)) {
-      finalParams = (await beforeFetch(cloneDeep(finalParams))) || finalParams;
+      const transformedParams = await beforeFetch(
+        cloneDeep(finalParams) as ApiParams,
+      );
+      if (isRecord(transformedParams)) {
+        finalParams = transformedParams;
+      }
     }
     let res = await api(finalParams);
     if (afterFetch && isFunction(afterFetch)) {
-      res = (await afterFetch(res)) || res;
+      const transformedResult = await afterFetch(res);
+      if (Array.isArray(transformedResult) || isRecord(transformedResult)) {
+        res = transformedResult;
+      }
     }
     isFirstLoaded.value = true;
     if (Array.isArray(res)) {
-      refOptions.value = res;
+      refOptions.value = normalizeOptions(res);
       emitChange();
       return;
     }
     if (resultField) {
-      refOptions.value = get(res, resultField) || [];
+      refOptions.value = normalizeOptions(get(res, resultField));
     }
     emitChange();
   } catch (error) {
-    console.warn(error);
-    // reset status
     isFirstLoaded.value = false;
+    emit('fetchError', error);
   } finally {
     loading.value = false;
     // 如果有待处理的请求，立即触发新的请求
@@ -203,7 +231,7 @@ async function fetchApi() {
       hasPendingRequest.value = false;
       // 使用 nextTick 确保状态更新完成后再触发新请求
       await nextTick();
-      fetchApi();
+      await fetchApi();
     }
   }
 }
@@ -231,7 +259,7 @@ watch(
     if (isEqual(value, oldValue)) {
       return;
     }
-    fetchApi();
+    void fetchApi();
   },
   { deep: true, immediate: props.immediate },
 );
@@ -268,16 +296,16 @@ function emitChange() {
   }
   emit('optionsChange', unref(getOptions));
 }
-const componentRef = ref();
+const componentRef = ref<unknown>();
 defineExpose({
   /** 获取options数据 */
   getOptions: () => unref(getOptions),
   /** 获取当前值 */
   getValue: () => unref(modelValue),
   /** 获取被包装的组件实例 */
-  getComponentRef: <T = any,>() => componentRef.value as T,
+  getComponentRef: <T = unknown,>() => componentRef.value as T,
   /** 更新Api参数 */
-  updateParam(newParams: Record<string, any>) {
+  updateParam(newParams: ApiParams) {
     innerParams.value = newParams;
   },
 });

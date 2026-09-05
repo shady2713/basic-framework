@@ -14,8 +14,8 @@ import {
  * @param state
  */
 export function usePriorityValue<
-  T extends Record<string, any>,
-  S extends Record<string, any>,
+  T extends object,
+  S extends object,
   K extends keyof T = keyof T,
 >(key: K, props: T, state: Readonly<Ref<NoInfer<S>>> | undefined) {
   const instance = getCurrentInstance();
@@ -27,20 +27,22 @@ export function usePriorityValue<
     // 通过判断原始props是否有值来判断是否传入
     const rawProps = (instance?.vnode?.props || {}) as T;
 
-    const standardRawProps = {} as T;
-
-    for (const [key, value] of Object.entries(rawProps)) {
-      standardRawProps[kebabToCamelCase(key) as K] = value;
-    }
+    const standardRawProps = Object.fromEntries(
+      Object.entries(rawProps).map(([rawKey, rawValue]) => [
+        kebabToCamelCase(rawKey),
+        rawValue,
+      ]),
+    ) as Partial<T>;
+    const currentProp = props[key];
     const propsKey =
-      standardRawProps?.[key] === undefined ? undefined : props[key];
+      standardRawProps[key] === undefined ? undefined : currentProp;
 
     // slot可以关闭
-    return getFirstNonNullOrUndefined(
+    return getFirstNonNullOrUndefined<unknown>(
       slots[key as string],
       attrs[key],
       propsKey,
-      state?.value?.[key as keyof S],
+      state?.value?.[key as unknown as keyof S],
     ) as T[K];
   });
 
@@ -53,9 +55,9 @@ export function usePriorityValue<
  * @param state
  */
 export function usePriorityValues<
-  T extends Record<string, any>,
-  S extends Ref<Record<string, any>> = Readonly<Ref<NoInfer<T>, NoInfer<T>>>,
->(props: T, state: S | undefined) {
+  T extends object,
+  S extends object = Partial<T>,
+>(props: T, state: Readonly<Ref<S>> | undefined) {
   const result: { [K in keyof T]: ComputedRef<T[K]> } = {} as never;
 
   (Object.keys(props) as (keyof T)[]).forEach((key) => {
@@ -71,9 +73,9 @@ export function usePriorityValues<
  * @param state
  */
 export function useForwardPriorityValues<
-  T extends Record<string, any>,
-  S extends Ref<Record<string, any>> = Readonly<Ref<NoInfer<T>, NoInfer<T>>>,
->(props: T, state: S | undefined) {
+  T extends object,
+  S extends object = Partial<T>,
+>(props: T, state: Readonly<Ref<S>> | undefined) {
   const computedResult: { [K in keyof T]: ComputedRef<T[K]> } = {} as never;
 
   (Object.keys(props) as (keyof T)[]).forEach((key) => {
@@ -85,10 +87,11 @@ export function useForwardPriorityValues<
   });
 
   return computed(() => {
-    const unwrapResult: Record<string, any> = {};
-    Object.keys(props).forEach((key) => {
-      unwrapResult[key] = unref(computedResult[key]);
-    });
-    return unwrapResult as { [K in keyof T]: T[K] };
+    return Object.fromEntries(
+      (Object.keys(props) as Array<keyof T>).map((key) => [
+        key,
+        unref(computedResult[key]),
+      ]),
+    ) as { [K in keyof T]: T[K] };
   });
 }

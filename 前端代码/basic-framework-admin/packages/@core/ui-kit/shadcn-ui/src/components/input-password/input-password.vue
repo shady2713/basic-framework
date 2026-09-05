@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { HTMLAttributes } from 'vue';
+
 import { ref, useSlots } from 'vue';
 
 import { Eye, EyeOff } from '@vben-core/icons';
@@ -8,7 +10,7 @@ import { Input } from '../../ui';
 import PasswordStrength from './password-strength.vue';
 
 interface Props {
-  class?: any;
+  class?: HTMLAttributes['class'];
   /**
    * 是否显示密码强度
    */

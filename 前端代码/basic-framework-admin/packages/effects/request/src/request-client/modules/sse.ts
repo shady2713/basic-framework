@@ -1,7 +1,7 @@
-import type { AxiosRequestHeaders, InternalAxiosRequestConfig } from 'axios';
-
 import type { RequestClient } from '../request-client';
-import type { SseRequestOptions } from '../types';
+import type { InterceptorRequestConfig, SseRequestOptions } from '../types';
+
+import { AxiosHeaders } from 'axios';
 
 /**
  * SSE模块
@@ -15,7 +15,7 @@ class SSE {
 
   public async postSSE(
     url: string,
-    data?: any,
+    data?: unknown,
     requestOptions?: SseRequestOptions,
   ) {
     return this.requestSSE(url, data, {
@@ -32,34 +32,24 @@ class SSE {
    */
   public async requestSSE(
     url: string,
-    data?: any,
+    data?: unknown,
     requestOptions?: SseRequestOptions,
   ) {
     const baseUrl = this.client.getBaseUrl() || '';
 
-    let axiosConfig: InternalAxiosRequestConfig<any> = {
+    const initialConfig: InterceptorRequestConfig = {
       url,
-      method: (requestOptions?.method as any) ?? 'GET',
-      headers: {} as AxiosRequestHeaders,
+      method: requestOptions?.method ?? 'GET',
+      headers: new AxiosHeaders(),
     };
-    const requestInterceptors = this.client.instance.interceptors
-      .request as any;
-    if (
-      requestInterceptors.handlers &&
-      requestInterceptors.handlers.length > 0
-    ) {
-      for (const handler of requestInterceptors.handlers) {
-        if (typeof handler?.fulfilled === 'function') {
-          const next = await handler.fulfilled(axiosConfig as any);
-          if (next) axiosConfig = next as InternalAxiosRequestConfig<any>;
-        }
-      }
-    }
+    const axiosConfig = await this.client.prepareRequestConfig(initialConfig);
 
     const merged = new Headers();
-    Object.entries(
-      (axiosConfig.headers ?? {}) as Record<string, string>,
-    ).forEach(([k, v]) => merged.set(k, String(v)));
+    Object.entries(axiosConfig.headers.toJSON()).forEach(([key, value]) => {
+      if (value !== null && value !== undefined) {
+        merged.set(key, String(value));
+      }
+    });
     if (requestOptions?.headers) {
       new Headers(requestOptions.headers).forEach((v, k) => merged.set(k, v));
     }
@@ -67,24 +57,13 @@ class SSE {
       merged.set('accept', 'text/event-stream');
     }
 
-    let bodyInit = requestOptions?.body ?? data;
     const ct = (merged.get('content-type') || '').toLowerCase();
-    if (
-      bodyInit &&
-      typeof bodyInit === 'object' &&
-      !ArrayBuffer.isView(bodyInit as any) &&
-      !(bodyInit instanceof ArrayBuffer) &&
-      !(bodyInit instanceof Blob) &&
-      !(bodyInit instanceof FormData) &&
-      ct.includes('application/json')
-    ) {
-      bodyInit = JSON.stringify(bodyInit);
-    }
+    const body = normalizeRequestBody(requestOptions?.body ?? data, ct);
     const requestInit: RequestInit = {
       ...requestOptions,
       method: axiosConfig.method,
       headers: merged,
-      body: bodyInit,
+      body,
     };
 
     const response = await fetch(safeJoinUrl(baseUrl, url), requestInit);
@@ -98,20 +77,46 @@ class SSE {
     if (!reader) {
       throw new Error('No reader');
     }
-    let isEnd = false;
-    while (!isEnd) {
-      const { done, value } = await reader.read();
-      if (done) {
-        isEnd = true;
-        decoder.decode(new Uint8Array(0), { stream: false });
-        requestOptions?.onEnd?.();
-        reader.releaseLock?.();
-        break;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          decoder.decode(new Uint8Array(0), { stream: false });
+          requestOptions?.onEnd?.();
+          break;
+        }
+        const content = decoder.decode(value, { stream: true });
+        requestOptions?.onMessage?.(content);
       }
-      const content = decoder.decode(value, { stream: true });
-      requestOptions?.onMessage?.(content);
+    } finally {
+      reader.releaseLock();
     }
   }
+}
+
+function isNativeRequestBody(value: unknown): value is BodyInit {
+  return (
+    typeof value === 'string' ||
+    value instanceof ArrayBuffer ||
+    ArrayBuffer.isView(value) ||
+    value instanceof Blob ||
+    value instanceof FormData ||
+    value instanceof ReadableStream ||
+    value instanceof URLSearchParams
+  );
+}
+
+function normalizeRequestBody(
+  value: unknown,
+  contentType: string,
+): BodyInit | null | undefined {
+  if (value === null || value === undefined || isNativeRequestBody(value)) {
+    return value;
+  }
+  if (typeof value === 'object' && contentType.includes('application/json')) {
+    return JSON.stringify(value);
+  }
+  throw new TypeError('SSE request body must be a valid BodyInit value');
 }
 
 function safeJoinUrl(baseUrl: string | undefined, url: string): string {

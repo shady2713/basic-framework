@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { HTMLAttributes } from 'vue';
+
 import type { ButtonVariants } from '../../ui';
 import type { VbenButtonProps } from './button';
 
@@ -10,7 +12,7 @@ import { VbenTooltip } from '../tooltip';
 import VbenButton from './button.vue';
 
 interface Props extends VbenButtonProps {
-  class?: any;
+  class?: HTMLAttributes['class'];
   disabled?: boolean;
   onClick?: () => void;
   tooltip?: string;

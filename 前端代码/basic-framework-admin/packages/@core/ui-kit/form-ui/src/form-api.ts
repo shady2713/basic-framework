@@ -7,9 +7,12 @@ import type {
 
 import type { ComponentPublicInstance } from 'vue';
 
-import type { Recordable } from '@vben-core/typings';
-
-import type { FormActions, FormSchema, VbenFormProps } from './types';
+import type {
+  FormActions,
+  FormSchema,
+  FormValues,
+  VbenFormProps,
+} from './types';
 
 import { isRef, toRaw } from 'vue';
 
@@ -50,6 +53,18 @@ function getDefaultState(): VbenFormProps {
   };
 }
 
+function formatDateValue(value: unknown, format: string, field: string) {
+  if (
+    typeof value === 'number' ||
+    typeof value === 'string' ||
+    isDate(value) ||
+    isDayjsObject(value)
+  ) {
+    return formatDate(value, format);
+  }
+  throw new TypeError(`Range field "${field}" contains an invalid date value`);
+}
+
 export class FormApi {
   public form = {} as FormActions;
   isMounted = false;
@@ -65,7 +80,7 @@ export class FormApi {
   private componentRefMap: Map<string, unknown> = new Map();
 
   // 最后一次点击提交时的表单值
-  private latestSubmissionValues: null | Recordable<any> = null;
+  private latestSubmissionValues: FormValues | null = null;
 
   private prevState: null | VbenFormProps = null;
 
@@ -158,7 +173,7 @@ export class FormApi {
     return this.state;
   }
 
-  async getValues<T = Recordable<any>>() {
+  async getValues<T = FormValues>() {
     const form = await this.getForm();
     return (form.values ? this.handleRangeTimeValue(form.values) : {}) as T;
   }
@@ -166,46 +181,6 @@ export class FormApi {
   async isFieldValid(fieldName: string) {
     const form = await this.getForm();
     return form.isFieldValid(fieldName);
-  }
-
-  merge(formApi: FormApi) {
-    const chain = [this, formApi];
-    const proxy = new Proxy(formApi, {
-      get(target: any, prop: any) {
-        if (prop === 'merge') {
-          return (nextFormApi: FormApi) => {
-            chain.push(nextFormApi);
-            return proxy;
-          };
-        }
-        if (prop === 'submitAllForm') {
-          return async (needMerge: boolean = true) => {
-            try {
-              const results = await Promise.all(
-                chain.map(async (api) => {
-                  const validateResult = await api.validate();
-                  if (!validateResult.valid) {
-                    return;
-                  }
-                  const rawValues = toRaw((await api.getValues()) || {});
-                  return rawValues;
-                }),
-              );
-              if (needMerge) {
-                const mergedResults = Object.assign({}, ...results);
-                return mergedResults;
-              }
-              return results;
-            } catch (error) {
-              console.error('Validation error:', error);
-            }
-          };
-        }
-        return target[prop];
-      },
-    });
-
-    return proxy;
   }
 
   mount(formActions: FormActions, componentRefMap: Map<string, unknown>) {
@@ -258,7 +233,7 @@ export class FormApi {
    * 滚动到第一个错误字段
    * @param errors 验证错误对象
    */
-  scrollToFirstError(errors: Record<string, any> | string) {
+  scrollToFirstError(errors: FormValues | string) {
     // Handle validation reset after schema updates.
     const firstErrorFieldName =
       typeof errors === 'string' ? errors : Object.keys(errors)[0];
@@ -300,13 +275,13 @@ export class FormApi {
     }));
   }
 
-  async setFieldValue(field: string, value: any, shouldValidate?: boolean) {
+  async setFieldValue(field: string, value: unknown, shouldValidate?: boolean) {
     const form = await this.getForm();
     form.setFieldValue(field, value, shouldValidate);
   }
 
-  setLatestSubmissionValues(values: null | Recordable<any>) {
-    this.latestSubmissionValues = { ...toRaw(values) };
+  setLatestSubmissionValues(values: FormValues | null) {
+    this.latestSubmissionValues = values === null ? null : { ...toRaw(values) };
   }
 
   /**
@@ -340,14 +315,15 @@ export class FormApi {
    * @param filterFields 过滤不在schema中定义的字段 默认为true
    * @param shouldValidate
    */
-  async setValues(
-    fields: Record<string, any>,
+  async setValues<T extends object>(
+    fields: T,
     filterFields: boolean = true,
     shouldValidate: boolean = false,
   ) {
     const form = await this.getForm();
+    const fieldValues = fields as FormValues;
     if (!filterFields) {
-      form.setValues(fields, shouldValidate);
+      form.setValues(fieldValues, shouldValidate);
       return;
     }
 
@@ -369,7 +345,7 @@ export class FormApi {
       }
       return true;
     });
-    const filteredFields = fieldMergeFn(fields, form.values);
+    const filteredFields = fieldMergeFn(fieldValues, form.values);
     form.setValues(filteredFields, shouldValidate);
   }
 
@@ -406,7 +382,7 @@ export class FormApi {
     }
     const currentSchema = [...(this.state?.schema ?? [])];
 
-    const updatedMap: Record<string, any> = {};
+    const updatedMap: Record<string, Partial<FormSchema>> = {};
 
     updated.forEach((item) => {
       if (item.fieldName) {
@@ -478,7 +454,7 @@ export class FormApi {
     return this.form;
   }
 
-  private handleMultiFields = (originValues: Record<string, any>) => {
+  private handleMultiFields = (originValues: FormValues) => {
     const arrayToStringFields = this.state?.arrayToStringFields;
     if (!arrayToStringFields || !Array.isArray(arrayToStringFields)) {
       return;
@@ -534,7 +510,7 @@ export class FormApi {
     });
   };
 
-  private handleRangeTimeValue = (originValues: Record<string, any>) => {
+  private handleRangeTimeValue = (originValues: FormValues) => {
     const values = { ...originValues };
     const fieldMappingTime = this.state?.fieldMappingTime;
 
@@ -558,7 +534,13 @@ export class FormApi {
           return;
         }
 
-        const [startTime, endTime] = values[field];
+        const rangeValue = values[field];
+        if (!Array.isArray(rangeValue) || rangeValue.length < 2) {
+          throw new TypeError(
+            `Range field "${field}" must contain a start and end value`,
+          );
+        }
+        const [startTime, endTime] = rangeValue;
         if (format === null) {
           values[startTimeKey] = startTime;
           values[endTimeKey] = endTime;
@@ -571,10 +553,10 @@ export class FormApi {
             : [format, format];
 
           values[startTimeKey] = startTime
-            ? formatDate(startTime, startTimeFormat)
+            ? formatDateValue(startTime, startTimeFormat, field)
             : undefined;
           values[endTimeKey] = endTime
-            ? formatDate(endTime, endTimeFormat)
+            ? formatDateValue(endTime, endTimeFormat, field)
             : undefined;
         }
         // delete values[field];
@@ -587,8 +569,8 @@ export class FormApi {
   private processFields = (
     fields: string[],
     separator: string,
-    originValues: Record<string, any>,
-    transformFn: (value: any, separator: string) => any,
+    originValues: FormValues,
+    transformFn: (value: unknown, separator: string) => unknown,
   ) => {
     fields.forEach((field) => {
       const value = originValues[field];

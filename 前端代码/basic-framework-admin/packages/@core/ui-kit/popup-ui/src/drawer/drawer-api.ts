@@ -4,10 +4,6 @@ import { Store } from '@vben-core/shared/store';
 import { bindMethods, isFunction } from '@vben-core/shared/utils';
 
 export class DrawerApi {
-  // 共享数据
-  public sharedData: Record<'payload', any> = {
-    payload: {},
-  };
   public store: Store<DrawerState>;
 
   private api: Pick<
@@ -20,7 +16,10 @@ export class DrawerApi {
     | 'onOpened'
   >;
 
-  // private prevState!: DrawerState;
+  private readonly sharedData: Record<'payload', unknown> = {
+    payload: {},
+  };
+
   private state!: DrawerState;
 
   constructor(options: DrawerApiOptions = {}) {
@@ -102,7 +101,7 @@ export class DrawerApi {
     }
   }
 
-  getData<T extends object = Record<string, any>>() {
+  getData<T extends object = Record<string, unknown>>() {
     return (this.sharedData?.payload ?? {}) as T;
   }
 

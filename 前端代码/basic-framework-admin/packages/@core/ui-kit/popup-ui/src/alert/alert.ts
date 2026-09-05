@@ -1,4 +1,4 @@
-import type { Component, VNode, VNodeArrayChildren } from 'vue';
+import type { Component, Slots, VNode, VNodeArrayChildren } from 'vue';
 
 import type { Recordable } from '@vben-core/typings';
 
@@ -51,7 +51,7 @@ export type AlertProps = {
 };
 
 /** Prompt属性 */
-export type PromptProps<T = any> = {
+export type PromptProps<T = unknown> = {
   /** 关闭前的回调，如果返回false，则终止关闭 */
   beforeClose?: (scope: {
     isConfirm: boolean;
@@ -60,11 +60,11 @@ export type PromptProps<T = any> = {
   /** 用于接受用户输入的组件 */
   component?: Component;
   /** 输入组件的属性 */
-  componentProps?: Recordable<any>;
+  componentProps?: Recordable<unknown>;
   /** 输入组件的插槽 */
   componentSlots?:
-    | (() => any)
-    | Recordable<unknown>
+    | (() => VNodeArrayChildren)
+    | Slots
     | VNode
     | VNodeArrayChildren;
   /** 默认值 */

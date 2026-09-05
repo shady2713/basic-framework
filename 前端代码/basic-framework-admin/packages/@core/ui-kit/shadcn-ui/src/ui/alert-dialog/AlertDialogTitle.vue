@@ -1,13 +1,17 @@
 <script setup lang="ts">
 import type { AlertDialogTitleProps } from 'reka-ui';
 
+import type { HTMLAttributes } from 'vue';
+
 import { computed } from 'vue';
 
 import { cn } from '@vben-core/shared/utils';
 
 import { AlertDialogTitle, useForwardProps } from 'reka-ui';
 
-const props = defineProps<AlertDialogTitleProps & { class?: any }>();
+const props = defineProps<
+  AlertDialogTitleProps & { class?: HTMLAttributes['class'] }
+>();
 
 const delegatedProps = computed(() => {
   const { class: _, ...delegated } = props;

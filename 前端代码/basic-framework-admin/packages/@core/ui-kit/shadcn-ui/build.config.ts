@@ -1,5 +1,11 @@
 import { defineBuildConfig } from 'unbuild';
 
+const TEST_FILE_EXCLUSIONS = [
+  '!**/__tests__/**',
+  '!**/*.spec.*',
+  '!**/*.test.*',
+];
+
 export default defineBuildConfig({
   clean: true,
   declaration: true,
@@ -8,20 +14,20 @@ export default defineBuildConfig({
       builder: 'mkdist',
       input: './src',
 
-      pattern: ['**/*'],
+      pattern: ['**/*', ...TEST_FILE_EXCLUSIONS],
     },
     {
       builder: 'mkdist',
       input: './src',
       loaders: ['vue'],
-      pattern: ['**/*.vue'],
+      pattern: ['**/*.vue', ...TEST_FILE_EXCLUSIONS],
     },
     {
       builder: 'mkdist',
       format: 'esm',
       input: './src',
       loaders: ['js'],
-      pattern: ['**/*.ts'],
+      pattern: ['**/*.ts', ...TEST_FILE_EXCLUSIONS],
     },
   ],
 });

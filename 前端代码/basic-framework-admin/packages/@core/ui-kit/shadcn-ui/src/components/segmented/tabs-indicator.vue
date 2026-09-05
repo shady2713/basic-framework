@@ -1,13 +1,17 @@
 <script setup lang="ts">
 import type { TabsIndicatorProps } from 'reka-ui';
 
+import type { HTMLAttributes } from 'vue';
+
 import { computed } from 'vue';
 
 import { cn } from '@vben-core/shared/utils';
 
 import { TabsIndicator, useForwardProps } from 'reka-ui';
 
-const props = defineProps<TabsIndicatorProps & { class?: any }>();
+const props = defineProps<
+  TabsIndicatorProps & { class?: HTMLAttributes['class'] }
+>();
 
 const delegatedProps = computed(() => {
   const { class: _, ...delegated } = props;

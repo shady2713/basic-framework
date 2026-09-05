@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { DropdownMenuItemProps } from 'reka-ui';
 
+import type { HTMLAttributes } from 'vue';
+
 import { computed } from 'vue';
 
 import { cn } from '@vben-core/shared/utils';
@@ -8,7 +10,7 @@ import { cn } from '@vben-core/shared/utils';
 import { DropdownMenuItem, useForwardProps } from 'reka-ui';
 
 const props = defineProps<
-  DropdownMenuItemProps & { class?: any; inset?: boolean }
+  DropdownMenuItemProps & { class?: HTMLAttributes['class']; inset?: boolean }
 >();
 
 const delegatedProps = computed(() => {

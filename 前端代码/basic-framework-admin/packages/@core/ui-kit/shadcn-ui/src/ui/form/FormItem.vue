@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import type { HTMLAttributes } from 'vue';
+
 import { provide, useId } from 'vue';
 
 import { cn } from '@vben-core/shared/utils';
@@ -6,7 +8,7 @@ import { cn } from '@vben-core/shared/utils';
 import { FORM_ITEM_INJECTION_KEY } from './injectionKeys';
 
 const props = defineProps<{
-  class?: any;
+  class?: HTMLAttributes['class'];
 }>();
 
 const id = useId() as string;
