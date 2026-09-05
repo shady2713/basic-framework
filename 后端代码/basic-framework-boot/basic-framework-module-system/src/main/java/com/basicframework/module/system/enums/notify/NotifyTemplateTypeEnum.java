@@ -1,5 +1,7 @@
 package com.basicframework.module.system.enums.notify;
 
+import com.basicframework.framework.common.core.ArrayValuable;
+import java.util.Arrays;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
@@ -9,7 +11,7 @@ import lombok.Getter;
  */
 @Getter
 @AllArgsConstructor
-public enum NotifyTemplateTypeEnum {
+public enum NotifyTemplateTypeEnum implements ArrayValuable<Integer> {
 
     /**
      * 系统消息
@@ -20,5 +22,13 @@ public enum NotifyTemplateTypeEnum {
      */
     NOTIFICATION_MESSAGE(1);
 
+    public static final Integer[] ARRAYS =
+            Arrays.stream(values()).map(NotifyTemplateTypeEnum::getType).toArray(Integer[]::new);
+
     private final Integer type;
+
+    @Override
+    public Integer[] array() {
+        return ARRAYS;
+    }
 }

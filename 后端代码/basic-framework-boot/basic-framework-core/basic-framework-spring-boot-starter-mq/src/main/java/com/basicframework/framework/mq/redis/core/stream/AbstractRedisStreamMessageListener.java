@@ -12,7 +12,6 @@ import java.util.Objects;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.SneakyThrows;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.connection.stream.ObjectRecord;
 import org.springframework.data.redis.stream.StreamListener;
 
@@ -35,11 +34,7 @@ public abstract class AbstractRedisStreamMessageListener<T extends AbstractRedis
     @Getter
     private final String streamKey;
 
-    /**
-     * Redis 消费者分组，默认使用 spring.application.name 名字
-     */
-    @Value("${spring.application.name}")
-    @Getter
+    /** Redis 消费者分组。未显式指定时由 MQ 自动配置使用应用名初始化。 */
     private String group;
     /**
      * RedisMQTemplate
@@ -62,6 +57,35 @@ public abstract class AbstractRedisStreamMessageListener<T extends AbstractRedis
         this.group = group;
     }
 
+    /**
+     * 使用应用默认组初始化未指定组的监听器。
+     *
+     * <p>显式传入组名的子类优先于默认值，避免自动配置覆盖业务隔离边界。</p>
+     *
+     * @param defaultGroup 应用默认消费者组
+     */
+    public void configureDefaultGroup(String defaultGroup) {
+        if (group != null) {
+            return;
+        }
+        if (StrUtil.isBlank(defaultGroup)) {
+            throw new IllegalArgumentException("Redis Stream 默认消费者组不能为空");
+        }
+        group = defaultGroup;
+    }
+
+    /**
+     * 获取已初始化的消费者组。
+     *
+     * @return Redis Stream 消费者组
+     */
+    public String getGroup() {
+        if (StrUtil.isBlank(group)) {
+            throw new IllegalStateException("Redis Stream 消费者组尚未初始化");
+        }
+        return group;
+    }
+
     @Override
     public final void onMessage(ObjectRecord<String, String> message) {
         consumeRecord(message, 1L);
@@ -81,6 +105,9 @@ public abstract class AbstractRedisStreamMessageListener<T extends AbstractRedis
         T messageObj;
         try {
             messageObj = JsonUtils.parseObject(message.getValue(), messageType);
+            if (messageObj == null) {
+                throw new IllegalArgumentException("Redis Stream 消息内容不能为 null");
+            }
         } catch (RuntimeException exception) {
             deadLetter(message, deliveryCount, exception);
             return;

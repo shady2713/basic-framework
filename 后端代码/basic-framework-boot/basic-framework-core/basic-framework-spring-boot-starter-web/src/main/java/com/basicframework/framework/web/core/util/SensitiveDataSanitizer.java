@@ -3,6 +3,7 @@ package com.basicframework.framework.web.core.util;
 import com.basicframework.framework.common.pojo.CommonResult;
 import com.basicframework.framework.common.util.json.JsonUtils;
 import com.fasterxml.jackson.databind.JsonNode;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -12,12 +13,14 @@ import java.util.Map;
 import java.util.Set;
 import lombok.experimental.UtilityClass;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.util.StringUtils;
+import org.springframework.web.servlet.HandlerMapping;
 
 /**
  * 日志敏感数据脱敏器。
  *
- * <p>字段名匹配忽略大小写、下划线和连字符。默认删除凭证及 L4 敏感个人信息；调用方可通过
- * additionalKeys 扩展接口特有字段。JSON 解析失败时返回固定占位内容，禁止回退原文。
+ * <p>字段名匹配忽略大小写、下划线和连字符。默认删除凭证（含验证码校验凭证）、L4 敏感数据及 L3 直接联系方式
+ * （手机号、电话、邮箱）；调用方可通过 additionalKeys 扩展接口特有字段。JSON 解析失败时返回固定占位内容，禁止回退原文。
  */
 @Slf4j
 @UtilityClass
@@ -25,12 +28,15 @@ public class SensitiveDataSanitizer {
 
     public static final String SANITIZE_FAILURE_PLACEHOLDER = "{\"_sanitized\":true}";
 
+    public static final String UNMAPPED_REQUEST_PATH = "[unmapped]";
+
     private static final Set<String> EXACT_SENSITIVE_KEYS = Set.of(
             "authorization",
             "cookie",
             "setcookie",
             "sessionid",
             "jsessionid",
+            "captchaverification",
             "otp",
             "smscode",
             "emailcode",
@@ -44,7 +50,13 @@ public class SensitiveDataSanitizer {
             "bankcard",
             "creditcard",
             "cardnumber",
-            "cvv");
+            "cvv",
+            "email",
+            "emailaddress",
+            "mobile",
+            "mobilephone",
+            "phone",
+            "telephone");
 
     private static final Set<String> SENSITIVE_KEY_SUFFIXES = Set.of(
             "password",
@@ -114,19 +126,31 @@ public class SensitiveDataSanitizer {
         if (commonResult == null) {
             return null;
         }
-        String jsonString = JsonUtils.toJsonString(commonResult);
         try {
+            String jsonString = JsonUtils.toJsonString(commonResult);
             JsonNode rootNode = JsonUtils.getObjectMapper().readTree(jsonString);
             sanitizeJson(rootNode.get("data"), normalizeKeys(additionalKeys));
             return JsonUtils.toJsonString(rootNode);
         } catch (Exception ex) {
             log.warn(
-                    "[sanitizeResult][resultCode({}) payloadLength({}) 脱敏失败，降级为占位内容，exception({})]",
+                    "[sanitizeResult][resultCode({}) 脱敏失败，降级为占位内容，exceptionName({})]",
                     commonResult.getCode(),
-                    jsonString.length(),
-                    ex.getClass().getSimpleName());
+                    ex.getClass().getName());
             return SANITIZE_FAILURE_PLACEHOLDER;
         }
+    }
+
+    /**
+     * 将请求路径转换为服务端路由模板，避免把路径变量中的个人信息或凭据写入日志。
+     *
+     * @param request 当前 HTTP 请求
+     * @return 已匹配的路由模板；未匹配请求返回固定标识
+     */
+    public static String sanitizeRequestPath(HttpServletRequest request) {
+        Object matchingPattern = request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE);
+        return matchingPattern instanceof String pattern && StringUtils.hasText(pattern)
+                ? pattern
+                : UNMAPPED_REQUEST_PATH;
     }
 
     private static void sanitizeJson(JsonNode node, Set<String> additionalKeys) {

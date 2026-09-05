@@ -76,8 +76,7 @@ public class JsonUtils {
         try {
             return objectMapper.readValue(text, clazz);
         } catch (IOException e) {
-            log.error("json parse err,input:{} target:{}", summarizeInput(text), clazz.getName(), e);
-            throw new RuntimeException(e);
+            throw parseFailure(text, clazz.getName(), e);
         }
     }
 
@@ -90,8 +89,7 @@ public class JsonUtils {
             JsonNode pathNode = treeNode.path(path);
             return objectMapper.readValue(pathNode.toString(), clazz);
         } catch (IOException e) {
-            log.error("json parse err,input:{} path:{} target:{}", summarizeInput(text), path, clazz.getName(), e);
-            throw new RuntimeException(e);
+            throw parseFailure(text, path + " -> " + clazz.getName(), e);
         }
     }
 
@@ -102,8 +100,7 @@ public class JsonUtils {
         try {
             return objectMapper.readValue(text, objectMapper.getTypeFactory().constructType(type));
         } catch (IOException e) {
-            log.error("json parse err,input:{} target:{}", summarizeInput(text), type.getTypeName(), e);
-            throw new RuntimeException(e);
+            throw parseFailure(text, type.getTypeName(), e);
         }
     }
 
@@ -114,8 +111,7 @@ public class JsonUtils {
         try {
             return objectMapper.readValue(text, objectMapper.getTypeFactory().constructType(type));
         } catch (IOException e) {
-            log.error("json parse err,input:{} target:{}", summarizeInput(text), type.getTypeName(), e);
-            throw new RuntimeException(e);
+            throw parseFailure(text, type.getTypeName(), e);
         }
     }
 
@@ -142,17 +138,25 @@ public class JsonUtils {
         try {
             return objectMapper.readValue(bytes, clazz);
         } catch (IOException e) {
-            log.error("json parse err,input:{} target:{}", summarizeInput(bytes), clazz.getName(), e);
-            throw new RuntimeException(e);
+            throw parseFailure(bytes, clazz.getName(), e);
         }
     }
 
+    /**
+     * 将 JSON 字符串解析为带泛型的对象；空输入与其他 {@code parseObject} 重载保持一致，返回 {@code null}。
+     *
+     * @param text JSON 字符串
+     * @param typeReference 目标类型引用
+     * @return 解析后的对象；输入为空时返回 {@code null}
+     */
     public static <T> T parseObject(String text, TypeReference<T> typeReference) {
+        if (StrUtil.isEmpty(text)) {
+            return null;
+        }
         try {
             return objectMapper.readValue(text, typeReference);
         } catch (IOException e) {
-            log.error("json parse err,input:{} typeReference:{}", summarizeInput(text), typeReference.getType(), e);
-            throw new RuntimeException(e);
+            throw parseFailure(text, typeReference.getType().getTypeName(), e);
         }
     }
 
@@ -179,8 +183,7 @@ public class JsonUtils {
             return objectMapper.readValue(
                     text, objectMapper.getTypeFactory().constructCollectionType(List.class, clazz));
         } catch (IOException e) {
-            log.error("json parse err,input:{} target:{}[]", summarizeInput(text), clazz.getName(), e);
-            throw new RuntimeException(e);
+            throw parseFailure(text, clazz.getName() + "[]", e);
         }
     }
 
@@ -194,8 +197,7 @@ public class JsonUtils {
             return objectMapper.readValue(
                     pathNode.toString(), objectMapper.getTypeFactory().constructCollectionType(List.class, clazz));
         } catch (IOException e) {
-            log.error("json parse err,input:{} path:{} target:{}[]", summarizeInput(text), path, clazz.getName(), e);
-            throw new RuntimeException(e);
+            throw parseFailure(text, path + " -> " + clazz.getName() + "[]", e);
         }
     }
 
@@ -203,8 +205,7 @@ public class JsonUtils {
         try {
             return objectMapper.readTree(text);
         } catch (IOException e) {
-            log.error("json parse err,input:{}", summarizeInput(text), e);
-            throw new RuntimeException(e);
+            throw parseFailure(text, JsonNode.class.getName(), e);
         }
     }
 
@@ -212,8 +213,7 @@ public class JsonUtils {
         try {
             return objectMapper.readTree(text);
         } catch (IOException e) {
-            log.error("json parse err,input:{}", summarizeInput(text), e);
-            throw new RuntimeException(e);
+            throw parseFailure(text, JsonNode.class.getName(), e);
         }
     }
 
@@ -232,6 +232,19 @@ public class JsonUtils {
             return "bytes(length=" + bytes.length + ")";
         }
         return input.getClass().getName();
+    }
+
+    /**
+     * 记录不含原始载荷和异常正文的解析诊断，并返回同样不携带原始 Jackson 异常链的失败对象。
+     * Jackson 解析异常通常包含输入片段，禁止将其作为日志参数或 cause 向上游传播。
+     */
+    private static RuntimeException parseFailure(Object input, String target, IOException exception) {
+        String exceptionName = exception.getClass().getName();
+        log.error("JSON 解析失败 [input={}, target={}, exceptionName={}]", summarizeInput(input), target, exceptionName);
+        RuntimeException failure =
+                new IllegalArgumentException("JSON 解析失败 [target=" + target + ", exceptionName=" + exceptionName + "]");
+        failure.setStackTrace(exception.getStackTrace());
+        return failure;
     }
 
     /**

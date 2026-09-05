@@ -46,9 +46,14 @@ public class SmsChannelDO extends SoftDeletableDO {
      * 备注
      */
     private String remark;
-    /**
-     * 短信 API 的账号
-     */
+    /** 短信 API 账号的版本化密文。 */
+    @ToString.Exclude
+    @TableField("api_key")
+    private String apiKeyCiphertext;
+
+    /** 仅用于命令入参和客户端初始化，不持久化。 */
+    @ToString.Exclude
+    @TableField(exist = false)
     private String apiKey;
     /** 短信 API 密钥的版本化密文。 */
     @ToString.Exclude

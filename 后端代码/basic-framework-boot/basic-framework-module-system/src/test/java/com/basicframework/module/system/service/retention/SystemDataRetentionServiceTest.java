@@ -11,6 +11,7 @@ import com.basicframework.module.system.dal.mysql.logger.LoginLogMapper;
 import com.basicframework.module.system.dal.mysql.logger.OperateLogMapper;
 import com.basicframework.module.system.dal.mysql.notify.NotifyMessageMapper;
 import com.basicframework.module.system.dal.mysql.session.UserSessionMapper;
+import com.basicframework.module.system.dal.mysql.sms.SmsCodeMapper;
 import com.basicframework.module.system.dal.mysql.sms.SmsLogMapper;
 import com.basicframework.module.system.framework.retention.config.SystemDataRetentionProperties;
 import com.basicframework.module.system.service.retention.SystemDataRetentionService.CleanupResult;
@@ -38,6 +39,9 @@ class SystemDataRetentionServiceTest {
     private SmsLogMapper smsLogMapper;
 
     @Mock
+    private SmsCodeMapper smsCodeMapper;
+
+    @Mock
     private NotifyMessageMapper notifyMessageMapper;
 
     @Mock
@@ -51,6 +55,7 @@ class SystemDataRetentionServiceTest {
         when(properties.getLoginLogDays()).thenReturn(180);
         when(properties.getOperateLogDays()).thenReturn(180);
         when(properties.getSmsLogDays()).thenReturn(30);
+        when(properties.getSmsCodeDays()).thenReturn(7);
         when(properties.getReadNotifyMessageDays()).thenReturn(90);
         when(properties.getBatchSize()).thenReturn(500);
         when(properties.getMaxBatches()).thenReturn(20);
@@ -61,16 +66,18 @@ class SystemDataRetentionServiceTest {
         when(loginLogMapper.deleteByCreateTimeLt(any(), eq(500))).thenReturn(500, 12);
         when(operateLogMapper.deleteByCreateTimeLt(any(), eq(500))).thenReturn(3);
         when(smsLogMapper.deleteByCreateTimeLt(any(), eq(500))).thenReturn(0);
+        when(smsCodeMapper.deleteByCreateTimeLt(any(), eq(500))).thenReturn(4);
         when(notifyMessageMapper.deleteReadByCreateTimeLt(any(), eq(500))).thenReturn(7);
         when(userSessionMapper.deleteExpired(any(), eq(500))).thenReturn(2);
 
         CleanupResult result = service.cleanExpiredData();
 
-        assertThat(result).isEqualTo(new CleanupResult(512, 3, 0, 7, 2));
-        assertThat(result.summary()).isEqualTo("登录日志 512，操作日志 3，短信日志 0，已读站内信 7，过期会话 2");
+        assertThat(result).isEqualTo(new CleanupResult(512, 3, 0, 4, 7, 2));
+        assertThat(result.summary()).isEqualTo("登录日志 512，操作日志 3，短信日志 0，短信验证码 4，已读站内信 7，过期会话 2");
         verify(loginLogMapper, times(2)).deleteByCreateTimeLt(any(LocalDateTime.class), eq(500));
         verify(operateLogMapper).deleteByCreateTimeLt(any(LocalDateTime.class), eq(500));
         verify(smsLogMapper).deleteByCreateTimeLt(any(LocalDateTime.class), eq(500));
+        verify(smsCodeMapper).deleteByCreateTimeLt(any(LocalDateTime.class), eq(500));
         verify(notifyMessageMapper).deleteReadByCreateTimeLt(any(LocalDateTime.class), eq(500));
         verify(userSessionMapper).deleteExpired(any(LocalDateTime.class), eq(500));
     }

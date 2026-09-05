@@ -1,10 +1,10 @@
 package com.basicframework.module.system.service.sms;
 
 import static com.basicframework.framework.common.exception.util.ServiceExceptionUtil.exception;
+import static com.basicframework.framework.common.util.exception.SafeExceptionLogUtils.format;
 import static com.basicframework.module.system.enums.ErrorCodeConstants.*;
 
 import cn.hutool.core.collection.CollUtil;
-import cn.hutool.core.exceptions.ExceptionUtil;
 import cn.hutool.core.util.StrUtil;
 import com.basicframework.framework.common.core.KeyValue;
 import com.basicframework.framework.common.enums.CommonStatusEnum;
@@ -20,12 +20,13 @@ import com.basicframework.module.system.mq.message.sms.SmsSendMessage;
 import com.basicframework.module.system.mq.producer.sms.SmsProducer;
 import com.basicframework.module.system.service.user.AdminUserService;
 import com.google.common.annotations.VisibleForTesting;
-import jakarta.annotation.Resource;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 短信发送 Service 发送的实现
@@ -33,22 +34,18 @@ import org.springframework.stereotype.Service;
  */
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class SmsSendServiceImpl implements SmsSendService {
 
-    @Resource
-    private AdminUserService adminUserService;
+    private final AdminUserService adminUserService;
 
-    @Resource
-    private SmsChannelService smsChannelService;
+    private final SmsChannelService smsChannelService;
 
-    @Resource
-    private SmsTemplateService smsTemplateService;
+    private final SmsTemplateService smsTemplateService;
 
-    @Resource
-    private SmsLogService smsLogService;
+    private final SmsLogService smsLogService;
 
-    @Resource
-    private SmsProducer smsProducer;
+    private final SmsProducer smsProducer;
 
     @Override
     @DataPermission(enable = false) // 发送短信时，无需考虑数据权限
@@ -170,15 +167,16 @@ public class SmsSendServiceImpl implements SmsSendService {
                     sendResponse.getApiMsg(),
                     sendResponse.getApiRequestId(),
                     sendResponse.getSerialNo());
-        } catch (Throwable ex) {
-            log.error("[doSendSms][发送短信异常，日志编号({})]", message.getLogId(), ex);
+        } catch (Exception ex) {
+            log.error("[doSendSms][发送短信异常，日志编号({})，stackTrace({})]", message.getLogId(), format(ex));
             smsLogService.updateSmsSendResult(
-                    message.getLogId(), false, "EXCEPTION", ExceptionUtil.getRootCauseMessage(ex), null, null);
+                    message.getLogId(), false, "EXCEPTION", ex.getClass().getName(), null, null);
         }
     }
 
     @Override
-    public void receiveSmsStatus(String channelCode, String text) throws Throwable {
+    @Transactional(rollbackFor = Throwable.class)
+    public void receiveSmsStatus(String channelCode, String text) throws Exception {
         // 获得渠道对应的 SmsClient 客户端
         SmsClient smsClient = smsChannelService.getSmsClient(channelCode);
         if (smsClient == null) {
@@ -190,12 +188,18 @@ public class SmsSendServiceImpl implements SmsSendService {
             return;
         }
         // 更新短信日志的接收结果. 因为量一般不大，所以先使用 for 循环更新
-        receiveResults.forEach(result -> smsLogService.updateSmsReceiveResult(
-                result.getLogId(),
-                result.getSerialNo(),
-                result.getSuccess(),
-                result.getReceiveTime(),
-                result.getErrorCode(),
-                result.getErrorMsg()));
+        for (SmsReceiveRespDTO result : receiveResults) {
+            boolean updated = smsLogService.updateSmsReceiveResult(new SmsReceiveResultCommand(
+                    channelCode,
+                    result.getLogId(),
+                    result.getSerialNo(),
+                    result.getSuccess(),
+                    result.getReceiveTime(),
+                    result.getErrorCode(),
+                    result.getErrorMsg()));
+            if (!updated) {
+                throw new IllegalStateException("短信回执无法匹配已发送日志");
+            }
+        }
     }
 }

@@ -1,5 +1,6 @@
 package com.basicframework.module.system.dal.mysql.sms;
 
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.basicframework.framework.common.pojo.PageParam;
 import com.basicframework.framework.common.pojo.PageResult;
 import com.basicframework.framework.mybatis.core.mapper.BaseMapperX;
@@ -11,6 +12,16 @@ import org.apache.ibatis.annotations.Select;
 
 @Mapper
 public interface SmsChannelMapper extends BaseMapperX<SmsChannelDO> {
+
+    default boolean replaceLegacyApiKey(Long id, String legacyValue, String ciphertext) {
+        return update(
+                        null,
+                        new LambdaUpdateWrapper<SmsChannelDO>()
+                                .set(SmsChannelDO::getApiKeyCiphertext, ciphertext)
+                                .eq(SmsChannelDO::getId, id)
+                                .eq(SmsChannelDO::getApiKeyCiphertext, legacyValue))
+                == 1;
+    }
 
     default PageResult<SmsChannelDO> selectPage(
             PageParam pageParam, String signature, String code, Integer status, LocalDateTime[] createTime) {

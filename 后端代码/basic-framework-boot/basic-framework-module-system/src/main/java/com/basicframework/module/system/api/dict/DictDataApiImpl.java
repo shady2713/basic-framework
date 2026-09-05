@@ -4,9 +4,8 @@ import com.basicframework.framework.common.util.object.BeanUtils;
 import com.basicframework.module.system.api.dict.dto.DictDataRespDTO;
 import com.basicframework.module.system.dal.dataobject.dict.DictDataDO;
 import com.basicframework.module.system.service.dict.DictDataService;
-import jakarta.annotation.Resource;
-import java.util.Collection;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 /**
@@ -14,15 +13,10 @@ import org.springframework.stereotype.Service;
  *
  */
 @Service
-public class DictDataApiImpl implements DictDataApi {
+@RequiredArgsConstructor
+public class DictDataApiImpl implements DictDataCommonApi {
 
-    @Resource
-    private DictDataService dictDataService;
-
-    @Override
-    public void validateDictDataList(String dictType, Collection<String> values) {
-        dictDataService.validateDictDataList(dictType, values);
-    }
+    private final DictDataService dictDataService;
 
     @Override
     public List<DictDataRespDTO> getDictDataList(String dictType) {

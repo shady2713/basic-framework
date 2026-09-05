@@ -28,10 +28,9 @@ import com.google.common.annotations.VisibleForTesting;
 import com.mzt.logapi.context.LogRecordContext;
 import com.mzt.logapi.service.impl.DiffParseFunction;
 import com.mzt.logapi.starter.annotation.LogRecord;
-import jakarta.annotation.Resource;
 import java.time.LocalDateTime;
 import java.util.*;
-import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -44,23 +43,18 @@ import org.springframework.util.StringUtils;
  *
  */
 @Service
-@Slf4j
+@RequiredArgsConstructor
 public class RoleServiceImpl implements RoleService {
 
-    @Resource
-    private ObjectProvider<PermissionService> permissionServiceProvider;
+    private final ObjectProvider<PermissionService> permissionServiceProvider;
 
-    @Resource
-    private RoleMapper roleMapper;
+    private final RoleMapper roleMapper;
 
-    @Resource
-    private UserRoleMapper userRoleMapper;
+    private final UserRoleMapper userRoleMapper;
 
-    @Resource
-    private DeptService deptService;
+    private final DeptService deptService;
 
-    @Resource
-    private UserSessionRevocationPublisher sessionRevocationPublisher;
+    private final UserSessionRevocationPublisher sessionRevocationPublisher;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -76,7 +70,7 @@ public class RoleServiceImpl implements RoleService {
         // 2. 插入到数据库
         role.setType(ObjectUtil.defaultIfNull(type, RoleTypeEnum.CUSTOM.getType()))
                 .setStatus(ObjUtil.defaultIfNull(role.getStatus(), CommonStatusEnum.ENABLE.getStatus()))
-                .setDataScope(DataScopeEnum.ALL.getScope()); // 默认可查看所有数据。原因是，可能一些项目不需要项目权限
+                .setDataScope(DataScopeEnum.SELF.getScope());
         roleMapper.insert(role);
 
         // 3. 记录操作日志上下文

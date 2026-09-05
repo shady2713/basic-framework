@@ -1,8 +1,6 @@
 package com.basicframework.module.system.framework.datapermission.config;
 
 import com.basicframework.framework.datapermission.core.rule.dept.DeptDataPermissionRuleCustomizer;
-import com.basicframework.module.system.dal.dataobject.dept.DeptDO;
-import com.basicframework.module.system.dal.dataobject.user.AdminUserDO;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -16,11 +14,10 @@ public class DataPermissionConfiguration {
     @Bean
     public DeptDataPermissionRuleCustomizer sysDeptDataPermissionRuleCustomizer() {
         return rule -> {
-            // dept
-            rule.addDeptColumn(AdminUserDO.class);
-            rule.addDeptColumn(DeptDO.class, "id");
-            // user
-            rule.addUserColumn(AdminUserDO.class, "id");
+            // 使用显式表名与列名，供数据权限契约门禁核对运行时规则和最终 schema。
+            rule.addDeptColumn("system_users", "dept_id");
+            rule.addDeptColumn("system_dept", "id");
+            rule.addUserColumn("system_users", "id");
         };
     }
 }

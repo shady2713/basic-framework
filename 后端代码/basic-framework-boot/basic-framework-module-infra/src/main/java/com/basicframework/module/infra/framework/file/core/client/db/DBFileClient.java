@@ -43,8 +43,10 @@ public class DBFileClient extends AbstractFileClient<DBFileClientConfig> {
         if (CollUtil.isEmpty(list)) {
             return null;
         }
-        // 排序后，拿 id 最大的，即最后上传的
-        list.sort(Comparator.comparing(FileContentDO::getId));
-        return CollUtil.getLast(list).getContent();
+        // 不修改 Mapper 返回的集合，取 id 最大的记录，即最后上传的内容。
+        return list.stream()
+                .max(Comparator.comparing(FileContentDO::getId))
+                .map(FileContentDO::getContent)
+                .orElse(null);
     }
 }

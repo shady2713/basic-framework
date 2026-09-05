@@ -9,10 +9,9 @@ import com.basicframework.module.infra.dal.dataobject.config.ConfigDO;
 import com.basicframework.module.infra.dal.mysql.config.ConfigMapper;
 import com.basicframework.module.infra.enums.config.ConfigTypeEnum;
 import com.google.common.annotations.VisibleForTesting;
-import jakarta.annotation.Resource;
 import java.time.LocalDateTime;
 import java.util.List;
-import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.validation.annotation.Validated;
 
@@ -20,12 +19,11 @@ import org.springframework.validation.annotation.Validated;
  * 参数配置 Service 实现类
  */
 @Service
-@Slf4j
 @Validated
+@RequiredArgsConstructor
 public class ConfigServiceImpl implements ConfigService {
 
-    @Resource
-    private ConfigMapper configMapper;
+    private final ConfigMapper configMapper;
 
     @Override
     public Long createConfig(ConfigDO config) {

@@ -31,7 +31,6 @@ public class JsoupXssCleaner implements XssCleaner {
         Safelist relaxedSafelist = Safelist.relaxed();
         relaxedSafelist.addAttributes(":all", "class");
         relaxedSafelist.addAttributes("a", "target");
-        relaxedSafelist.addProtocols("img", "src", "data");
         return relaxedSafelist;
     }
 

@@ -17,9 +17,9 @@ import com.basicframework.module.infra.service.file.FileConfigService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
@@ -29,10 +29,10 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/infra/file-config")
 @Validated
+@RequiredArgsConstructor
 public class FileConfigController {
 
-    @Resource
-    private FileConfigService fileConfigService;
+    private final FileConfigService fileConfigService;
 
     @PostMapping("/create")
     @Operation(summary = "创建文件配置")

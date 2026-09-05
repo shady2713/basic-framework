@@ -65,6 +65,13 @@ class MenuReferenceCommonApiImplTest {
     }
 
     @Test
+    void findUnavailableParentMenuIds_acceptsNullWithoutDatabaseLookup() {
+        assertThat(api.findUnavailableParentMenuIds(null)).isEmpty();
+
+        verify(menuMapper, never()).selectByIds(org.mockito.ArgumentMatchers.anyCollection());
+    }
+
+    @Test
     void lockParentMenuIfAvailable_acceptsActiveDirectory() {
         when(menuMapper.selectByIdForShare(10L))
                 .thenReturn(new MenuDO().setId(10L).setType(MenuTypeEnum.DIR.getType()));
@@ -77,5 +84,12 @@ class MenuReferenceCommonApiImplTest {
         assertThat(api.lockParentMenuIfAvailable(null)).isFalse();
 
         verify(menuMapper, never()).selectByIdForShare(null);
+    }
+
+    @Test
+    void lockParentMenuIfAvailable_acceptsRootWithoutDatabaseLookup() {
+        assertThat(api.lockParentMenuIfAvailable(MenuDO.ID_ROOT)).isTrue();
+
+        verify(menuMapper, never()).selectByIdForShare(MenuDO.ID_ROOT);
     }
 }

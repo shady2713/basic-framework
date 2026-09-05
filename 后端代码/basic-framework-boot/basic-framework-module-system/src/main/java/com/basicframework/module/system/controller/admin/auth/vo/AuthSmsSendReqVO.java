@@ -10,9 +10,11 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 
 @Schema(description = "管理后台 - 发送手机验证码 Request VO")
 @Data
+@ToString(exclude = {"mobile"})
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder

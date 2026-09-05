@@ -3,7 +3,6 @@ package com.basicframework.module.system.service.logger;
 import com.basicframework.framework.common.pojo.PageParam;
 import com.basicframework.framework.common.pojo.PageResult;
 import com.basicframework.module.system.api.logger.dto.OperateLogCreateReqDTO;
-import com.basicframework.module.system.api.logger.dto.OperateLogPageReqDTO;
 import com.basicframework.module.system.dal.dataobject.logger.OperateLogDO;
 import com.basicframework.module.system.dal.mysql.logger.OperateLogQuery;
 
@@ -36,12 +35,4 @@ public interface OperateLogService {
      * @return 操作日志分页列表
      */
     PageResult<OperateLogDO> getOperateLogPage(PageParam pageParam, OperateLogQuery query);
-
-    /**
-     * 获得操作日志分页列表
-     *
-     * @param pageReqVO 分页条件
-     * @return 操作日志分页列表
-     */
-    PageResult<OperateLogDO> getOperateLogPage(OperateLogPageReqDTO pageReqVO);
 }

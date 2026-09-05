@@ -7,12 +7,14 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import lombok.ToString;
 
 /**
  * 管理后台 - 发送手机验证码参数 DTO
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
+@ToString(exclude = {"mobile"})
 public class AuthSmsSendDTO extends CaptchaVerificationDTO {
 
     /**

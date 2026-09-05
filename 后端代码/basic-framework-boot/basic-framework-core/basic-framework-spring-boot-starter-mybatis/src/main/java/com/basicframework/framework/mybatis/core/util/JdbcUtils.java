@@ -56,10 +56,10 @@ public class JdbcUtils {
         } catch (NoSuchBeanDefinitionException e) {
             dataSource = SpringUtils.getBean(DataSource.class);
         }
-        try (Connection conn = dataSource.getConnection()) {
-            return DbTypeEnum.find(conn.getMetaData().getDatabaseProductName());
-        } catch (SQLException e) {
-            throw new IllegalArgumentException(e.getMessage());
+        try (Connection connection = dataSource.getConnection()) {
+            return DbTypeEnum.find(connection.getMetaData().getDatabaseProductName());
+        } catch (SQLException ex) {
+            throw new IllegalArgumentException("无法从数据源连接确定数据库类型", ex);
         }
     }
 

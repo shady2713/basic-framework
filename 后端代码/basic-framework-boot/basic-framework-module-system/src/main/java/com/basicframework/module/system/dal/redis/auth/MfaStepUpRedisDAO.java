@@ -4,7 +4,6 @@ import static com.basicframework.module.system.dal.redis.RedisKeyConstants.MFA_S
 
 import cn.hutool.crypto.digest.DigestUtil;
 import com.basicframework.module.system.config.MfaProperties;
-import jakarta.annotation.Resource;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -12,11 +11,13 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class MfaStepUpRedisDAO {
 
-    @Resource
-    private StringRedisTemplate stringRedisTemplate;
+    private final StringRedisTemplate stringRedisTemplate;
+    private final MfaProperties properties;
 
-    @Resource
-    private MfaProperties properties;
+    public MfaStepUpRedisDAO(StringRedisTemplate stringRedisTemplate, MfaProperties properties) {
+        this.stringRedisTemplate = stringRedisTemplate;
+        this.properties = properties;
+    }
 
     public void set(String accessToken, Long userId) {
         setByHash(tokenHash(accessToken), userId);

@@ -54,7 +54,10 @@ class CronUtilsTest {
 
     @Test
     void getNextTimes_invalidCronThrowsIllegalArgument() {
-        assertThatThrownBy(() -> CronUtils.getNextTimes("not-a-cron", 1)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> CronUtils.getNextTimes("not-a-cron", 1))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("CRON 表达式格式无效")
+                .hasCauseInstanceOf(java.text.ParseException.class);
     }
 
     @Test

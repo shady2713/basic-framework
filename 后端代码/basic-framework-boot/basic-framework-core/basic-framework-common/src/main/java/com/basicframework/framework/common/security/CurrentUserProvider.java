@@ -7,9 +7,8 @@ import org.springframework.lang.Nullable;
  * "当前登录用户身份"能力接缝
  *
  * 由 basic-framework-spring-boot-starter-security 注册实现 Bean，数据来源于
- * Spring Security 上下文中的登录用户；消费者（如 mybatis 字段填充、数据权限）
- * 经 ObjectProvider 注入，缺省时回退为"无登录用户"语义，即各查询方法返回 null、
- * {@link #isSkipPermissionCheck()} 返回 false。
+ * Spring Security 上下文中的登录用户。可选消费者可经 ObjectProvider 注入并在缺省时回退为
+ * "无登录用户"语义；登记了受保护表的数据权限 starter 必须直接依赖该能力，缺失时启动失败。
  *
  */
 public interface CurrentUserProvider {
@@ -48,13 +47,4 @@ public interface CurrentUserProvider {
      * @param value 缓存值；无登录用户时忽略本次写入
      */
     void setContext(String key, Object value);
-
-    /**
-     * 是否跳过权限校验，包括数据权限、功能权限
-     *
-     * @return 是否跳过；默认实现恒为 false，即不跳过
-     */
-    default boolean isSkipPermissionCheck() {
-        return false;
-    }
 }

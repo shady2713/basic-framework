@@ -1,7 +1,6 @@
 package com.basicframework.module.system.service.sms;
 
 import com.basicframework.module.system.dal.dataobject.sms.SmsTemplateDO;
-import java.time.LocalDateTime;
 import java.util.Map;
 
 /**
@@ -30,11 +29,5 @@ public interface SmsLogService {
     /**
      * 更新短信接收结果
      */
-    void updateSmsReceiveResult(
-            Long id,
-            String apiSerialNo,
-            Boolean success,
-            LocalDateTime receiveTime,
-            String apiErrorCode,
-            String apiErrorMsg);
+    boolean updateSmsReceiveResult(SmsReceiveResultCommand command);
 }

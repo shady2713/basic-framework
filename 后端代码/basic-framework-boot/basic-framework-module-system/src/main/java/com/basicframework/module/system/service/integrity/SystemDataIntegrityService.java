@@ -11,35 +11,30 @@ import com.basicframework.module.system.dal.mysql.sms.SmsTemplateMapper;
 import com.basicframework.module.system.dal.mysql.user.AdminUserMapper;
 import com.basicframework.module.system.enums.permission.DataScopeEnum;
 import com.basicframework.module.system.enums.permission.MenuTypeEnum;
-import jakarta.annotation.Resource;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 /** 检查 system 模块无法由物理外键表达的逻辑引用完整性。 */
 @Service
+@RequiredArgsConstructor
 public class SystemDataIntegrityService {
 
-    @Resource
-    private DeptMapper deptMapper;
+    private final DeptMapper deptMapper;
 
-    @Resource
-    private MenuMapper menuMapper;
+    private final MenuMapper menuMapper;
 
-    @Resource
-    private AdminUserMapper userMapper;
+    private final AdminUserMapper userMapper;
 
-    @Resource
-    private RoleMapper roleMapper;
+    private final RoleMapper roleMapper;
 
-    @Resource
-    private DictDataMapper dictDataMapper;
+    private final DictDataMapper dictDataMapper;
 
-    @Resource
-    private SmsTemplateMapper smsTemplateMapper;
+    private final SmsTemplateMapper smsTemplateMapper;
 
     /**
      * 检查已纳管的逻辑引用；发现孤儿时失败，由 Quartz 记录异常并触发任务告警。

@@ -44,7 +44,7 @@
 
     <build>
         <plugins>
-            <!-- 覆盖率棘轮门禁：基线 2026-08-22 实测 36.4%，取整 36%，只升不降 -->
+            <!-- 覆盖率棘轮门禁：补齐幂等、限流及自动配置契约测试后行覆盖率 99.39%，取 99.3%，只升不降 -->
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
@@ -63,7 +63,7 @@
                                         <limit>
                                             <counter>LINE</counter>
                                             <value>COVEREDRATIO</value>
-                                            <minimum>0.50</minimum>
+                                            <minimum>0.993</minimum>
                                         </limit>
                                     </limits>
                                 </rule>

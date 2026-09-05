@@ -69,11 +69,11 @@ public class BasicFrameworkCacheAutoConfiguration {
     public RedisCacheManager redisCacheManager(
             RedisTemplate<String, Object> redisTemplate,
             RedisCacheConfiguration redisCacheConfiguration,
-            BasicFrameworkCacheProperties basic_frameworkCacheProperties) {
+            BasicFrameworkCacheProperties basicFrameworkCacheProperties) {
         // 创建 RedisCacheWriter 对象
         RedisConnectionFactory connectionFactory = Objects.requireNonNull(redisTemplate.getConnectionFactory());
         RedisCacheWriter cacheWriter = RedisCacheWriter.nonLockingRedisCacheWriter(
-                connectionFactory, BatchStrategies.scan(basic_frameworkCacheProperties.getRedisScanBatchSize()));
+                connectionFactory, BatchStrategies.scan(basicFrameworkCacheProperties.getRedisScanBatchSize()));
         // 创建 RedisCacheManager 对象
         return new TimeoutRedisCacheManager(cacheWriter, redisCacheConfiguration);
     }

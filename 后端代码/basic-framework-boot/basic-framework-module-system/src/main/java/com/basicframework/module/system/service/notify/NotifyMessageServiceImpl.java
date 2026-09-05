@@ -6,11 +6,11 @@ import com.basicframework.module.system.dal.dataobject.notify.NotifyMessageDO;
 import com.basicframework.module.system.dal.dataobject.notify.NotifyTemplateDO;
 import com.basicframework.module.system.dal.mysql.notify.NotifyMessageMapper;
 import com.basicframework.module.system.dal.mysql.notify.NotifyMessageQuery;
-import jakarta.annotation.Resource;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.validation.annotation.Validated;
 
@@ -20,10 +20,10 @@ import org.springframework.validation.annotation.Validated;
  */
 @Service
 @Validated
+@RequiredArgsConstructor
 public class NotifyMessageServiceImpl implements NotifyMessageService {
 
-    @Resource
-    private NotifyMessageMapper notifyMessageMapper;
+    private final NotifyMessageMapper notifyMessageMapper;
 
     @Override
     public Long createNotifyMessage(
@@ -52,7 +52,7 @@ public class NotifyMessageServiceImpl implements NotifyMessageService {
     }
 
     @Override
-    public PageResult<NotifyMessageDO> getMyMyNotifyMessagePage(
+    public PageResult<NotifyMessageDO> getMyNotifyMessagePage(
             PageParam pageParam, Boolean readStatus, LocalDateTime[] createTime, Long userId, Integer userType) {
         return notifyMessageMapper.selectPage(pageParam, readStatus, createTime, userId, userType);
     }

@@ -49,10 +49,18 @@ public class TencentSmsClient extends AbstractSmsClient {
      */
     private static final long INTERNATIONAL_CHINA = 0L;
 
+    private final SmsHttpClient httpClient;
+
     public TencentSmsClient(SmsChannelProperties properties) {
+        this(properties, HttpUtils::post);
+    }
+
+    @VisibleForTesting
+    TencentSmsClient(SmsChannelProperties properties, SmsHttpClient httpClient) {
         super(properties);
         Assert.notEmpty(properties.getApiSecret(), "apiSecret 不能为空");
         validateSdkAppId(properties);
+        this.httpClient = Objects.requireNonNull(httpClient, "httpClient 不能为空");
     }
 
     /**
@@ -81,8 +89,7 @@ public class TencentSmsClient extends AbstractSmsClient {
 
     @Override
     public SmsSendRespDTO sendSms(
-            Long sendLogId, String mobile, String apiTemplateId, List<KeyValue<String, Object>> templateParams)
-            throws Throwable {
+            Long sendLogId, String mobile, String apiTemplateId, List<KeyValue<String, Object>> templateParams) {
         // 1. 执行请求
         // 参考链接 https://cloud.tencent.com/document/product/382/55981
         TreeMap<String, Object> body = new TreeMap<>();
@@ -128,7 +135,7 @@ public class TencentSmsClient extends AbstractSmsClient {
     }
 
     @Override
-    public SmsTemplateRespDTO getSmsTemplate(String apiTemplateId) throws Throwable {
+    public SmsTemplateRespDTO getSmsTemplate(String apiTemplateId) {
         // 1. 构建请求
         // 参考链接 https://cloud.tencent.com/document/product/382/52067
         TreeMap<String, Object> body = new TreeMap<>();
@@ -202,7 +209,7 @@ public class TencentSmsClient extends AbstractSmsClient {
                         + signedHeaders + ", " + "Signature=" + signature);
 
         // 2. 发起请求
-        String responseBody = HttpUtils.post("https://" + HOST, headers, JSONUtil.toJsonStr(body));
+        String responseBody = httpClient.post("https://" + HOST, headers, JSONUtil.toJsonStr(body));
         return JSONUtil.parseObj(responseBody);
     }
 

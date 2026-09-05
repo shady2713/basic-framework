@@ -5,6 +5,7 @@ import static com.basicframework.framework.common.pojo.CommonResult.success;
 import com.basicframework.framework.common.pojo.CommonResult;
 import com.basicframework.framework.common.pojo.PageResult;
 import com.basicframework.framework.common.util.object.BeanUtils;
+import com.basicframework.framework.security.core.annotation.AuthenticatedOnly;
 import com.basicframework.framework.security.core.annotation.MfaStepUp;
 import com.basicframework.module.system.controller.admin.sms.vo.channel.SmsChannelPageReqVO;
 import com.basicframework.module.system.controller.admin.sms.vo.channel.SmsChannelRespVO;
@@ -15,21 +16,23 @@ import com.basicframework.module.system.service.sms.SmsChannelService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 import java.util.Comparator;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 @Tag(name = "管理后台 - 短信渠道")
 @RestController
-@RequestMapping("system/sms-channel")
+@RequestMapping("/system/sms-channel")
+@RequiredArgsConstructor
 public class SmsChannelController {
 
-    @Resource
-    private SmsChannelService smsChannelService;
+    private final SmsChannelService smsChannelService;
 
     @PostMapping("/create")
     @Operation(summary = "创建短信渠道")
@@ -54,7 +57,7 @@ public class SmsChannelController {
     @Parameter(name = "id", description = "编号", required = true)
     @PreAuthorize("@ss.hasPermission('system:sms-channel:delete')")
     @MfaStepUp
-    public CommonResult<Boolean> deleteSmsChannel(@RequestParam("id") Long id) {
+    public CommonResult<Boolean> deleteSmsChannel(@RequestParam("id") @Positive Long id) {
         smsChannelService.deleteSmsChannel(id);
         return success(true);
     }
@@ -64,7 +67,8 @@ public class SmsChannelController {
     @Operation(summary = "批量删除短信渠道")
     @PreAuthorize("@ss.hasPermission('system:sms-channel:delete')")
     @MfaStepUp
-    public CommonResult<Boolean> deleteSmsChannelList(@RequestParam("ids") List<Long> ids) {
+    public CommonResult<Boolean> deleteSmsChannelList(
+            @RequestParam("ids") @Size(min = 1, max = 100) List<@Positive Long> ids) {
         smsChannelService.deleteSmsChannelList(ids);
         return success(true);
     }
@@ -74,7 +78,7 @@ public class SmsChannelController {
     @Parameter(name = "id", description = "编号", required = true, example = "1024")
     @PreAuthorize("@ss.hasPermission('system:sms-channel:query')")
     @MfaStepUp
-    public CommonResult<SmsChannelRespVO> getSmsChannel(@RequestParam("id") Long id) {
+    public CommonResult<SmsChannelRespVO> getSmsChannel(@RequestParam("id") @Positive Long id) {
         SmsChannelDO channel = smsChannelService.getSmsChannel(id);
         return success(toResponse(channel));
     }
@@ -90,8 +94,9 @@ public class SmsChannelController {
                 pageResult.getList().stream().map(this::toResponse).toList(), pageResult.getTotal()));
     }
 
-    @GetMapping({"/list-all-simple", "/simple-list"})
+    @GetMapping("/simple-list")
     @Operation(summary = "获得短信渠道精简列表", description = "包含被禁用的短信渠道")
+    @AuthenticatedOnly
     public CommonResult<List<SmsChannelSimpleRespVO>> getSimpleSmsChannelList() {
         List<SmsChannelDO> list = smsChannelService.getSmsChannelList();
         list.sort(Comparator.comparing(SmsChannelDO::getId));
@@ -103,6 +108,7 @@ public class SmsChannelController {
             return null;
         }
         return BeanUtils.toBean(channel, SmsChannelRespVO.class)
+                .setApiKeyConfigured(StringUtils.hasText(channel.getApiKeyCiphertext()))
                 .setApiSecretConfigured(StringUtils.hasText(channel.getApiSecretCiphertext()));
     }
 }

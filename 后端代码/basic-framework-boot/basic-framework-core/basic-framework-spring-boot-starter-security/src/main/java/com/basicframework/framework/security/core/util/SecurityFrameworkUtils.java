@@ -1,7 +1,6 @@
 package com.basicframework.framework.security.core.util;
 
 import cn.hutool.core.map.MapUtil;
-import cn.hutool.core.util.StrUtil;
 import com.basicframework.framework.security.core.LoginUser;
 import com.basicframework.framework.web.core.util.WebFrameworkUtils;
 import jakarta.servlet.http.HttpServletRequest;
@@ -30,17 +29,15 @@ public class SecurityFrameworkUtils {
     /**
      * 从请求中，获得认证 Token
      *
+     * 只允许从 Header 获取；URL 参数会进入访问日志、浏览器历史与代理日志，令牌泄露面不可控
+     *
      * @param request 请求
      * @param headerName 认证 Token 对应的 Header 名字
-     * @param parameterName 认证 Token 对应的 Parameter 名字
      * @return 认证 Token
      */
-    public static String obtainAuthorization(HttpServletRequest request, String headerName, String parameterName) {
-        // 1. 获得 Token。优先级：Header > Parameter
+    public static String obtainAuthorization(HttpServletRequest request, String headerName) {
+        // 1. 获得 Token
         String token = request.getHeader(headerName);
-        if (StrUtil.isEmpty(token)) {
-            token = request.getParameter(parameterName);
-        }
         if (!StringUtils.hasText(token)) {
             return null;
         }
@@ -56,9 +53,6 @@ public class SecurityFrameworkUtils {
      */
     public static Authentication getAuthentication() {
         SecurityContext context = SecurityContextHolder.getContext();
-        if (context == null) {
-            return null;
-        }
         return context.getAuthentication();
     }
 
@@ -134,14 +128,5 @@ public class SecurityFrameworkUtils {
                 new UsernamePasswordAuthenticationToken(loginUser, null, Collections.emptyList());
         authenticationToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
         return authenticationToken;
-    }
-
-    /**
-     * 是否条件跳过权限校验，包括数据权限、功能权限
-     *
-     * @return 是否跳过
-     */
-    public static boolean skipPermissionCheck() {
-        return false;
     }
 }

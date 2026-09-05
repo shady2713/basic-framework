@@ -1,13 +1,15 @@
 package com.basicframework.module.infra.service.job;
 
+import static com.basicframework.framework.common.util.exception.SafeExceptionLogUtils.format;
+
 import com.basicframework.framework.common.pojo.PageParam;
 import com.basicframework.framework.common.pojo.PageResult;
 import com.basicframework.module.infra.dal.dataobject.job.JobLogDO;
 import com.basicframework.module.infra.dal.mysql.job.JobLogMapper;
 import com.basicframework.module.infra.dal.mysql.job.JobLogQuery;
 import com.basicframework.module.infra.enums.job.JobLogStatusEnum;
-import jakarta.annotation.Resource;
 import java.time.LocalDateTime;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -20,10 +22,10 @@ import org.springframework.validation.annotation.Validated;
 @Service
 @Validated
 @Slf4j
+@RequiredArgsConstructor
 public class JobLogServiceImpl implements JobLogService {
 
-    @Resource
-    private JobLogMapper jobLogMapper;
+    private final JobLogMapper jobLogMapper;
 
     @Override
     public Long createJobLog(
@@ -55,12 +57,12 @@ public class JobLogServiceImpl implements JobLogService {
             jobLogMapper.updateById(updateObj);
         } catch (Exception ex) {
             log.error(
-                    "[updateJobLogResultAsync][logId({}) endTime({}) duration({}) success({})]",
+                    "[updateJobLogResultAsync][logId({}) endTime({}) duration({}) success({}) stackTrace({})]",
                     logId,
                     endTime,
                     duration,
                     success,
-                    ex);
+                    format(ex));
         }
     }
 

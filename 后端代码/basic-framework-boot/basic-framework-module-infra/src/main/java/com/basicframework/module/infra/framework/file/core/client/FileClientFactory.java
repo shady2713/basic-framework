@@ -21,4 +21,11 @@ public interface FileClientFactory {
      * @param config 文件配置
      */
     <Config extends FileClientConfig> void createOrUpdateFileClient(Long configId, Integer storage, Config config);
+
+    /**
+     * 移除并关闭指定客户端。
+     *
+     * @param configId 配置编号
+     */
+    void removeFileClient(Long configId);
 }

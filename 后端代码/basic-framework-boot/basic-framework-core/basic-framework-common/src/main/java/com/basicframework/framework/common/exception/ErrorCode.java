@@ -1,14 +1,13 @@
 package com.basicframework.framework.common.exception;
 
 import com.basicframework.framework.common.exception.enums.GlobalErrorCodeConstants;
-import com.basicframework.framework.common.exception.enums.ServiceErrorCodeRange;
 import lombok.Data;
 
 /**
  * 错误码对象
  *
  * 全局错误码，占用 [0, 999], 参见 {@link GlobalErrorCodeConstants}
- * 业务异常错误码，占用 [1 000 000 000, +∞)，参见 {@link ServiceErrorCodeRange}
+ * 业务异常错误码占用 [1 000 000 000, +∞)，由所属模块的 ErrorCodeConstants 分段维护，装配层负责校验全库唯一性。
  *
  * 错误码设计成对象，便于后续扩展国际化、文案映射等能力。
  */

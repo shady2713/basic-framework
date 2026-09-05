@@ -5,7 +5,7 @@ import cn.hutool.core.util.StrUtil;
 import com.basicframework.module.system.dal.dataobject.dept.DeptDO;
 import com.basicframework.module.system.service.dept.DeptService;
 import com.mzt.logapi.service.IParseFunction;
-import jakarta.annotation.Resource;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -15,12 +15,12 @@ import org.springframework.stereotype.Component;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class DeptParseFunction implements IParseFunction {
 
     public static final String NAME = "getDeptById";
 
-    @Resource
-    private DeptService deptService;
+    private final DeptService deptService;
 
     @Override
     public String functionName() {

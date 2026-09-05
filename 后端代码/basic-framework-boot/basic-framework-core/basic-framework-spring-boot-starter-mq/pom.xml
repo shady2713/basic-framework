@@ -42,7 +42,7 @@
         <profile>
             <id>integration</id>
             <build>
-                <!-- 真实 Redis 集成覆盖率棘轮：2026-08-23 DLQ 集成测试后实测 91.256%，取整 91%，只升不降。 -->
+                <!-- 真实 Redis 集成覆盖率棘轮：最低 91.4%，只升不降。 -->
                 <plugins>
                     <plugin>
                         <groupId>org.jacoco</groupId>
@@ -62,7 +62,7 @@
                                                 <limit>
                                                     <counter>LINE</counter>
                                                     <value>COVEREDRATIO</value>
-                                                <minimum>0.91</minimum>
+                                                <minimum>0.914</minimum>
                                                 </limit>
                                             </limits>
                                         </rule>

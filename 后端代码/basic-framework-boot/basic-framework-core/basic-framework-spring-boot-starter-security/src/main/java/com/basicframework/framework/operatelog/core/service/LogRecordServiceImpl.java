@@ -1,5 +1,7 @@
 package com.basicframework.framework.operatelog.core.service;
 
+import static com.basicframework.framework.common.util.exception.SafeExceptionLogUtils.format;
+
 import com.basicframework.framework.common.enums.UserTypeEnum;
 import com.basicframework.framework.common.util.monitor.TracerUtils;
 import com.basicframework.framework.common.util.servlet.ServletUtils;
@@ -9,7 +11,6 @@ import com.basicframework.module.system.api.logger.OperateLogCommonApi;
 import com.basicframework.module.system.api.logger.dto.OperateLogCreateReqDTO;
 import com.mzt.logapi.beans.LogRecord;
 import com.mzt.logapi.service.ILogRecordService;
-import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
@@ -23,8 +24,11 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class LogRecordServiceImpl implements ILogRecordService {
 
-    @Resource
-    private OperateLogCommonApi operateLogApi;
+    private final OperateLogCommonApi operateLogApi;
+
+    public LogRecordServiceImpl(OperateLogCommonApi operateLogApi) {
+        this.operateLogApi = operateLogApi;
+    }
 
     @Override
     public void record(LogRecord logRecord) {
@@ -40,16 +44,16 @@ public class LogRecordServiceImpl implements ILogRecordService {
 
             // 2. 异步记录日志
             operateLogApi.createOperateLogAsync(reqDTO);
-        } catch (Throwable ex) {
+        } catch (Exception ex) {
             // 由于 @Async 异步调用，这里打印下日志，更容易跟进
             log.error(
-                    "[record][traceId({}) url({}) type({}) subType({}) bizId({}) 发生异常]",
+                    "[record][traceId({}) url({}) type({}) subType({}) bizId({}) 发生异常，stackTrace({})]",
                     reqDTO.getTraceId(),
                     reqDTO.getRequestUrl(),
                     reqDTO.getType(),
                     reqDTO.getSubType(),
                     reqDTO.getBizId(),
-                    ex);
+                    format(ex));
         }
     }
 
@@ -64,10 +68,10 @@ public class LogRecordServiceImpl implements ILogRecordService {
         reqDTO.setUserType(loginUser.getUserType());
     }
 
-    public static void fillModuleFields(OperateLogCreateReqDTO reqDTO, LogRecord logRecord) {
-        reqDTO.setType(logRecord.getType()); // 大模块类型，例如：CRM 客户
-        reqDTO.setSubType(logRecord.getSubType()); // 操作名称，例如：转移客户
-        reqDTO.setBizId(Long.parseLong(logRecord.getBizNo())); // 业务编号，例如：客户编号
+    private static void fillModuleFields(OperateLogCreateReqDTO reqDTO, LogRecord logRecord) {
+        reqDTO.setType(logRecord.getType()); // 大模块类型，例如：系统用户
+        reqDTO.setSubType(logRecord.getSubType()); // 操作名称，例如：修改用户
+        reqDTO.setBizId(Long.parseLong(logRecord.getBizNo())); // 业务编号，例如：用户编号
         reqDTO.setAction(logRecord.getAction()); // 操作内容，例如：修改编号为 1 的用户信息，将性别从男改成女，将姓名从张三改成李四。
         reqDTO.setExtra(logRecord.getExtra()); // 拓展字段，有些复杂的业务，需要记录一些字段 ( JSON 格式 )，例如说，记录订单编号，{ orderId: "1"}
     }
@@ -87,11 +91,11 @@ public class LogRecordServiceImpl implements ILogRecordService {
 
     @Override
     public List<LogRecord> queryLog(String bizNo, String type) {
-        throw new UnsupportedOperationException("使用 OperateLogApi 进行操作日志的查询");
+        throw new UnsupportedOperationException("请使用管理后台操作日志查询接口");
     }
 
     @Override
     public List<LogRecord> queryLogByBizNo(String bizNo, String type, String subType) {
-        throw new UnsupportedOperationException("使用 OperateLogApi 进行操作日志的查询");
+        throw new UnsupportedOperationException("请使用管理后台操作日志查询接口");
     }
 }

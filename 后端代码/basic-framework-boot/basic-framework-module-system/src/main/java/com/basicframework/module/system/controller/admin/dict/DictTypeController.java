@@ -9,6 +9,7 @@ import com.basicframework.framework.common.pojo.PageParam;
 import com.basicframework.framework.common.pojo.PageResult;
 import com.basicframework.framework.common.util.object.BeanUtils;
 import com.basicframework.framework.excel.core.util.ExcelUtils;
+import com.basicframework.framework.security.core.annotation.AuthenticatedOnly;
 import com.basicframework.module.system.controller.admin.dict.vo.type.DictTypePageReqVO;
 import com.basicframework.module.system.controller.admin.dict.vo.type.DictTypeRespVO;
 import com.basicframework.module.system.controller.admin.dict.vo.type.DictTypeSaveReqVO;
@@ -18,11 +19,12 @@ import com.basicframework.module.system.service.dict.DictTypeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
 import java.io.IOException;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -31,10 +33,10 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/system/dict-type")
 @Validated
+@RequiredArgsConstructor
 public class DictTypeController {
 
-    @Resource
-    private DictTypeService dictTypeService;
+    private final DictTypeService dictTypeService;
 
     @PostMapping("/create")
     @Operation(summary = "创建字典类型")
@@ -56,7 +58,7 @@ public class DictTypeController {
     @Operation(summary = "删除字典类型")
     @Parameter(name = "id", description = "编号", required = true, example = "1024")
     @PreAuthorize("@ss.hasPermission('system:dict:delete')")
-    public CommonResult<Boolean> deleteDictType(Long id) {
+    public CommonResult<Boolean> deleteDictType(@RequestParam("id") @Positive Long id) {
         dictTypeService.deleteDictType(id);
         return success(true);
     }
@@ -79,7 +81,7 @@ public class DictTypeController {
         return success(BeanUtils.toBean(pageResult, DictTypeRespVO.class));
     }
 
-    @Operation(summary = "/查询字典类型详细")
+    @Operation(summary = "查询字典类型详细")
     @Parameter(name = "id", description = "编号", required = true, example = "1024")
     @GetMapping(value = "/get")
     @PreAuthorize("@ss.hasPermission('system:dict:query')")
@@ -88,9 +90,9 @@ public class DictTypeController {
         return success(BeanUtils.toBean(dictType, DictTypeRespVO.class));
     }
 
-    @GetMapping(value = {"/list-all-simple", "simple-list"})
+    @GetMapping("/simple-list")
     @Operation(summary = "获得全部字典类型列表", description = "包括开启 + 禁用的字典类型，主要用于前端的下拉选项")
-    // 无需添加权限认证，因为前端全局都需要
+    @AuthenticatedOnly
     public CommonResult<List<DictTypeSimpleRespVO>> getSimpleDictTypeList() {
         List<DictTypeDO> list = dictTypeService.getDictTypeList();
         return success(BeanUtils.toBean(list, DictTypeSimpleRespVO.class));
@@ -98,7 +100,7 @@ public class DictTypeController {
 
     @Operation(summary = "导出数据类型")
     @GetMapping("/export-excel")
-    @PreAuthorize("@ss.hasPermission('system:dict:query')")
+    @PreAuthorize("@ss.hasPermission('system:dict:export')")
     @ApiAccessLog(operateType = EXPORT)
     public void export(HttpServletResponse response, @Valid DictTypePageReqVO exportReqVO) throws IOException {
         exportReqVO.setPageSize(PageParam.EXPORT_MAX_PAGE_SIZE);

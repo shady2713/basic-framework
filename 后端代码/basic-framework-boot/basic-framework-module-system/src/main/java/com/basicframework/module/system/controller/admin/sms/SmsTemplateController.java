@@ -20,7 +20,6 @@ import com.basicframework.module.system.service.sms.SmsTemplateService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import java.io.IOException;
@@ -33,11 +32,13 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/system/sms-template")
 public class SmsTemplateController {
 
-    @Resource
-    private SmsTemplateService smsTemplateService;
+    private final SmsTemplateService smsTemplateService;
+    private final SmsSendService smsSendService;
 
-    @Resource
-    private SmsSendService smsSendService;
+    public SmsTemplateController(SmsTemplateService smsTemplateService, SmsSendService smsSendService) {
+        this.smsTemplateService = smsTemplateService;
+        this.smsSendService = smsSendService;
+    }
 
     @PostMapping("/create")
     @Operation(summary = "创建短信模板")

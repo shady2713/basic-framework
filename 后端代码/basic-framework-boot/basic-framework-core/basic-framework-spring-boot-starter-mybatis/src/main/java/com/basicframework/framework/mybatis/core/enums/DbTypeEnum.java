@@ -92,11 +92,14 @@ public enum DbTypeEnum {
         if (StrUtil.isBlank(databaseProductName)) {
             return null;
         }
-        return MAP_BY_NAME.get(databaseProductName).getMpDbType();
+        DbTypeEnum dbType = MAP_BY_NAME.get(databaseProductName);
+        return dbType != null ? dbType.getMpDbType() : DbType.OTHER;
     }
 
     public static String getFindInSetTemplate(DbType dbType) {
-        return Optional.of(MAP_BY_MP.get(dbType).getFindInSetTemplate())
-                .orElseThrow(() -> new IllegalArgumentException("FIND_IN_SET not supported"));
+        return Optional.ofNullable(MAP_BY_MP.get(dbType))
+                .map(DbTypeEnum::getFindInSetTemplate)
+                .filter(StrUtil::isNotBlank)
+                .orElseThrow(() -> new IllegalArgumentException("FIND_IN_SET not supported for " + dbType));
     }
 }

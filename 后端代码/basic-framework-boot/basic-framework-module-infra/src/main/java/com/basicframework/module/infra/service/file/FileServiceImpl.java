@@ -4,9 +4,12 @@ import static cn.hutool.core.date.DatePattern.PURE_DATE_PATTERN;
 import static com.basicframework.framework.common.exception.util.ServiceExceptionUtil.exception;
 import static com.basicframework.module.infra.enums.ErrorCodeConstants.FILE_CLIENT_NOT_EXISTS;
 import static com.basicframework.module.infra.enums.ErrorCodeConstants.FILE_IS_EMPTY;
+import static com.basicframework.module.infra.enums.ErrorCodeConstants.FILE_METADATA_INVALID;
 import static com.basicframework.module.infra.enums.ErrorCodeConstants.FILE_NOT_EXISTS;
 import static com.basicframework.module.infra.enums.ErrorCodeConstants.FILE_PATH_INVALID;
+import static com.basicframework.module.infra.enums.ErrorCodeConstants.FILE_PRIVATE_READ_REQUIRES_PRIVATE_STORAGE;
 import static com.basicframework.module.infra.enums.ErrorCodeConstants.FILE_TYPE_NOT_ALLOWED;
+import static com.basicframework.module.infra.framework.file.core.utils.FileMetadataLimits.*;
 
 import cn.hutool.core.date.LocalDateTimeUtil;
 import cn.hutool.core.io.FileUtil;
@@ -15,16 +18,18 @@ import cn.hutool.crypto.digest.DigestUtil;
 import com.basicframework.framework.common.pojo.PageParam;
 import com.basicframework.framework.common.pojo.PageResult;
 import com.basicframework.framework.common.util.http.HttpUtils;
+import com.basicframework.framework.common.util.validation.ValidationUtils;
 import com.basicframework.module.infra.dal.dataobject.file.FileDO;
 import com.basicframework.module.infra.dal.mysql.file.FileMapper;
+import com.basicframework.module.infra.enums.file.FileAccessTypeEnum;
 import com.basicframework.module.infra.framework.file.core.client.FileClient;
 import com.basicframework.module.infra.framework.file.core.utils.FileArchiveValidator;
 import com.basicframework.module.infra.framework.file.core.utils.FileTypeUtils;
 import com.basicframework.module.infra.service.file.dto.FilePresignedUrlDTO;
 import com.google.common.annotations.VisibleForTesting;
-import jakarta.annotation.Resource;
 import java.time.LocalDateTime;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +38,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 文件 Service 实现类
  */
 @Service
+@RequiredArgsConstructor
 public class FileServiceImpl implements FileService {
 
     /**
@@ -48,14 +54,15 @@ public class FileServiceImpl implements FileService {
      */
     static boolean PATH_SUFFIX_TIMESTAMP_ENABLE = true;
 
-    @Resource
-    private FileConfigService fileConfigService;
+    private final FileConfigService fileConfigService;
 
-    @Resource
-    private FileMapper fileMapper;
+    private final FileMapper fileMapper;
 
-    @Resource
-    private FileArchiveValidator fileArchiveValidator;
+    private final FileArchiveValidator fileArchiveValidator;
+
+    private final FileDeletionService fileDeletionService;
+
+    private final FilePresignedUploadService filePresignedUploadService;
 
     @Override
     public PageResult<FileDO> getFilePage(PageParam pageParam, String path, String type, LocalDateTime[] createTime) {
@@ -65,7 +72,15 @@ public class FileServiceImpl implements FileService {
     @Override
     @SneakyThrows
     @Transactional(rollbackFor = Exception.class)
-    public String createFile(byte[] content, String name, String directory, String type) {
+    public String createFile(
+            byte[] content,
+            String name,
+            String directory,
+            String type,
+            FileUploadPrincipal principal,
+            FileAccessTypeEnum accessType) {
+        validateUploadPrincipal(principal);
+        validateAccessType(accessType);
         // 先拦截空内容，避免后续 MIME 识别、摘要计算和长度访问时出现空指针。
         if (content == null || content.length == 0) {
             throw exception(FILE_IS_EMPTY);
@@ -99,16 +114,32 @@ public class FileServiceImpl implements FileService {
         // 生成唯一上传路径，避免不同目录/同名文件互相覆盖。
         String path = generateUploadPath(name, directory);
         FileClient client = requireMasterFileClientForReferenceWrite();
+        validatePrivateReadStorage(client, accessType);
         String url = client.upload(content, path, type);
 
-        // 上传成功后持久化文件元数据，便于后续查询、预签名和删除。
-        fileMapper.insert(new FileDO()
+        // 上传成功后持久化文件元数据；校验或入库失败时补偿删除外部对象，避免孤儿文件。
+        FileDO file = new FileDO()
                 .setConfigId(client.getId())
                 .setName(name)
                 .setPath(path)
-                .setUrl(url)
+                .setUrl(HttpUtils.removeUrlQuery(url))
                 .setType(type)
-                .setSize((long) content.length));
+                .setSize((long) content.length)
+                .setAccessType(accessType.getValue())
+                .setOwnerUserId(principal.userId())
+                .setOwnerUserType(principal.userType())
+                .setUploadStatus(FileMapper.UPLOAD_STATUS_COMPLETE);
+        try {
+            validateFileMetadata(file);
+            fileMapper.insert(file);
+        } catch (RuntimeException exception) {
+            try {
+                client.delete(path);
+            } catch (Exception cleanupException) {
+                exception.addSuppressed(cleanupException);
+            }
+            throw exception;
+        }
         return url;
     }
 
@@ -142,18 +173,23 @@ public class FileServiceImpl implements FileService {
         if (StrUtil.isNotEmpty(directory)) {
             name = directory + StrUtil.SLASH + name;
         }
+        if (ValidationUtils.codePointLength(name) > MAX_PATH_LENGTH) {
+            throw exception(FILE_PATH_INVALID);
+        }
         return name;
     }
 
     private static void validateUploadPath(String name, String directory) {
         if (StrUtil.isEmpty(name)
+                || ValidationUtils.codePointLength(name) > MAX_NAME_LENGTH
                 || StrUtil.contains(name, "..")
                 || StrUtil.containsAny(name, "/", "\\", ":")
                 || containsControlCharacter(name)) {
             throw exception(FILE_PATH_INVALID);
         }
         if (StrUtil.isNotEmpty(directory)
-                && (StrUtil.contains(directory, "..")
+                && (ValidationUtils.codePointLength(directory) > MAX_DIRECTORY_LENGTH
+                        || StrUtil.contains(directory, "..")
                         || StrUtil.startWithAny(directory, "/", "\\")
                         || StrUtil.containsAny(directory, "\\", ":")
                         || containsControlCharacter(directory))) {
@@ -166,16 +202,16 @@ public class FileServiceImpl implements FileService {
     }
 
     @Override
-    @SneakyThrows
-    public FilePresignedUrlDTO presignPutUrl(String name, String directory) {
+    public FilePresignedUrlDTO presignPutUrl(
+            String name,
+            String directory,
+            Long size,
+            String type,
+            FileUploadPrincipal principal,
+            FileAccessTypeEnum accessType) {
         // 预签名上传同样复用统一的路径生成规则，避免和直接上传路径不一致。
         String path = generateUploadPath(name, directory);
-
-        // 同时返回上传地址和访问地址，前端上传后可以直接使用访问地址预览。
-        FileClient fileClient = requireMasterFileClient();
-        String uploadUrl = fileClient.presignPutUrl(path);
-        String visitUrl = fileClient.presignGetUrl(path, null);
-        return new FilePresignedUrlDTO(fileClient.getId(), uploadUrl, visitUrl, path);
+        return filePresignedUploadService.issue(name, path, size, type, principal, accessType);
     }
 
     @Override
@@ -201,16 +237,36 @@ public class FileServiceImpl implements FileService {
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
-    public Long createFile(FileDO file) {
-        FileClient fileClient = fileConfigService.getFileClientForReferenceWrite(file.getConfigId());
-        if (fileClient == null) {
-            throw exception(FILE_CLIENT_NOT_EXISTS, file.getConfigId());
+    public String createPresignedFile(String uploadToken, FileUploadPrincipal principal) {
+        return filePresignedUploadService.complete(uploadToken, principal);
+    }
+
+    private static void validateFileMetadata(FileDO file) {
+        if (file == null
+                || file.getConfigId() == null
+                || file.getConfigId() <= 0
+                || StrUtil.isBlank(file.getName())
+                || StrUtil.isBlank(file.getPath())
+                || StrUtil.isBlank(file.getUrl())
+                || file.getSize() == null
+                || file.getSize() < 0
+                || file.getSize() > MAX_SIZE
+                || !FileAccessTypeEnum.isValid(file.getAccessType())
+                || file.getOwnerUserId() == null
+                || file.getOwnerUserType() == null
+                || ValidationUtils.codePointLength(file.getName()) > MAX_NAME_LENGTH
+                || ValidationUtils.codePointLength(file.getPath()) > MAX_PATH_LENGTH
+                || ValidationUtils.codePointLength(file.getUrl()) > MAX_URL_LENGTH
+                || (file.getType() != null && ValidationUtils.codePointLength(file.getType()) > MAX_TYPE_LENGTH)) {
+            throw exception(FILE_METADATA_INVALID);
         }
-        // 移除私有桶 URL 上的签名参数，避免把短期凭证误存入数据库。
-        file.setUrl(HttpUtils.removeUrlQuery(file.getUrl()));
-        fileMapper.insert(file);
-        return file.getId();
+        validateUploadPath(file.getName(), null);
+        if (StrUtil.contains(file.getPath(), "..")
+                || StrUtil.startWithAny(file.getPath(), "/", "\\")
+                || StrUtil.containsAny(file.getPath(), "\\", ":")
+                || containsControlCharacter(file.getPath())) {
+            throw exception(FILE_PATH_INVALID);
+        }
     }
 
     @Override
@@ -220,38 +276,16 @@ public class FileServiceImpl implements FileService {
 
     @Override
     public void deleteFile(Long id) throws Exception {
-        // 先校验记录存在，避免存储删除和数据库删除状态不一致。
-        FileDO file = validateFileExists(id);
-
-        // 先删存储中的文件，再删数据库记录，避免外部资源残留。
-        FileClient client = fileConfigService.getFileClient(file.getConfigId());
-        if (client == null) {
-            throw exception(FILE_CLIENT_NOT_EXISTS, file.getConfigId());
-        }
-        client.delete(file.getPath());
-
-        fileMapper.deleteById(id);
+        fileDeletionService.deleteFiles(List.of(id));
     }
 
     @Override
-    @SneakyThrows
     public void deleteFileList(List<Long> ids) {
-        // 批量删除时先遍历存储，再统一删除数据库记录，保持数据一致性。
-        List<FileDO> files = fileMapper.selectByIds(ids);
-        for (FileDO file : files) {
-            // 根据每条记录所属的配置获取客户端，兼容多存储源。
-            FileClient client = fileConfigService.getFileClient(file.getConfigId());
-            if (client == null) {
-                throw exception(FILE_CLIENT_NOT_EXISTS, file.getConfigId());
-            }
-            client.delete(file.getPath());
-        }
-
-        fileMapper.deleteByIds(ids);
+        fileDeletionService.deleteFiles(ids);
     }
 
     private FileDO validateFileExists(Long id) {
-        FileDO fileDO = fileMapper.selectById(id);
+        FileDO fileDO = fileMapper.selectActiveById(id);
         if (fileDO == null) {
             throw exception(FILE_NOT_EXISTS);
         }
@@ -259,11 +293,41 @@ public class FileServiceImpl implements FileService {
     }
 
     @Override
-    public byte[] getFileContent(Long configId, String path) throws Exception {
+    public byte[] getFileContent(Long configId, String path, FileAccessPrincipal principal) throws Exception {
+        FileDO file = fileMapper.selectActiveByConfigIdAndPath(configId, path);
+        if (file == null || !canRead(file, principal)) {
+            // 未授权时与不存在保持相同语义，避免利用路径枚举文件元数据。
+            throw exception(FILE_NOT_EXISTS);
+        }
         FileClient client = fileConfigService.getFileClient(configId);
         if (client == null) {
             throw exception(FILE_CLIENT_NOT_EXISTS, configId);
         }
-        return client.getContent(path);
+        return client.getContent(file.getPath());
+    }
+
+    private static void validateUploadPrincipal(FileUploadPrincipal principal) {
+        if (principal == null || !principal.isAuthenticatedApplicationUser()) {
+            throw exception(FILE_METADATA_INVALID);
+        }
+    }
+
+    private static void validateAccessType(FileAccessTypeEnum accessType) {
+        if (accessType == null) {
+            throw exception(FILE_METADATA_INVALID);
+        }
+    }
+
+    private static void validatePrivateReadStorage(FileClient client, FileAccessTypeEnum accessType) {
+        if (FileAccessTypeEnum.PRIVATE == accessType && !client.supportsPrivateRead()) {
+            throw exception(FILE_PRIVATE_READ_REQUIRES_PRIVATE_STORAGE);
+        }
+    }
+
+    private static boolean canRead(FileDO file, FileAccessPrincipal principal) {
+        return FileAccessTypeEnum.isPublic(file.getAccessType())
+                || principal != null
+                        && (principal.canManageFiles()
+                                || principal.owns(file.getOwnerUserId(), file.getOwnerUserType()));
     }
 }

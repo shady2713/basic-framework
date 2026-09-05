@@ -108,16 +108,17 @@ class RoleServiceImplTest {
     }
 
     @Test
-    void createRole_insertsWithDefaults_returnsId() {
+    void createRole_ignoresCallerDataScopeAndDefaultsToSelf() {
         when(roleMapper.selectByName(role.getName())).thenReturn(null);
         when(roleMapper.selectByCode(role.getCode())).thenReturn(null);
+        role.setDataScope(DataScopeEnum.ALL.getScope());
 
         Long id = roleService.createRole(role, null);
 
         assertThat(id).isEqualTo(role.getId());
         assertThat(role.getType()).isEqualTo(RoleTypeEnum.CUSTOM.getType());
         assertThat(role.getStatus()).isEqualTo(CommonStatusEnum.ENABLE.getStatus());
-        assertThat(role.getDataScope()).isEqualTo(DataScopeEnum.ALL.getScope());
+        assertThat(role.getDataScope()).isEqualTo(DataScopeEnum.SELF.getScope());
         verify(roleMapper).insert(role);
     }
 

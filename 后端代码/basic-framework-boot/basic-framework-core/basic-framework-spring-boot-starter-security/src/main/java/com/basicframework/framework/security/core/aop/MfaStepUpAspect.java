@@ -28,8 +28,7 @@ public class MfaStepUpAspect {
         HttpServletRequest request = WebFrameworkUtils.getRequest();
         String accessToken = request == null
                 ? null
-                : SecurityFrameworkUtils.obtainAuthorization(
-                        request, securityProperties.getTokenHeader(), securityProperties.getTokenParameter());
+                : SecurityFrameworkUtils.obtainAuthorization(request, securityProperties.getTokenHeader());
         mfaApi.requireStepUp(accessToken, getLoginUserId());
     }
 }

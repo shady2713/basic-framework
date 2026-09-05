@@ -5,6 +5,7 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import lombok.AllArgsConstructor;
 import org.redisson.api.*;
+import org.springframework.util.Assert;
 
 /**
  * 限流 Redis DAO
@@ -24,9 +25,16 @@ public class RateLimiterRedisDAO {
 
     private final RedissonClient redissonClient;
 
-    public Boolean tryAcquire(String key, int count, int time, TimeUnit timeUnit) {
+    public boolean tryAcquire(String key, int count, int time, TimeUnit timeUnit) {
+        Assert.hasText(key, "限流 Key 不能为空");
+        Assert.isTrue(count > 0, "限流次数必须大于 0");
+        Assert.isTrue(time > 0, "限流时间必须大于 0");
+        Assert.notNull(timeUnit, "限流时间单位不能为空");
+        long rateIntervalMillis = timeUnit.toMillis(time);
+        Assert.isTrue(rateIntervalMillis > 0, "限流时间必须至少为 1 毫秒");
+        Duration rateInterval = Duration.ofMillis(rateIntervalMillis);
         // 1. 获得 RRateLimiter，并设置 rate 速率
-        RRateLimiter rateLimiter = getRRateLimiter(key, count, time, timeUnit);
+        RRateLimiter rateLimiter = getRRateLimiter(key, count, rateInterval);
         // 2. 尝试获取 1 个
         return rateLimiter.tryAcquire();
     }
@@ -35,29 +43,27 @@ public class RateLimiterRedisDAO {
         return String.format(RATE_LIMITER, key);
     }
 
-    private RRateLimiter getRRateLimiter(String key, long count, int time, TimeUnit timeUnit) {
+    private RRateLimiter getRRateLimiter(String key, long count, Duration rateInterval) {
         String redisKey = formatKey(key);
         RRateLimiter rateLimiter = redissonClient.getRateLimiter(redisKey);
-        long rateInterval = timeUnit.toSeconds(time);
-        Duration duration = Duration.ofSeconds(rateInterval);
         // 1. 如果不存在，设置 rate 速率
         RateLimiterConfig config = rateLimiter.getConfig();
         if (config == null) {
-            rateLimiter.trySetRate(RateType.OVERALL, count, duration);
+            rateLimiter.trySetRate(RateType.OVERALL, count, rateInterval);
             // 额外设置过期时间，避免限流器 Key 长期残留
-            rateLimiter.expire(duration);
+            rateLimiter.expire(rateInterval);
             return rateLimiter;
         }
         // 2. 如果存在，并且配置相同，则直接返回
         if (config.getRateType() == RateType.OVERALL
                 && Objects.equals(config.getRate(), count)
-                && Objects.equals(config.getRateInterval(), TimeUnit.SECONDS.toMillis(rateInterval))) {
+                && Objects.equals(config.getRateInterval(), rateInterval.toMillis())) {
             return rateLimiter;
         }
         // 3. 如果存在，并且配置不同，则进行新建
-        rateLimiter.setRate(RateType.OVERALL, count, duration);
+        rateLimiter.setRate(RateType.OVERALL, count, rateInterval);
         // 额外设置过期时间，避免限流器 Key 长期残留
-        rateLimiter.expire(duration);
+        rateLimiter.expire(rateInterval);
         return rateLimiter;
     }
 }

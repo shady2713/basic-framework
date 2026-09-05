@@ -20,13 +20,14 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.Parameters;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 import org.quartz.SchedulerException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
@@ -36,10 +37,10 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/infra/job")
 @Validated
+@RequiredArgsConstructor
 public class JobController {
 
-    @Resource
-    private JobService jobService;
+    private final JobService jobService;
 
     @PostMapping("/create")
     @Operation(summary = "创建定时任务")
@@ -77,7 +78,7 @@ public class JobController {
     @Parameter(name = "id", description = "编号", required = true, example = "1024")
     @PreAuthorize("@ss.hasPermission('infra:job:delete')")
     @MfaStepUp
-    public CommonResult<Boolean> deleteJob(@RequestParam("id") Long id) throws SchedulerException {
+    public CommonResult<Boolean> deleteJob(@RequestParam("id") @Positive Long id) throws SchedulerException {
         jobService.deleteJob(id);
         return success(true);
     }
@@ -97,7 +98,7 @@ public class JobController {
     @Parameter(name = "id", description = "编号", required = true, example = "1024")
     @PreAuthorize("@ss.hasPermission('infra:job:trigger')")
     @MfaStepUp
-    public CommonResult<Boolean> triggerJob(@RequestParam("id") Long id) throws SchedulerException {
+    public CommonResult<Boolean> triggerJob(@RequestParam("id") @Positive Long id) throws SchedulerException {
         jobService.triggerJob(id);
         return success(true);
     }
@@ -115,7 +116,7 @@ public class JobController {
     @Operation(summary = "获得定时任务")
     @Parameter(name = "id", description = "编号", required = true, example = "1024")
     @PreAuthorize("@ss.hasPermission('infra:job:query')")
-    public CommonResult<JobRespVO> getJob(@RequestParam("id") Long id) {
+    public CommonResult<JobRespVO> getJob(@RequestParam("id") @Positive Long id) {
         JobDO job = jobService.getJob(id);
         return success(BeanUtils.toBean(job, JobRespVO.class));
     }
@@ -142,7 +143,7 @@ public class JobController {
         ExcelUtils.write(response, "定时任务.xls", "数据", JobRespVO.class, BeanUtils.toBean(list, JobRespVO.class));
     }
 
-    @GetMapping("/get_next_times")
+    @GetMapping("/next-times")
     @Operation(summary = "获得定时任务的下 n 次执行时间")
     @Parameters({
         @Parameter(name = "id", description = "编号", required = true, example = "1024"),
@@ -150,7 +151,7 @@ public class JobController {
     })
     @PreAuthorize("@ss.hasPermission('infra:job:query')")
     public CommonResult<List<LocalDateTime>> getJobNextTimes(
-            @RequestParam("id") Long id,
+            @RequestParam("id") @Positive Long id,
             @RequestParam(value = "count", required = false, defaultValue = "5") Integer count) {
         JobDO job = jobService.getJob(id);
         if (job == null) {

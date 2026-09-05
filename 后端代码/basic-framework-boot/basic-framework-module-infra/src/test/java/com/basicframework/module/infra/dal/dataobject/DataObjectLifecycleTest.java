@@ -7,8 +7,6 @@ import com.baomidou.mybatisplus.core.metadata.TableInfo;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.basicframework.framework.mybatis.core.dataobject.BaseDO;
 import com.basicframework.framework.mybatis.core.dataobject.SoftDeletableDO;
-import com.basicframework.module.infra.dal.dataobject.codegen.CodegenColumnDO;
-import com.basicframework.module.infra.dal.dataobject.codegen.CodegenTableDO;
 import com.basicframework.module.infra.dal.dataobject.config.ConfigDO;
 import com.basicframework.module.infra.dal.dataobject.file.FileConfigDO;
 import com.basicframework.module.infra.dal.dataobject.file.FileContentDO;
@@ -25,13 +23,7 @@ class DataObjectLifecycleTest {
 
     @Test
     void softDeleteTables_useExplicitSoftDeleteBase() {
-        assertDirectSuperclass(
-                SoftDeletableDO.class,
-                CodegenColumnDO.class,
-                CodegenTableDO.class,
-                ConfigDO.class,
-                FileConfigDO.class,
-                JobDO.class);
+        assertDirectSuperclass(SoftDeletableDO.class, ConfigDO.class, FileConfigDO.class, JobDO.class);
     }
 
     @Test

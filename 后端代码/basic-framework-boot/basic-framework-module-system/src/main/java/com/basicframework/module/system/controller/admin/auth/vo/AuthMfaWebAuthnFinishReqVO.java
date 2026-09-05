@@ -4,9 +4,11 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
+import lombok.ToString;
 
 @Schema(description = "管理后台 - WebAuthn ceremony 完成 Request VO")
 @Data
+@ToString(exclude = {"ceremonyToken", "credentialJson"})
 public class AuthMfaWebAuthnFinishReqVO {
 
     @Schema(description = "一次性 ceremony 令牌", requiredMode = Schema.RequiredMode.REQUIRED)

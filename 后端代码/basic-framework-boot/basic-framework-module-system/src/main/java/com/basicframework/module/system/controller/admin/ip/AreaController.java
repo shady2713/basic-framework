@@ -9,6 +9,7 @@ import com.basicframework.framework.common.util.object.BeanUtils;
 import com.basicframework.framework.ip.core.Area;
 import com.basicframework.framework.ip.core.utils.AreaUtils;
 import com.basicframework.framework.ip.core.utils.IPUtils;
+import com.basicframework.framework.security.core.annotation.AuthenticatedOnly;
 import com.basicframework.module.system.controller.admin.ip.vo.AreaNodeRespVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -25,6 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/system/area")
 @Validated
+@AuthenticatedOnly
 public class AreaController {
 
     @GetMapping("/tree")
@@ -41,12 +43,10 @@ public class AreaController {
     @Operation(summary = "获得 IP 对应的地区名")
     @Parameter(name = "ip", description = "IP", required = true)
     public CommonResult<String> getAreaByIp(@RequestParam("ip") String ip) {
-        // 获得城市
         Area area = IPUtils.getArea(ip);
         if (area == null) {
             return success("未知");
         }
-        // 格式化返回
         return success(AreaUtils.format(area.getId()));
     }
 }

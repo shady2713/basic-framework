@@ -36,10 +36,11 @@ public interface PermissionService {
     /**
      * 设置角色菜单
      *
+     * @param operatorUserId 操作者用户编号
      * @param roleId  角色编号
      * @param menuIds 菜单编号集合
      */
-    void assignRoleMenu(Long roleId, Set<Long> menuIds);
+    void assignRoleMenu(Long operatorUserId, Long roleId, Set<Long> menuIds);
 
     /**
      * 处理角色删除时，删除关联授权数据
@@ -86,10 +87,11 @@ public interface PermissionService {
     /**
      * 设置用户角色
      *
-     * @param userId  角色编号
+     * @param operatorUserId 操作者用户编号
+     * @param userId 用户编号
      * @param roleIds 角色编号集合
      */
-    void assignUserRole(Long userId, Set<Long> roleIds);
+    void assignUserRole(Long operatorUserId, Long userId, Set<Long> roleIds);
 
     /**
      * 处理用户删除时，删除关联授权数据
@@ -127,11 +129,12 @@ public interface PermissionService {
     /**
      * 设置角色的数据权限
      *
+     * @param operatorUserId 操作者用户编号
      * @param roleId           角色编号
      * @param dataScope        数据范围
      * @param dataScopeDeptIds 部门编号数组
      */
-    void assignRoleDataScope(Long roleId, Integer dataScope, Set<Long> dataScopeDeptIds);
+    void assignRoleDataScope(Long operatorUserId, Long roleId, Integer dataScope, Set<Long> dataScopeDeptIds);
 
     /**
      * 获得登陆用户的部门数据权限

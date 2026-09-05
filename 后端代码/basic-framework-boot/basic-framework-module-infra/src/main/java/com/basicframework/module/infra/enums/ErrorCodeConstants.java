@@ -28,36 +28,17 @@ public interface ErrorCodeConstants {
     // ========== API 错误日志 1-001-002-000 ==========
 
     // ========= 文件相关 1-001-003-000 =================
-    ErrorCode FILE_PATH_EXISTS = new ErrorCode(1_001_003_000, "文件路径已存在");
     ErrorCode FILE_NOT_EXISTS = new ErrorCode(1_001_003_001, "文件不存在");
     ErrorCode FILE_IS_EMPTY = new ErrorCode(1_001_003_002, "文件为空");
     ErrorCode FILE_TYPE_NOT_ALLOWED = new ErrorCode(1_001_003_003, "不支持的文件类型");
     ErrorCode FILE_PATH_INVALID = new ErrorCode(1_001_003_004, "文件路径不合法");
     ErrorCode FILE_CLIENT_NOT_EXISTS = new ErrorCode(1_001_003_005, "文件客户端({}) 不存在");
     ErrorCode FILE_ARCHIVE_UNSAFE = new ErrorCode(1_001_003_006, "压缩包结构或展开规模不安全");
-
-    // ========== 代码生成器 1-001-004-000 ==========
-    ErrorCode CODEGEN_TABLE_EXISTS = new ErrorCode(1_001_004_003, "表定义已经存在");
-    ErrorCode CODEGEN_IMPORT_TABLE_NULL = new ErrorCode(1_001_004_001, "导入的表不存在");
-    ErrorCode CODEGEN_IMPORT_COLUMNS_NULL = new ErrorCode(1_001_004_002, "导入的字段不存在");
-    ErrorCode CODEGEN_TABLE_NOT_EXISTS = new ErrorCode(1_001_004_004, "表定义不存在");
-    ErrorCode CODEGEN_COLUMN_NOT_EXISTS = new ErrorCode(1_001_004_005, "字段定义不存在");
-    ErrorCode CODEGEN_SYNC_COLUMNS_NULL = new ErrorCode(1_001_004_006, "同步的字段不存在");
-    ErrorCode CODEGEN_SYNC_NONE_CHANGE = new ErrorCode(1_001_004_007, "同步失败，不存在改变");
-    ErrorCode CODEGEN_TABLE_INFO_TABLE_COMMENT_IS_NULL = new ErrorCode(1_001_004_008, "数据库的表注释未填写");
-    ErrorCode CODEGEN_TABLE_INFO_COLUMN_COMMENT_IS_NULL = new ErrorCode(1_001_004_009, "数据库的表字段({})注释未填写");
-    ErrorCode CODEGEN_MASTER_TABLE_NOT_EXISTS = new ErrorCode(1_001_004_010, "主表(id={})定义不存在，请检查");
-    ErrorCode CODEGEN_SUB_COLUMN_NOT_EXISTS = new ErrorCode(1_001_004_011, "子表的字段(id={})不存在，请检查");
-    ErrorCode CODEGEN_MASTER_GENERATION_FAIL_NO_SUB_TABLE = new ErrorCode(1_001_004_012, "主表生成代码失败，原因：它没有子表");
-    ErrorCode CODEGEN_COLUMN_NOT_BELONG_TABLE = new ErrorCode(1_001_004_013, "字段(id={})不属于表(id={})");
-    ErrorCode CODEGEN_TEMPLATE_TYPE_INVALID = new ErrorCode(1_001_004_014, "代码生成模板类型({})无效");
-    ErrorCode CODEGEN_MASTER_TABLE_INVALID = new ErrorCode(1_001_004_015, "主表(id={})必须是有效的主表模板");
-    ErrorCode CODEGEN_TABLE_HAS_SUB_TABLES = new ErrorCode(1_001_004_016, "代码生成表(id={})仍被子表引用");
-    ErrorCode CODEGEN_COLUMN_IN_USE = new ErrorCode(1_001_004_017, "代码生成字段(id={})仍被生成配置引用");
-    ErrorCode CODEGEN_TREE_COLUMNS_DUPLICATE = new ErrorCode(1_001_004_018, "树父字段和树名称字段不能相同");
-    ErrorCode CODEGEN_SUB_CONFIGURATION_INVALID = new ErrorCode(1_001_004_019, "子表关联配置不完整");
-    ErrorCode CODEGEN_SCENE_INVALID = new ErrorCode(1_001_004_020, "代码生成场景({})无效");
-    ErrorCode CODEGEN_PARENT_MENU_INVALID = new ErrorCode(1_001_004_021, "上级菜单(id={})必须是有效的目录或菜单");
+    ErrorCode FILE_METADATA_INVALID = new ErrorCode(1_001_003_007, "文件元数据不合法");
+    ErrorCode FILE_UPLOAD_TOKEN_INVALID = new ErrorCode(1_001_003_008, "上传凭据无效、已过期或已使用");
+    ErrorCode FILE_UPLOAD_OBJECT_INVALID = new ErrorCode(1_001_003_009, "上传对象不存在或与签发信息不一致");
+    ErrorCode FILE_PRESIGNED_UPLOAD_REQUIRES_PRIVATE_STORAGE = new ErrorCode(1_001_003_010, "预签名上传必须使用私有对象存储配置");
+    ErrorCode FILE_PRIVATE_READ_REQUIRES_PRIVATE_STORAGE = new ErrorCode(1_001_003_011, "私有文件必须使用受控读取的存储配置");
 
     // ========== 文件配置 1-001-006-000 ==========
     ErrorCode FILE_CONFIG_NOT_EXISTS = new ErrorCode(1_001_006_000, "文件配置不存在");

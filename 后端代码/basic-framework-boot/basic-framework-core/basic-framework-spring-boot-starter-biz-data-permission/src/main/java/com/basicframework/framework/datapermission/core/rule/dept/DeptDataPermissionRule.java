@@ -12,10 +12,12 @@ import com.basicframework.framework.mybatis.core.dataobject.BaseDO;
 import com.basicframework.framework.mybatis.core.util.MyBatisUtils;
 import com.basicframework.module.system.api.permission.PermissionCommonApi;
 import com.basicframework.module.system.api.permission.dto.DeptDataPermissionRespDTO;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 import net.sf.jsqlparser.expression.Alias;
 import net.sf.jsqlparser.expression.Expression;
@@ -25,7 +27,6 @@ import net.sf.jsqlparser.expression.operators.relational.EqualsTo;
 import net.sf.jsqlparser.expression.operators.relational.ExpressionList;
 import net.sf.jsqlparser.expression.operators.relational.InExpression;
 import net.sf.jsqlparser.expression.operators.relational.ParenthesedExpressionList;
-import org.springframework.beans.factory.ObjectProvider;
 
 /**
  * 基于部门的 {@link DataPermissionRule} 数据权限规则实现
@@ -53,15 +54,13 @@ public class DeptDataPermissionRule implements DataPermissionRule {
 
     private static final String DEPT_COLUMN_NAME = "dept_id";
     private static final String USER_COLUMN_NAME = "user_id";
+    private static final Pattern SQL_IDENTIFIER_PATTERN = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
 
     private final PermissionCommonApi permissionApi;
-    /**
-     * 当前登录用户身份接缝；security starter 缺席（无实现 Bean）时，不做任何数据权限过滤
-     */
-    private final ObjectProvider<CurrentUserProvider> currentUserProvider;
+    /** 当前登录用户身份接缝；存在受保护表时由自动配置强制要求。 */
+    private final CurrentUserProvider currentUserProvider;
 
-    public DeptDataPermissionRule(
-            PermissionCommonApi permissionApi, ObjectProvider<CurrentUserProvider> currentUserProvider) {
+    public DeptDataPermissionRule(PermissionCommonApi permissionApi, CurrentUserProvider currentUserProvider) {
         this.permissionApi = permissionApi;
         this.currentUserProvider = currentUserProvider;
     }
@@ -85,43 +84,43 @@ public class DeptDataPermissionRule implements DataPermissionRule {
     /**
      * 所有表名，是 {@link #deptColumns} 和 {@link #userColumns} 的合集
      */
-    private final Set<String> TABLE_NAMES = new HashSet<>();
+    private final Set<String> tableNames = new HashSet<>();
 
     @Override
     public Set<String> getTableNames() {
-        return TABLE_NAMES;
+        return Collections.unmodifiableSet(tableNames);
     }
 
     @Override
     public Expression getExpression(String tableName, Alias tableAlias) {
         // 只有有登陆用户的情况下，才进行数据权限的处理
-        CurrentUserProvider currentUser = currentUserProvider.getIfAvailable();
-        Long loginUserId = currentUser != null ? currentUser.getLoginUserId() : null;
+        Long loginUserId = currentUserProvider.getLoginUserId();
         if (loginUserId == null) {
             return null;
         }
         // 只有管理员类型的用户，才进行数据权限的处理
-        if (ObjectUtil.notEqual(currentUser.getLoginUserType(), UserTypeEnum.ADMIN.getValue())) {
+        if (ObjectUtil.notEqual(currentUserProvider.getLoginUserType(), UserTypeEnum.ADMIN.getValue())) {
             return null;
         }
 
         // 获得数据权限
         DeptDataPermissionRespDTO deptDataPermission =
-                currentUser.getContext(CONTEXT_KEY, DeptDataPermissionRespDTO.class);
+                currentUserProvider.getContext(CONTEXT_KEY, DeptDataPermissionRespDTO.class);
         // 从上下文中拿不到，则调用逻辑进行获取
         if (deptDataPermission == null) {
             deptDataPermission = permissionApi.getDeptDataPermission(loginUserId);
             if (deptDataPermission == null) {
-                log.error("[getExpression][loginUserId({}) 获取数据权限为 null]", loginUserId);
-                throw new NullPointerException(String.format(
-                        "LoginUser(%d) Table(%s/%s) 未返回数据权限", loginUserId, tableName, tableAlias.getName()));
+                throw invalidPermissionState(loginUserId, tableName, tableAlias, "未返回数据权限");
             }
+            validatePermissionState(loginUserId, tableName, tableAlias, deptDataPermission);
             // 添加到上下文中，避免重复计算
-            currentUser.setContext(CONTEXT_KEY, deptDataPermission);
+            currentUserProvider.setContext(CONTEXT_KEY, deptDataPermission);
+        } else {
+            validatePermissionState(loginUserId, tableName, tableAlias, deptDataPermission);
         }
 
         // 情况一，如果是 ALL 可查看全部，则无需拼接条件
-        if (deptDataPermission.getAll()) {
+        if (Boolean.TRUE.equals(deptDataPermission.getAll())) {
             return null;
         }
 
@@ -152,6 +151,22 @@ public class DeptDataPermissionRule implements DataPermissionRule {
         }
         // 目前，如果有指定部门 + 可查看自己，采用 OR 条件。即，WHERE (dept_id IN ? OR user_id = ?)
         return new ParenthesedExpressionList(new OrExpression(deptExpression, userExpression));
+    }
+
+    private static void validatePermissionState(
+            Long loginUserId, String tableName, Alias tableAlias, DeptDataPermissionRespDTO dataPermission) {
+        if (dataPermission.getAll() == null
+                || dataPermission.getSelf() == null
+                || dataPermission.getDeptIds() == null) {
+            throw invalidPermissionState(loginUserId, tableName, tableAlias, "数据权限响应不完整");
+        }
+    }
+
+    private static IllegalStateException invalidPermissionState(
+            Long loginUserId, String tableName, Alias tableAlias, String reason) {
+        String aliasName = tableAlias != null ? tableAlias.getName() : "<none>";
+        return new IllegalStateException(
+                "LoginUser(%d) Table(%s/%s) %s".formatted(loginUserId, tableName, aliasName, reason));
     }
 
     private Expression buildDeptExpression(String tableName, Alias tableAlias, Set<Long> deptIds) {
@@ -197,8 +212,7 @@ public class DeptDataPermissionRule implements DataPermissionRule {
     }
 
     public void addDeptColumn(String tableName, String columnName) {
-        deptColumns.put(tableName, columnName);
-        TABLE_NAMES.add(tableName);
+        registerColumn(deptColumns, tableName, columnName, "部门");
     }
 
     public void addUserColumn(Class<? extends BaseDO> entityClass) {
@@ -211,7 +225,24 @@ public class DeptDataPermissionRule implements DataPermissionRule {
     }
 
     public void addUserColumn(String tableName, String columnName) {
-        userColumns.put(tableName, columnName);
-        TABLE_NAMES.add(tableName);
+        registerColumn(userColumns, tableName, columnName, "用户");
+    }
+
+    private void registerColumn(
+            Map<String, String> columns, String tableName, String columnName, String permissionDimension) {
+        validateIdentifier(tableName, "表名");
+        validateIdentifier(columnName, "列名");
+        String registeredColumn = columns.putIfAbsent(tableName, columnName);
+        if (registeredColumn != null && !registeredColumn.equals(columnName)) {
+            throw new IllegalStateException("%s数据权限表 %s 已登记列 %s，不能重复登记为 %s"
+                    .formatted(permissionDimension, tableName, registeredColumn, columnName));
+        }
+        tableNames.add(tableName);
+    }
+
+    private static void validateIdentifier(String identifier, String description) {
+        if (identifier == null || !SQL_IDENTIFIER_PATTERN.matcher(identifier).matches()) {
+            throw new IllegalArgumentException(description + "必须是简单 SQL 标识符");
+        }
     }
 }

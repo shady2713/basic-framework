@@ -4,6 +4,7 @@ import static com.basicframework.framework.common.exception.util.ServiceExceptio
 import static com.basicframework.module.system.enums.ErrorCodeConstants.AUTH_MFA_DISABLED;
 import static com.basicframework.module.system.enums.ErrorCodeConstants.AUTH_MFA_WEBAUTHN_INVALID;
 
+import com.basicframework.framework.common.exception.ServiceException;
 import com.basicframework.module.system.config.MfaProperties;
 import com.yubico.webauthn.AssertionRequest;
 import com.yubico.webauthn.AssertionResult;
@@ -26,7 +27,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
-/** Yubico WebAuthn ceremony 适配层，不承担挑战存储或业务会话签发。 */
+/**
+ * Yubico WebAuthn ceremony 适配层，不承担挑战存储或业务会话签发。
+ *
+ * <p>部署未启用或 Relying Party 未就绪时保留 {@code AUTH_MFA_DISABLED}；协议解析与验签失败统一映射为无效响应，避免泄露细节。
+ */
 @Service
 @Slf4j
 public class WebAuthnService {
@@ -58,6 +63,8 @@ public class WebAuthnService {
                             .timeout(ceremonyTimeoutMillis())
                             .build());
             return new CeremonyOptions(request.toCredentialsCreateJson(), request.toJson());
+        } catch (ServiceException businessException) {
+            throw businessException;
         } catch (Exception startFailure) {
             log.warn(
                     "[startRegistration][WebAuthn 注册 ceremony 创建失败，exception({})]",
@@ -68,13 +75,13 @@ public class WebAuthnService {
 
     public RegistrationOutcome finishRegistration(String requestJson, String credentialJson) {
         validateCredentialJson(credentialJson);
+        RelyingParty relyingParty = relyingParty();
         try {
             PublicKeyCredentialCreationOptions request = PublicKeyCredentialCreationOptions.fromJson(requestJson);
-            RegistrationResult result = relyingParty()
-                    .finishRegistration(FinishRegistrationOptions.builder()
-                            .request(request)
-                            .response(PublicKeyCredential.parseRegistrationResponseJson(credentialJson))
-                            .build());
+            RegistrationResult result = relyingParty.finishRegistration(FinishRegistrationOptions.builder()
+                    .request(request)
+                    .response(PublicKeyCredential.parseRegistrationResponseJson(credentialJson))
+                    .build());
             return toRegistrationOutcome(result);
         } catch (Exception verificationFailure) {
             log.warn(
@@ -93,6 +100,8 @@ public class WebAuthnService {
                             .timeout(ceremonyTimeoutMillis())
                             .build());
             return new CeremonyOptions(request.toCredentialsGetJson(), request.toJson());
+        } catch (ServiceException businessException) {
+            throw businessException;
         } catch (Exception startFailure) {
             log.warn(
                     "[startAssertion][WebAuthn 认证 ceremony 创建失败，exception({})]",
@@ -103,13 +112,13 @@ public class WebAuthnService {
 
     public AssertionOutcome finishAssertion(String requestJson, String credentialJson) {
         validateCredentialJson(credentialJson);
+        RelyingParty relyingParty = relyingParty();
         try {
             AssertionRequest request = AssertionRequest.fromJson(requestJson);
-            AssertionResult result = relyingParty()
-                    .finishAssertion(FinishAssertionOptions.builder()
-                            .request(request)
-                            .response(PublicKeyCredential.parseAssertionResponseJson(credentialJson))
-                            .build());
+            AssertionResult result = relyingParty.finishAssertion(FinishAssertionOptions.builder()
+                    .request(request)
+                    .response(PublicKeyCredential.parseAssertionResponseJson(credentialJson))
+                    .build());
             return toAssertionOutcome(result);
         } catch (Exception verificationFailure) {
             log.warn(

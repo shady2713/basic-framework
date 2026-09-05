@@ -6,17 +6,11 @@ import static com.basicframework.module.system.enums.ErrorCodeConstants.*;
 
 import cn.hutool.core.util.ObjectUtil;
 import com.anji.captcha.model.common.ResponseModel;
-import com.anji.captcha.model.vo.CaptchaVO;
-import com.anji.captcha.service.CaptchaService;
 import com.basicframework.framework.common.enums.CommonStatusEnum;
 import com.basicframework.framework.common.enums.UserTypeEnum;
 import com.basicframework.framework.common.util.monitor.TracerUtils;
 import com.basicframework.framework.common.util.servlet.ServletUtils;
-import com.basicframework.framework.common.util.validation.ValidationUtils;
 import com.basicframework.framework.datapermission.core.annotation.DataPermission;
-import com.basicframework.module.system.api.logger.dto.LoginLogCreateReqDTO;
-import com.basicframework.module.system.api.sms.SmsCodeApi;
-import com.basicframework.module.system.api.sms.dto.code.SmsCodeUseReqDTO;
 import com.basicframework.module.system.convert.auth.AuthConvert;
 import com.basicframework.module.system.dal.dataobject.session.UserSessionDO;
 import com.basicframework.module.system.dal.dataobject.user.AdminUserDO;
@@ -28,18 +22,16 @@ import com.basicframework.module.system.service.auth.dto.AuthLoginResultDTO;
 import com.basicframework.module.system.service.auth.dto.AuthResetPasswordDTO;
 import com.basicframework.module.system.service.auth.dto.AuthSmsLoginDTO;
 import com.basicframework.module.system.service.auth.dto.AuthSmsSendDTO;
-import com.basicframework.module.system.service.auth.dto.CaptchaVerificationDTO;
 import com.basicframework.module.system.service.auth.dto.MfaVerifiedPrincipalDTO;
 import com.basicframework.module.system.service.logger.LoginLogService;
+import com.basicframework.module.system.service.logger.dto.LoginLogCreateReqDTO;
 import com.basicframework.module.system.service.session.UserSessionService;
+import com.basicframework.module.system.service.sms.SmsCodeService;
+import com.basicframework.module.system.service.sms.dto.SmsCodeUseReqDTO;
 import com.basicframework.module.system.service.user.AdminUserService;
 import com.google.common.annotations.VisibleForTesting;
-import jakarta.annotation.Resource;
-import jakarta.validation.Validator;
 import java.util.Objects;
-import lombok.Setter;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -48,36 +40,24 @@ import org.springframework.transaction.annotation.Transactional;
  *
  */
 @Service
-@Slf4j
+@RequiredArgsConstructor
 public class AdminAuthServiceImpl implements AdminAuthService {
 
-    @Resource
-    private AdminUserService userService;
+    private final AdminUserService userService;
 
-    @Resource
-    private LoginLogService loginLogService;
+    private final LoginLogService loginLogService;
 
-    @Resource
-    private UserSessionService userSessionService;
+    private final UserSessionService userSessionService;
 
-    @Resource
-    private Validator validator;
+    private final SmsCodeService smsCodeService;
 
-    @Resource
-    private CaptchaService captchaService;
+    private final MfaService mfaService;
 
-    @Resource
-    private SmsCodeApi smsCodeApi;
+    private final LoginProtectionService loginProtectionService;
 
-    @Resource
-    private MfaService mfaService;
+    private final CaptchaVerificationService captchaVerificationService;
 
-    /**
-     * 验证码的开关，默认为 true
-     */
-    @Value("${basic-framework.captcha.enable:true}")
-    @Setter // 为了单测：开启或者关闭验证码
-    private Boolean captchaEnable;
+    private final PasswordTimingProtectionService passwordTimingProtectionService;
 
     @Override
     public AdminUserDO authenticate(String username, String password) {
@@ -85,11 +65,22 @@ public class AdminAuthServiceImpl implements AdminAuthService {
         // 校验账号是否存在
         AdminUserDO user = userService.getUserByUsername(username);
         if (user == null) {
+            passwordTimingProtectionService.verifyAgainstDummyHash(password);
             createLoginLog(null, username, logTypeEnum, LoginResultEnum.BAD_CREDENTIALS);
             throw exception(AUTH_LOGIN_BAD_CREDENTIALS);
         }
+        if (loginProtectionService.isLocked(user.getId())) {
+            passwordTimingProtectionService.verifyAgainstDummyHash(password);
+            createLoginLog(user.getId(), username, logTypeEnum, LoginResultEnum.ACCOUNT_LOCKED);
+            throw exception(AUTH_LOGIN_BAD_CREDENTIALS);
+        }
         if (!userService.isPasswordMatch(password, user.getPassword())) {
-            createLoginLog(user.getId(), username, logTypeEnum, LoginResultEnum.BAD_CREDENTIALS);
+            boolean locked = loginProtectionService.recordFailure(user.getId());
+            createLoginLog(
+                    user.getId(),
+                    username,
+                    logTypeEnum,
+                    locked ? LoginResultEnum.ACCOUNT_LOCKED : LoginResultEnum.BAD_CREDENTIALS);
             throw exception(AUTH_LOGIN_BAD_CREDENTIALS);
         }
         // 校验是否禁用
@@ -97,6 +88,8 @@ public class AdminAuthServiceImpl implements AdminAuthService {
             createLoginLog(user.getId(), username, logTypeEnum, LoginResultEnum.USER_DISABLED);
             throw exception(AUTH_LOGIN_USER_DISABLED);
         }
+        userService.upgradePasswordEncodingIfNeeded(user.getId(), password, user.getPassword());
+        loginProtectionService.clear(user.getId());
         return user;
     }
 
@@ -124,24 +117,24 @@ public class AdminAuthServiceImpl implements AdminAuthService {
     public void sendSmsCode(AuthSmsSendDTO reqDTO) {
         // 如果是重置密码场景，需要校验图形验证码是否正确
         if (Objects.equals(SmsSceneEnum.ADMIN_MEMBER_RESET_PASSWORD.getScene(), reqDTO.getScene())) {
-            ResponseModel response = doValidateCaptcha(reqDTO);
+            ResponseModel response = captchaVerificationService.verify(reqDTO);
             if (!response.isSuccess()) {
                 throw exception(AUTH_REGISTER_CAPTCHA_CODE_ERROR, response.getRepMsg());
             }
         }
 
-        // 登录场景，验证是否存在
+        // 匿名端点对未知手机号保持相同响应，避免泄露后台账号是否存在。
         if (userService.getUserByMobile(reqDTO.getMobile()) == null) {
-            throw exception(AUTH_MOBILE_NOT_EXISTS);
+            return;
         }
         // 发送验证码
-        smsCodeApi.sendSmsCode(AuthConvert.INSTANCE.convert(reqDTO).setCreateIp(getClientIP()));
+        smsCodeService.sendSmsCode(AuthConvert.INSTANCE.convert(reqDTO).setCreateIp(getClientIP()));
     }
 
     @Override
     public AuthLoginResultDTO smsLogin(AuthSmsLoginDTO reqDTO) {
         // 校验验证码
-        smsCodeApi.useSmsCode(
+        smsCodeService.useSmsCode(
                 AuthConvert.INSTANCE.convert(reqDTO, SmsSceneEnum.ADMIN_MEMBER_LOGIN.getScene(), getClientIP()));
 
         // 获得用户信息
@@ -149,6 +142,12 @@ public class AdminAuthServiceImpl implements AdminAuthService {
         if (user == null) {
             throw exception(USER_NOT_EXISTS);
         }
+        if (CommonStatusEnum.isDisable(user.getStatus())) {
+            createLoginLog(
+                    user.getId(), reqDTO.getMobile(), LoginLogTypeEnum.LOGIN_MOBILE, LoginResultEnum.USER_DISABLED);
+            throw exception(AUTH_LOGIN_USER_DISABLED);
+        }
+        loginProtectionService.clear(user.getId());
 
         AuthLoginResultDTO mfaResult =
                 mfaService.beginAuthentication(user, reqDTO.getMobile(), LoginLogTypeEnum.LOGIN_MOBILE);
@@ -202,7 +201,7 @@ public class AdminAuthServiceImpl implements AdminAuthService {
 
     @VisibleForTesting
     void validateCaptcha(AuthLoginDTO reqDTO) {
-        ResponseModel response = doValidateCaptcha(reqDTO);
+        ResponseModel response = captchaVerificationService.verify(reqDTO);
         // 校验验证码
         if (!response.isSuccess()) {
             // 创建登录失败日志（验证码不正确)
@@ -210,17 +209,6 @@ public class AdminAuthServiceImpl implements AdminAuthService {
                     null, reqDTO.getUsername(), LoginLogTypeEnum.LOGIN_USERNAME, LoginResultEnum.CAPTCHA_CODE_ERROR);
             throw exception(AUTH_LOGIN_CAPTCHA_CODE_ERROR, response.getRepMsg());
         }
-    }
-
-    private ResponseModel doValidateCaptcha(CaptchaVerificationDTO reqDTO) {
-        // 如果验证码关闭，则不进行校验
-        if (!captchaEnable) {
-            return ResponseModel.success();
-        }
-        ValidationUtils.validate(validator, reqDTO, CaptchaVerificationDTO.CodeEnableGroup.class);
-        CaptchaVO captchaVO = new CaptchaVO();
-        captchaVO.setCaptchaVerification(reqDTO.getCaptchaVerification());
-        return captchaService.verification(captchaVO);
     }
 
     private UserSessionDO createTokenAfterLoginSuccess(Long userId, String username, LoginLogTypeEnum logType) {
@@ -292,17 +280,26 @@ public class AdminAuthServiceImpl implements AdminAuthService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void resetPassword(AuthResetPasswordDTO reqDTO) {
-        AdminUserDO userByMobile = userService.getUserByMobile(reqDTO.getMobile());
-        if (userByMobile == null) {
-            throw exception(USER_MOBILE_NOT_EXISTS);
-        }
-
-        smsCodeApi.useSmsCode(new SmsCodeUseReqDTO()
+        smsCodeService.useSmsCode(new SmsCodeUseReqDTO()
                 .setCode(reqDTO.getCode())
                 .setMobile(reqDTO.getMobile())
                 .setScene(SmsSceneEnum.ADMIN_MEMBER_RESET_PASSWORD.getScene())
                 .setUsedIp(getClientIP()));
 
+        // 短信码校验成功但账号已删除时仍返回相同结果，避免形成账号枚举旁路。
+        AdminUserDO userByMobile = userService.getUserByMobile(reqDTO.getMobile());
+        if (userByMobile == null) {
+            return;
+        }
         userService.updateUserPassword(userByMobile.getId(), reqDTO.getPassword());
+        loginProtectionService.clear(userByMobile.getId());
+    }
+
+    @Override
+    public void unlockLogin(Long userId) {
+        if (userService.getUser(userId) == null) {
+            throw exception(USER_NOT_EXISTS);
+        }
+        loginProtectionService.clear(userId);
     }
 }

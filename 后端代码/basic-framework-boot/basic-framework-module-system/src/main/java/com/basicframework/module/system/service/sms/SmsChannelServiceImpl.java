@@ -16,11 +16,9 @@ import com.basicframework.module.system.framework.sms.core.client.SmsClient;
 import com.basicframework.module.system.framework.sms.core.client.SmsClientFactory;
 import com.basicframework.module.system.framework.sms.core.enums.SmsChannelEnum;
 import com.basicframework.module.system.framework.sms.core.property.SmsChannelProperties;
-import jakarta.annotation.Resource;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,29 +31,38 @@ import org.springframework.util.StringUtils;
  *
  */
 @Service
-@Slf4j
 public class SmsChannelServiceImpl implements SmsChannelService {
 
+    private static final String API_KEY_CONTEXT = "sms-channel:api-key";
     private static final String API_SECRET_CONTEXT = "sms-channel:api-secret";
 
-    @Resource
-    private SmsClientFactory smsClientFactory;
+    private final SmsClientFactory smsClientFactory;
 
-    @Resource
-    private SmsChannelMapper smsChannelMapper;
+    private final SmsChannelMapper smsChannelMapper;
 
-    @Resource
-    private ObjectProvider<SmsTemplateService> smsTemplateServiceProvider;
+    private final ObjectProvider<SmsTemplateService> smsTemplateServiceProvider;
 
-    @Resource
-    private CredentialCipher credentialCipher;
+    private final CredentialCipher credentialCipher;
+
+    public SmsChannelServiceImpl(
+            SmsClientFactory smsClientFactory,
+            SmsChannelMapper smsChannelMapper,
+            ObjectProvider<SmsTemplateService> smsTemplateServiceProvider,
+            CredentialCipher credentialCipher) {
+        this.smsClientFactory = smsClientFactory;
+        this.smsChannelMapper = smsChannelMapper;
+        this.smsTemplateServiceProvider = smsTemplateServiceProvider;
+        this.credentialCipher = credentialCipher;
+    }
 
     @Override
     public Long createSmsChannel(SmsChannelDO channel) {
         // 校验渠道编码唯一
         validateSmsChannelCodeUnique(null, channel.getCode());
 
-        channel.setApiSecretCiphertext(encryptRequiredSecret(channel.getApiSecret()))
+        channel.setApiKeyCiphertext(encryptRequiredApiKey(channel.getApiKey()))
+                .setApiKey(null)
+                .setApiSecretCiphertext(encryptRequiredSecret(channel.getApiSecret()))
                 .setApiSecret(null);
         smsChannelMapper.insert(channel);
         return channel.getId();
@@ -69,6 +76,12 @@ public class SmsChannelServiceImpl implements SmsChannelService {
         // 校验渠道编码唯一
         validateSmsChannelCodeUnique(updateObj.getId(), updateObj.getCode());
 
+        if (!StringUtils.hasText(updateObj.getApiKey())) {
+            updateObj.setApiKeyCiphertext(normalizeStoredApiKey(existing.getApiKeyCiphertext()));
+        } else {
+            updateObj.setApiKeyCiphertext(encryptRequiredApiKey(updateObj.getApiKey()));
+        }
+        updateObj.setApiKey(null);
         if (StringUtils.hasText(updateObj.getApiSecret())) {
             updateObj.setApiSecretCiphertext(credentialCipher.encrypt(updateObj.getApiSecret(), API_SECRET_CONTEXT));
         } else {
@@ -180,6 +193,7 @@ public class SmsChannelServiceImpl implements SmsChannelService {
             return null;
         }
         SmsChannelProperties properties = BeanUtils.toBean(channel, SmsChannelProperties.class);
+        properties.setApiKey(decryptStoredApiKey(channel));
         properties.setApiSecret(decryptStoredSecret(channel));
         return smsClientFactory.createOrUpdateSmsClient(properties);
     }
@@ -187,6 +201,9 @@ public class SmsChannelServiceImpl implements SmsChannelService {
     @Override
     public SmsClient createTransientSmsClient(SmsChannelDO channel) {
         SmsChannelProperties properties = BeanUtils.toBean(channel, SmsChannelProperties.class);
+        if (!StringUtils.hasText(properties.getApiKey()) && StringUtils.hasText(channel.getApiKeyCiphertext())) {
+            properties.setApiKey(decryptStoredApiKey(channel));
+        }
         if (!StringUtils.hasText(properties.getApiSecret()) && StringUtils.hasText(channel.getApiSecretCiphertext())) {
             properties.setApiSecret(decryptStoredSecret(channel));
         }
@@ -203,6 +220,37 @@ public class SmsChannelServiceImpl implements SmsChannelService {
             throw invalidParamException("短信 API Secret 不能为空");
         }
         return credentialCipher.encrypt(apiSecret, API_SECRET_CONTEXT);
+    }
+
+    private String encryptRequiredApiKey(String apiKey) {
+        if (!StringUtils.hasText(apiKey)) {
+            throw invalidParamException("短信 API Key 不能为空");
+        }
+        return credentialCipher.encrypt(apiKey, API_KEY_CONTEXT);
+    }
+
+    private String normalizeStoredApiKey(String storedValue) {
+        if (!StringUtils.hasText(storedValue)) {
+            throw new IllegalStateException("短信渠道未配置 API Key");
+        }
+        return credentialCipher.isEncryptedValue(storedValue)
+                ? storedValue
+                : credentialCipher.encrypt(storedValue, API_KEY_CONTEXT);
+    }
+
+    private String decryptStoredApiKey(SmsChannelDO channel) {
+        String storedValue = channel.getApiKeyCiphertext();
+        if (!StringUtils.hasText(storedValue)) {
+            throw new IllegalStateException("短信渠道未配置 API Key");
+        }
+        if (credentialCipher.isEncryptedValue(storedValue)) {
+            return credentialCipher.decrypt(storedValue, API_KEY_CONTEXT);
+        }
+        String ciphertext = credentialCipher.encrypt(storedValue, API_KEY_CONTEXT);
+        if (channel.getId() != null && smsChannelMapper.replaceLegacyApiKey(channel.getId(), storedValue, ciphertext)) {
+            channel.setApiKeyCiphertext(ciphertext);
+        }
+        return storedValue;
     }
 
     private String decryptStoredSecret(SmsChannelDO channel) {

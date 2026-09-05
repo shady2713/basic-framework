@@ -8,8 +8,8 @@ import com.basicframework.module.infra.api.logger.dto.ApiErrorLogCreateReqDTO;
 import com.basicframework.module.infra.dal.dataobject.logger.ApiErrorLogDO;
 import com.basicframework.module.infra.dal.mysql.logger.ApiErrorLogMapper;
 import com.basicframework.module.infra.enums.logger.ApiErrorLogProcessStatusEnum;
-import jakarta.annotation.Resource;
 import java.time.LocalDateTime;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.validation.annotation.Validated;
@@ -20,10 +20,10 @@ import org.springframework.validation.annotation.Validated;
 @Service
 @Validated
 @Slf4j
+@RequiredArgsConstructor
 public class ApiErrorLogServiceImpl implements ApiErrorLogService {
 
-    @Resource
-    private ApiErrorLogMapper apiErrorLogMapper;
+    private final ApiErrorLogMapper apiErrorLogMapper;
 
     @Override
     public void createApiErrorLog(ApiErrorLogCreateReqDTO createDTO) {

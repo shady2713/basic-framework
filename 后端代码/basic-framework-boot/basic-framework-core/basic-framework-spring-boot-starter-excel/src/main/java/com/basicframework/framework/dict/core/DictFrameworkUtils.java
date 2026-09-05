@@ -21,29 +21,30 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class DictFrameworkUtils {
 
-    private static DictDataCommonApi dictDataApi;
-
     /**
      * 针对 dictType 的字段数据缓存
      */
-    private static final LoadingCache<String, List<DictDataRespDTO>> GET_DICT_DATA_CACHE =
-            CacheUtils.buildAsyncReloadingCache(
-                    Duration.ofMinutes(1L), // 过期时间 1 分钟
-                    new CacheLoader<String, List<DictDataRespDTO>>() {
+    private static volatile LoadingCache<String, List<DictDataRespDTO>> dictDataCache;
 
-                        @Override
-                        public List<DictDataRespDTO> load(String dictType) {
-                            return dictDataApi.getDictDataList(dictType);
-                        }
-                    });
+    public static synchronized void init(DictDataCommonApi dictDataApi, Duration refreshAfterWrite) {
+        Objects.requireNonNull(dictDataApi, "dictDataApi must not be null");
+        Objects.requireNonNull(refreshAfterWrite, "refreshAfterWrite must not be null");
+        if (refreshAfterWrite.isZero() || refreshAfterWrite.isNegative()) {
+            throw new IllegalArgumentException("refreshAfterWrite must be positive");
+        }
+        dictDataCache = CacheUtils.buildAsyncReloadingCache(
+                refreshAfterWrite, new CacheLoader<String, List<DictDataRespDTO>>() {
 
-    public static void init(DictDataCommonApi dictDataApi) {
-        DictFrameworkUtils.dictDataApi = dictDataApi;
+                    @Override
+                    public List<DictDataRespDTO> load(String dictType) {
+                        return dictDataApi.getDictDataList(dictType);
+                    }
+                });
         log.info("[init][初始化 DictFrameworkUtils 成功]");
     }
 
     public static void clearCache() {
-        GET_DICT_DATA_CACHE.invalidateAll();
+        cache().invalidateAll();
     }
 
     @SneakyThrows
@@ -56,27 +57,31 @@ public class DictFrameworkUtils {
 
     @SneakyThrows
     public static String parseDictDataLabel(String dictType, String value) {
-        List<DictDataRespDTO> dictDatas = GET_DICT_DATA_CACHE.get(dictType);
+        List<DictDataRespDTO> dictDatas = cache().get(dictType);
         DictDataRespDTO dictData = CollUtil.findOne(dictDatas, data -> Objects.equals(data.getValue(), value));
         return dictData != null ? dictData.getLabel() : null;
     }
 
     @SneakyThrows
     public static List<String> getDictDataLabelList(String dictType) {
-        List<DictDataRespDTO> dictDatas = GET_DICT_DATA_CACHE.get(dictType);
+        List<DictDataRespDTO> dictDatas = cache().get(dictType);
         return convertList(dictDatas, DictDataRespDTO::getLabel);
     }
 
     @SneakyThrows
     public static String parseDictDataValue(String dictType, String label) {
-        List<DictDataRespDTO> dictDatas = GET_DICT_DATA_CACHE.get(dictType);
+        List<DictDataRespDTO> dictDatas = cache().get(dictType);
         DictDataRespDTO dictData = CollUtil.findOne(dictDatas, data -> Objects.equals(data.getLabel(), label));
         return dictData != null ? dictData.getValue() : null;
     }
 
     @SneakyThrows
     public static List<String> getDictDataValueList(String dictType) {
-        List<DictDataRespDTO> dictDatas = GET_DICT_DATA_CACHE.get(dictType);
+        List<DictDataRespDTO> dictDatas = cache().get(dictType);
         return convertList(dictDatas, DictDataRespDTO::getValue);
+    }
+
+    private static LoadingCache<String, List<DictDataRespDTO>> cache() {
+        return Objects.requireNonNull(dictDataCache, "DictFrameworkUtils 尚未初始化");
     }
 }

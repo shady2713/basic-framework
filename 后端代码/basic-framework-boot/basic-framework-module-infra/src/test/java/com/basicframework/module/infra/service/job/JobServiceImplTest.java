@@ -1,5 +1,8 @@
 package com.basicframework.module.infra.service.job;
 
+import static com.basicframework.module.infra.enums.ErrorCodeConstants.JOB_HANDLER_BEAN_NOT_EXISTS;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
@@ -7,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import cn.hutool.extra.spring.SpringUtil;
+import com.basicframework.framework.common.exception.ServiceException;
 import com.basicframework.framework.quartz.core.handler.JobHandler;
 import com.basicframework.framework.quartz.core.scheduler.SchedulerManager;
 import com.basicframework.module.infra.dal.dataobject.job.JobDO;
@@ -96,6 +100,23 @@ class JobServiceImplTest {
 
         verify(schedulerManager).deleteJob("accessLogCleanJob");
         verify(schedulerManager).addJob(25L, "renamedCleanJob", "", "0 0 0 * * ?", 3, 0);
+    }
+
+    @Test
+    void updateJob_rejectsANullHandlerInsteadOfRelyingOnDisabledAssertions() {
+        JobDO current = job(25L, "accessLogCleanJob", JobStatusEnum.NORMAL.getStatus());
+        JobDO update = job(25L, "accessLogCleanJob", JobStatusEnum.NORMAL.getStatus());
+        when(jobMapper.selectById(current.getId())).thenReturn(current);
+
+        try (MockedStatic<SpringUtil> springUtil = mockStatic(SpringUtil.class)) {
+            springUtil.when(() -> SpringUtil.getBean(current.getHandlerName())).thenReturn(null);
+
+            assertThatThrownBy(() -> jobService.updateJob(update))
+                    .isInstanceOfSatisfying(ServiceException.class, exception -> assertThat(exception.getCode())
+                            .isEqualTo(JOB_HANDLER_BEAN_NOT_EXISTS.getCode()));
+        }
+
+        verify(jobMapper, never()).updateById(update);
     }
 
     private static JobDO job(Long id, String handlerName, Integer status) {

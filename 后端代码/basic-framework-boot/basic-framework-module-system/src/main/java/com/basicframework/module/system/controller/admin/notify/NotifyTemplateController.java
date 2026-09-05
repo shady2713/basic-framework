@@ -1,6 +1,8 @@
 package com.basicframework.module.system.controller.admin.notify;
 
+import static com.basicframework.framework.common.exception.util.ServiceExceptionUtil.exception;
 import static com.basicframework.framework.common.pojo.CommonResult.success;
+import static com.basicframework.module.system.enums.ErrorCodeConstants.NOTIFY_SEND_USER_TYPE_INVALID;
 
 import com.basicframework.framework.common.enums.UserTypeEnum;
 import com.basicframework.framework.common.pojo.CommonResult;
@@ -17,8 +19,9 @@ import com.basicframework.module.system.service.notify.NotifyTemplateService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 import java.util.List;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
@@ -30,11 +33,13 @@ import org.springframework.web.bind.annotation.*;
 @Validated
 public class NotifyTemplateController {
 
-    @Resource
-    private NotifyTemplateService notifyTemplateService;
+    private final NotifyTemplateService notifyTemplateService;
+    private final NotifySendService notifySendService;
 
-    @Resource
-    private NotifySendService notifySendService;
+    public NotifyTemplateController(NotifyTemplateService notifyTemplateService, NotifySendService notifySendService) {
+        this.notifyTemplateService = notifyTemplateService;
+        this.notifySendService = notifySendService;
+    }
 
     @PostMapping("/create")
     @Operation(summary = "创建站内信模版")
@@ -56,7 +61,7 @@ public class NotifyTemplateController {
     @Operation(summary = "删除站内信模版")
     @Parameter(name = "id", description = "编号", required = true)
     @PreAuthorize("@ss.hasPermission('system:notify-template:delete')")
-    public CommonResult<Boolean> deleteNotifyTemplate(@RequestParam("id") Long id) {
+    public CommonResult<Boolean> deleteNotifyTemplate(@RequestParam("id") @Positive Long id) {
         notifyTemplateService.deleteNotifyTemplate(id);
         return success(true);
     }
@@ -65,7 +70,8 @@ public class NotifyTemplateController {
     @Operation(summary = "批量删除站内信模版")
     @Parameter(name = "ids", description = "编号列表", required = true)
     @PreAuthorize("@ss.hasPermission('system:notify-template:delete')")
-    public CommonResult<Boolean> deleteNotifyTemplateList(@RequestParam("ids") List<Long> ids) {
+    public CommonResult<Boolean> deleteNotifyTemplateList(
+            @RequestParam("ids") @Size(min = 1, max = 100) List<@Positive Long> ids) {
         notifyTemplateService.deleteNotifyTemplateList(ids);
         return success(true);
     }
@@ -74,7 +80,7 @@ public class NotifyTemplateController {
     @Operation(summary = "获得站内信模版")
     @Parameter(name = "id", description = "编号", required = true, example = "1024")
     @PreAuthorize("@ss.hasPermission('system:notify-template:query')")
-    public CommonResult<NotifyTemplateRespVO> getNotifyTemplate(@RequestParam("id") Long id) {
+    public CommonResult<NotifyTemplateRespVO> getNotifyTemplate(@RequestParam("id") @Positive Long id) {
         NotifyTemplateDO template = notifyTemplateService.getNotifyTemplate(id);
         return success(BeanUtils.toBean(template, NotifyTemplateRespVO.class));
     }
@@ -101,9 +107,11 @@ public class NotifyTemplateController {
         if (UserTypeEnum.MEMBER.getValue().equals(sendReqVO.getUserType())) {
             return success(notifySendService.sendSingleNotifyToMember(
                     sendReqVO.getUserId(), sendReqVO.getTemplateCode(), sendReqVO.getTemplateParams()));
-        } else {
+        }
+        if (UserTypeEnum.ADMIN.getValue().equals(sendReqVO.getUserType())) {
             return success(notifySendService.sendSingleNotifyToAdmin(
                     sendReqVO.getUserId(), sendReqVO.getTemplateCode(), sendReqVO.getTemplateParams()));
         }
+        throw exception(NOTIFY_SEND_USER_TYPE_INVALID);
     }
 }

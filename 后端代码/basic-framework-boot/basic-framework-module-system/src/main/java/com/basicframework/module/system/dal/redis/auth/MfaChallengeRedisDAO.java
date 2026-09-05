@@ -5,7 +5,6 @@ import static com.basicframework.module.system.dal.redis.RedisKeyConstants.MFA_C
 import com.basicframework.framework.common.util.json.JsonUtils;
 import com.basicframework.module.system.config.MfaProperties;
 import com.basicframework.module.system.service.auth.dto.MfaChallengeDTO;
-import jakarta.annotation.Resource;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -13,11 +12,13 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class MfaChallengeRedisDAO {
 
-    @Resource
-    private StringRedisTemplate stringRedisTemplate;
+    private final StringRedisTemplate stringRedisTemplate;
+    private final MfaProperties properties;
 
-    @Resource
-    private MfaProperties properties;
+    public MfaChallengeRedisDAO(StringRedisTemplate stringRedisTemplate, MfaProperties properties) {
+        this.stringRedisTemplate = stringRedisTemplate;
+        this.properties = properties;
+    }
 
     public void set(String token, MfaChallengeDTO challenge) {
         stringRedisTemplate

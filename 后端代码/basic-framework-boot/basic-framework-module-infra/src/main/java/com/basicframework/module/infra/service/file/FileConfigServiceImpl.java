@@ -10,9 +10,6 @@ import cn.hutool.core.io.resource.ResourceUtil;
 import cn.hutool.core.util.IdUtil;
 import com.basicframework.framework.common.pojo.PageParam;
 import com.basicframework.framework.common.pojo.PageResult;
-import com.basicframework.framework.common.util.json.JsonUtils;
-import com.basicframework.framework.common.util.validation.ValidationUtils;
-import com.basicframework.framework.security.core.crypto.CredentialCipher;
 import com.basicframework.module.infra.dal.dataobject.file.FileConfigDO;
 import com.basicframework.module.infra.dal.dataobject.file.FileDO;
 import com.basicframework.module.infra.dal.mysql.file.FileConfigMapper;
@@ -21,12 +18,8 @@ import com.basicframework.module.infra.dal.mysql.file.FileMapper;
 import com.basicframework.module.infra.framework.file.core.client.FileClient;
 import com.basicframework.module.infra.framework.file.core.client.FileClientConfig;
 import com.basicframework.module.infra.framework.file.core.client.FileClientFactory;
-import com.basicframework.module.infra.framework.file.core.client.s3.S3FileClientConfig;
-import com.basicframework.module.infra.framework.file.core.enums.FileStorageEnum;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
-import jakarta.annotation.Resource;
-import jakarta.validation.Validator;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -34,12 +27,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.Assert;
-import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
 
 /**
@@ -48,11 +39,10 @@ import org.springframework.validation.annotation.Validated;
  */
 @Service
 @Validated
-@Slf4j
+@RequiredArgsConstructor
 public class FileConfigServiceImpl implements FileConfigService {
 
     private static final Long CACHE_MASTER_ID = 0L;
-    private static final String CONFIG_CONTEXT = "file-client:config";
 
     /**
      * {@link FileClient} 缓存，通过它异步刷新 fileClientFactory
@@ -73,29 +63,21 @@ public class FileConfigServiceImpl implements FileConfigService {
                 }
             });
 
-    @Resource
-    private FileClientFactory fileClientFactory;
+    private final FileClientFactory fileClientFactory;
 
-    @Resource
-    private FileConfigMapper fileConfigMapper;
+    private final FileConfigMapper fileConfigMapper;
 
-    @Resource
-    private FileMapper fileMapper;
+    private final FileMapper fileMapper;
 
-    @Resource
-    private FileContentMapper fileContentMapper;
+    private final FileContentMapper fileContentMapper;
 
-    @Resource
-    private Validator validator;
-
-    @Resource
-    private CredentialCipher credentialCipher;
+    private final FileConfigCredentialCodec credentialCodec;
 
     @Override
     public Long createFileConfig(FileConfigDO fileConfig, Map<String, Object> configMap) {
-        FileClientConfig clientConfig = parseClientConfig(fileConfig.getStorage(), configMap, null);
+        FileClientConfig clientConfig = credentialCodec.parse(fileConfig.getStorage(), configMap, null);
         fileConfig
-                .setConfigCiphertext(encryptConfig(clientConfig))
+                .setConfigCiphertext(credentialCodec.encrypt(clientConfig))
                 .setConfig(null)
                 .setMaster(false);
         fileConfigMapper.insert(fileConfig);
@@ -112,16 +94,16 @@ public class FileConfigServiceImpl implements FileConfigService {
         if (config == null) {
             throw exception(FILE_CONFIG_NOT_EXISTS);
         }
-        FileClientConfig existingClientConfig = decryptConfig(config);
-        FileClientConfig clientConfig = parseClientConfig(config.getStorage(), configMap, existingClientConfig);
+        FileClientConfig existingClientConfig = credentialCodec.decrypt(config);
+        FileClientConfig clientConfig = credentialCodec.parse(config.getStorage(), configMap, existingClientConfig);
         updateObj
                 .setStorage(config.getStorage())
-                .setConfigCiphertext(encryptConfig(clientConfig))
+                .setConfigCiphertext(credentialCodec.encrypt(clientConfig))
                 .setConfig(null);
         fileConfigMapper.updateById(updateObj);
 
         // 清空缓存
-        clearCache(config.getId(), null);
+        clearCache(config.getId(), config.getMaster());
     }
 
     @Override
@@ -136,17 +118,6 @@ public class FileConfigServiceImpl implements FileConfigService {
 
         // 清空缓存
         clearCache(null, true);
-    }
-
-    private FileClientConfig parseClientConfig(
-            Integer storage, Map<String, Object> config, FileClientConfig existingConfig) {
-        FileStorageEnum storageEnum = FileStorageEnum.getByStorage(storage);
-        Assert.notNull(storageEnum, "不支持的文件存储器");
-        Class<? extends FileClientConfig> configClass = storageEnum.getConfigClass();
-        FileClientConfig clientConfig = JsonUtils.parseObject2(JsonUtils.toJsonString(config), configClass);
-        preserveS3Secret(clientConfig, existingConfig);
-        ValidationUtils.validate(validator, clientConfig);
-        return clientConfig;
     }
 
     @Override
@@ -182,6 +153,7 @@ public class FileConfigServiceImpl implements FileConfigService {
     private void clearCache(Long id, Boolean master) {
         if (id != null) {
             clientCache.invalidate(id);
+            fileClientFactory.removeFileClient(id);
         }
         if (Boolean.TRUE.equals(master)) {
             clientCache.invalidate(CACHE_MASTER_ID);
@@ -211,14 +183,14 @@ public class FileConfigServiceImpl implements FileConfigService {
 
     @Override
     public FileConfigDO getFileConfig(Long id) {
-        return hydrateConfig(fileConfigMapper.selectById(id));
+        return credentialCodec.hydrate(fileConfigMapper.selectById(id));
     }
 
     @Override
     public PageResult<FileConfigDO> getFileConfigPage(
             PageParam pageParam, String name, Integer storage, LocalDateTime[] createTime) {
         PageResult<FileConfigDO> page = fileConfigMapper.selectPage(pageParam, name, storage, createTime);
-        page.getList().forEach(this::hydrateConfig);
+        page.getList().forEach(credentialCodec::hydrate);
         return page;
     }
 
@@ -267,47 +239,8 @@ public class FileConfigServiceImpl implements FileConfigService {
     }
 
     private FileClient createOrUpdateFileClient(FileConfigDO config) {
-        fileClientFactory.createOrUpdateFileClient(config.getId(), config.getStorage(), resolveConfig(config));
+        fileClientFactory.createOrUpdateFileClient(
+                config.getId(), config.getStorage(), credentialCodec.resolve(config));
         return fileClientFactory.getFileClient(config.getId());
-    }
-
-    private FileClientConfig resolveConfig(FileConfigDO config) {
-        return config.getConfig() != null ? config.getConfig() : decryptConfig(config);
-    }
-
-    private FileConfigDO hydrateConfig(FileConfigDO config) {
-        if (config != null) {
-            config.setConfig(decryptConfig(config));
-        }
-        return config;
-    }
-
-    private FileClientConfig decryptConfig(FileConfigDO config) {
-        if (!StringUtils.hasText(config.getConfigCiphertext())) {
-            throw new IllegalStateException("文件客户端配置密文缺失");
-        }
-        String json = credentialCipher.decrypt(config.getConfigCiphertext(), CONFIG_CONTEXT);
-        FileStorageEnum storageEnum = FileStorageEnum.getByStorage(config.getStorage());
-        if (storageEnum == null) {
-            throw new IllegalStateException("文件客户端存储器无效");
-        }
-        try {
-            return JsonUtils.parseObject2(json, storageEnum.getConfigClass());
-        } catch (RuntimeException ignored) {
-            throw new IllegalStateException("文件客户端配置密文内容无效");
-        }
-    }
-
-    private String encryptConfig(FileClientConfig config) {
-        return credentialCipher.encrypt(JsonUtils.toJsonString(config), CONFIG_CONTEXT);
-    }
-
-    private static void preserveS3Secret(FileClientConfig clientConfig, FileClientConfig existingConfig) {
-        if (!(clientConfig instanceof S3FileClientConfig s3Config)
-                || StringUtils.hasText(s3Config.getAccessSecret())
-                || !(existingConfig instanceof S3FileClientConfig existingS3Config)) {
-            return;
-        }
-        s3Config.setAccessSecret(existingS3Config.getAccessSecret());
     }
 }

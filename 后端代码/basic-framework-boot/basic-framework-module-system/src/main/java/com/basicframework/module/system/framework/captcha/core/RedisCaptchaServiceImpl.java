@@ -39,6 +39,11 @@ public class RedisCaptchaServiceImpl implements CaptchaCacheService {
         return stringRedisTemplate.opsForValue().get(key);
     }
 
+    /** 原子读取并删除一次性验证码，避免并发请求重放同一令牌。 */
+    public String getAndDelete(String key) {
+        return stringRedisTemplate.opsForValue().getAndDelete(key);
+    }
+
     @Override
     public Long increment(String key, long val) {
         return stringRedisTemplate.opsForValue().increment(key, val);

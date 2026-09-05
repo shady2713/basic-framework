@@ -16,6 +16,7 @@ import com.basicframework.module.system.enums.auth.MfaChallengePurposeEnum;
 import com.basicframework.module.system.enums.auth.MfaFactorTypeEnum;
 import com.basicframework.module.system.enums.permission.RoleCodeEnum;
 import com.basicframework.module.system.service.auth.dto.MfaChallengeDTO;
+import com.basicframework.module.system.service.auth.dto.MfaTotpSetupDTO;
 import com.basicframework.module.system.service.auth.dto.MfaWebAuthnOptionsDTO;
 import com.basicframework.module.system.service.permission.PermissionService;
 import java.time.LocalDateTime;
@@ -25,14 +26,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class MfaFactorManagementServiceImplTest {
 
-    @InjectMocks
     private MfaFactorManagementServiceImpl service;
 
     @Mock
@@ -66,6 +65,42 @@ class MfaFactorManagementServiceImplTest {
     void setUp() {
         when(properties.isEnabled()).thenReturn(true);
         org.mockito.Mockito.lenient().when(properties.getWebauthn()).thenReturn(webAuthnProperties);
+        org.mockito.Mockito.lenient().when(properties.getIssuer()).thenReturn("basic framework");
+        MfaChallengeManager challengeManager = new MfaChallengeManager(challengeRedisDAO);
+        MfaTotpEnrollmentManager totpEnrollmentManager = new MfaTotpEnrollmentManager(
+                properties, challengeManager, factorMapper, secretCrypto, totpAuthenticator);
+        MfaWebAuthnEnrollmentManager webAuthnEnrollmentManager =
+                new MfaWebAuthnEnrollmentManager(properties, challengeManager, factorMapper, webAuthnService);
+        MfaFactorLifecycleManager factorLifecycleManager =
+                new MfaFactorLifecycleManager(properties, factorMapper, recoveryCodeManager, permissionService);
+        service = new MfaFactorManagementServiceImpl(
+                totpEnrollmentManager, webAuthnEnrollmentManager, factorLifecycleManager, recoveryCodeManager);
+    }
+
+    @Test
+    void beginTotpEnrollment_bindsRotatedFactorAndReturnsEncodedOtpAuthUri() {
+        MfaFactorDO current = factor(12L, MfaFactorTypeEnum.TOTP, "TOTP");
+        when(factorMapper.selectEnabledByUserIdAndType(1L, MfaFactorTypeEnum.TOTP.getType()))
+                .thenReturn(current);
+        when(totpAuthenticator.generateSecret()).thenReturn("BASE32SECRET");
+        when(secretCrypto.encrypt("BASE32SECRET", 1L)).thenReturn("ciphertext");
+
+        MfaTotpSetupDTO result = service.beginTotpEnrollment(1L, "user@example.com");
+
+        assertThat(result.getSecret()).isEqualTo("BASE32SECRET");
+        assertThat(result.getEnrollmentToken()).isNotBlank();
+        assertThat(result.getOtpauthUri())
+                .contains("basic%20framework%3Auser%40example.com")
+                .contains("issuer=basic%20framework");
+        ArgumentCaptor<MfaChallengeDTO> captor = ArgumentCaptor.forClass(MfaChallengeDTO.class);
+        verify(challengeRedisDAO).set(org.mockito.ArgumentMatchers.eq(result.getEnrollmentToken()), captor.capture());
+        assertThat(captor.getValue())
+                .extracting(
+                        MfaChallengeDTO::getUserId,
+                        MfaChallengeDTO::getFactorId,
+                        MfaChallengeDTO::getEncryptedTotpSecret,
+                        MfaChallengeDTO::getPurpose)
+                .containsExactly(1L, 12L, "ciphertext", MfaChallengePurposeEnum.TOTP_MANAGEMENT_ENROLLMENT);
     }
 
     @Test
@@ -140,6 +175,21 @@ class MfaFactorManagementServiceImplTest {
         assertThatThrownBy(() -> service.completeTotpEnrollment(2L, "enrollment-token", "123456"))
                 .hasMessageContaining("MFA 验证已失效");
         verify(secretCrypto, never()).decrypt(anyString(), any());
+    }
+
+    @Test
+    void completeTotpEnrollment_rejectsInvalidCodeBeforePersistingFactorOrRecoveryCodes() {
+        MfaChallengeDTO challenge = managementChallenge(MfaChallengePurposeEnum.TOTP_MANAGEMENT_ENROLLMENT);
+        challenge.setEncryptedTotpSecret("ciphertext");
+        when(challengeRedisDAO.getAndDelete("enrollment-token")).thenReturn(challenge);
+        when(secretCrypto.decrypt("ciphertext", 1L)).thenReturn("BASE32SECRET");
+        when(totpAuthenticator.verify("BASE32SECRET", "000000")).thenReturn(OptionalLong.empty());
+
+        assertThatThrownBy(() -> service.completeTotpEnrollment(1L, "enrollment-token", "000000"))
+                .hasMessageContaining("MFA 验证码不正确或已使用");
+
+        verify(factorMapper, never()).insert(any(MfaFactorDO.class));
+        verify(recoveryCodeManager, never()).replace(any(), any());
     }
 
     @Test

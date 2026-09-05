@@ -37,7 +37,7 @@ public class CronUtils {
         try {
             cron = new CronExpression(cronExpression);
         } catch (ParseException e) {
-            throw new IllegalArgumentException(e.getMessage());
+            throw new IllegalArgumentException("CRON 表达式格式无效", e);
         }
         // 2. 从当前开始计算，n 个满足条件的
         Date now = new Date();

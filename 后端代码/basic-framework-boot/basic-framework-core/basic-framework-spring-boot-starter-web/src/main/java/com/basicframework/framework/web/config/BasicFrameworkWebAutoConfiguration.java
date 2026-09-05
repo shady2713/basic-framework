@@ -2,8 +2,8 @@ package com.basicframework.framework.web.config;
 
 import cn.hutool.core.util.StrUtil;
 import com.basicframework.framework.common.enums.WebFilterOrderEnum;
+import com.basicframework.framework.common.util.servlet.ClientIpResolver;
 import com.basicframework.framework.web.core.filter.CacheRequestBodyFilter;
-import com.basicframework.framework.web.core.filter.DemoFilter;
 import com.basicframework.framework.web.core.handler.GlobalExceptionHandler;
 import com.basicframework.framework.web.core.handler.GlobalResponseBodyHandler;
 import com.basicframework.framework.web.core.util.WebFrameworkUtils;
@@ -15,7 +15,6 @@ import java.util.function.Predicate;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.web.client.RestTemplateAutoConfiguration;
 import org.springframework.boot.autoconfigure.web.servlet.WebMvcRegistrations;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -34,12 +33,6 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 @AutoConfiguration
 @EnableConfigurationProperties(WebProperties.class)
 public class BasicFrameworkWebAutoConfiguration {
-
-    /**
-     * 应用名
-     */
-    @Value("${spring.application.name}")
-    private String applicationName;
 
     @Bean
     public WebMvcRegistrations webMvcRegistrations(WebProperties webProperties) {
@@ -83,7 +76,8 @@ public class BasicFrameworkWebAutoConfiguration {
 
     @Bean
     @SuppressWarnings("SpringJavaInjectionPointsAutowiringInspection")
-    public GlobalExceptionHandler globalExceptionHandler(ApiErrorLogCommonApi apiErrorLogApi) {
+    public GlobalExceptionHandler globalExceptionHandler(
+            @Value("${spring.application.name}") String applicationName, ApiErrorLogCommonApi apiErrorLogApi) {
         return new GlobalExceptionHandler(applicationName, apiErrorLogApi);
     }
 
@@ -97,6 +91,12 @@ public class BasicFrameworkWebAutoConfiguration {
     public WebFrameworkUtils webFrameworkUtils(WebProperties webProperties) {
         // 由于 WebFrameworkUtils 需要使用到 webProperties 属性，所以注册为一个 Bean
         return new WebFrameworkUtils(webProperties);
+    }
+
+    @Bean
+    public ClientIpResolver clientIpResolver(WebProperties webProperties) {
+        // 构造即校验可信代理列表并在启动期注入，配置无效时启动即失败（fail-loud）
+        return new ClientIpResolver(webProperties.getTrustedProxies());
     }
 
     // ========== Filter 相关 ==========
@@ -124,17 +124,10 @@ public class BasicFrameworkWebAutoConfiguration {
      * 创建 RequestBodyCacheFilter Bean，可重复读取请求内容
      */
     @Bean
-    public FilterRegistrationBean<CacheRequestBodyFilter> requestBodyCacheFilter() {
-        return createFilterBean(new CacheRequestBodyFilter(), WebFilterOrderEnum.REQUEST_BODY_CACHE_FILTER);
-    }
-
-    /**
-     * 创建 DemoFilter Bean，演示模式
-     */
-    @Bean
-    @ConditionalOnProperty(value = "basic-framework.demo", havingValue = "true")
-    public FilterRegistrationBean<DemoFilter> demoFilter(GlobalExceptionHandler globalExceptionHandler) {
-        return createFilterBean(new DemoFilter(globalExceptionHandler), WebFilterOrderEnum.DEMO_FILTER);
+    public FilterRegistrationBean<CacheRequestBodyFilter> requestBodyCacheFilter(WebProperties webProperties) {
+        return createFilterBean(
+                new CacheRequestBodyFilter(webProperties.getRequestBodyCacheMaxBytes()),
+                WebFilterOrderEnum.REQUEST_BODY_CACHE_FILTER);
     }
 
     public static <T extends Filter> FilterRegistrationBean<T> createFilterBean(T filter, Integer order) {

@@ -10,7 +10,6 @@ import static org.mockito.Mockito.when;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validator;
-import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
@@ -18,7 +17,6 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * ValidationUtils 语义验证器测试
@@ -90,21 +88,43 @@ class ValidationUtilsTest {
     }
 
     static List<String> validPasswordVectors() {
-        return Arrays.asList("Abcd12", "Admin123");
+        return Arrays.asList("correct horse battery staple", "LongPassword123!", "密".repeat(24));
     }
 
     static List<String> invalidPasswordVectors() {
-        return Arrays.asList(
-                "abcdef12",
-                "ABCDEF12",
-                "Abcdefgh",
-                "Abc1",
-                "Abcd1234567890abc",
-                "Ab cd12",
-                "密码Abc123",
-                "Abcd12😀",
-                "",
-                null);
+        return Arrays.asList("short-password", "a".repeat(73), "密".repeat(25), "\uD800" + "a".repeat(14), "", null);
+    }
+
+    @Test
+    void nickname_normalizesAndRejectsUnsafeCodePoints() {
+        assertThat(ValidationUtils.normalizeNickname("  管理员😀  ")).isEqualTo("管理员😀");
+        assertThat(ValidationUtils.normalizeNickname(null)).isNull();
+        assertThat(ValidationUtils.isNickname("管理员😀")).isTrue();
+        assertThat(ValidationUtils.isNickname(null)).isFalse();
+        assertThat(ValidationUtils.isNickname("a\nb")).isFalse();
+        assertThat(ValidationUtils.isNickname("x".repeat(31))).isFalse();
+        assertThat(ValidationUtils.isNickname(" ")).isFalse();
+    }
+
+    @Test
+    void contactFields_normalizeBeforeValidation() {
+        assertThat(ValidationUtils.normalizeMobile(" 13812345678 ")).isEqualTo("13812345678");
+        assertThat(ValidationUtils.normalizeMobile("  ")).isNull();
+        assertThat(ValidationUtils.isMobile(" 13812345678 ")).isTrue();
+        assertThat(ValidationUtils.normalizeEmail(" USER+tag@Example.COM ")).isEqualTo("USER+tag@example.com");
+        assertThat(ValidationUtils.normalizeEmail("local-only")).isEqualTo("local-only");
+        assertThat(ValidationUtils.normalizeEmail("  ")).isNull();
+        assertThat(ValidationUtils.isEmail(" USER+tag@Example.COM ")).isTrue();
+    }
+
+    @Test
+    void codePointLength_countsSupplementaryCharactersOnce() {
+        assertThat(ValidationUtils.codePointLength("A😀B")).isEqualTo(3);
+        assertThat(ValidationUtils.isCodePointLengthBetween("😀".repeat(500), 0, 500))
+                .isTrue();
+        assertThat(ValidationUtils.isCodePointLengthBetween("😀".repeat(501), 0, 500))
+                .isFalse();
+        assertThat(ValidationUtils.isCodePointLengthBetween(null, 0, 500)).isFalse();
     }
 
     @ParameterizedTest
@@ -125,64 +145,6 @@ class ValidationUtilsTest {
 
     static List<String> invalidEmailVectors() {
         return Arrays.asList("user@invalid", "user@", "@example.com", "user @example.com", "用户@example.com", "", null);
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {"100", "100.00", "99.99", "0", "0.5"})
-    void isPercent_acceptsValidPercentStrings(String percent) {
-        assertThat(ValidationUtils.isPercent(percent)).isTrue();
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {"100.001", "101", "-5", "abc", ""})
-    void isPercent_rejectsOutOfRangeMalformedAndBlanks(String percent) {
-        assertThat(ValidationUtils.isPercent(percent)).isFalse();
-    }
-
-    @Test
-    void isPercent_rejectsNull() {
-        assertThat(ValidationUtils.isPercent((String) null)).isFalse();
-        assertThat(ValidationUtils.isPercent((Number) null)).isFalse();
-    }
-
-    @ParameterizedTest
-    @MethodSource("validPercentNumberVectors")
-    void isPercent_acceptsValidNumbers(Number percent) {
-        assertThat(ValidationUtils.isPercent(percent)).isTrue();
-    }
-
-    @ParameterizedTest
-    @MethodSource("invalidPercentNumberVectors")
-    void isPercent_rejectsInvalidNumbers(Number percent) {
-        assertThat(ValidationUtils.isPercent(percent)).isFalse();
-    }
-
-    static List<Number> validPercentNumberVectors() {
-        return Arrays.asList(new BigDecimal("99.99"), new BigDecimal("100"), BigDecimal.ZERO);
-    }
-
-    static List<Number> invalidPercentNumberVectors() {
-        return Arrays.asList(new BigDecimal("12.345"), new BigDecimal("101"), new BigDecimal("-5"), null);
-    }
-
-    @ParameterizedTest
-    @MethodSource("validQuantityVectors")
-    void isQuantity_acceptsWholeNonNegativeNumbers(Number quantity) {
-        assertThat(ValidationUtils.isQuantity(quantity)).isTrue();
-    }
-
-    @ParameterizedTest
-    @MethodSource("invalidQuantityVectors")
-    void isQuantity_rejectsFractionalNegativeAndNull(Number quantity) {
-        assertThat(ValidationUtils.isQuantity(quantity)).isFalse();
-    }
-
-    static List<Number> validQuantityVectors() {
-        return Arrays.asList(0, 100, 100L, new BigDecimal("100.00"));
-    }
-
-    static List<Number> invalidQuantityVectors() {
-        return Arrays.asList(new BigDecimal("100.5"), new BigDecimal("-3"), null);
     }
 
     @Nested

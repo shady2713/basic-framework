@@ -16,7 +16,6 @@ import com.basicframework.module.system.dal.dataobject.user.AdminUserDO;
 import com.basicframework.module.system.dal.mysql.notice.NoticeMapper;
 import com.basicframework.module.system.dal.mysql.notify.NotifyMessageMapper;
 import com.basicframework.module.system.service.user.AdminUserService;
-import jakarta.annotation.Resource;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -32,14 +31,18 @@ public class NoticeServiceImpl implements NoticeService {
     private static final String NOTICE_PUSH_CODE_PREFIX = "SYSTEM_NOTICE_";
     private static final String NOTICE_PUSH_SENDER = "系统公告";
 
-    @Resource
-    private NoticeMapper noticeMapper;
+    private final NoticeMapper noticeMapper;
 
-    @Resource
-    private NotifyMessageMapper notifyMessageMapper;
+    private final NotifyMessageMapper notifyMessageMapper;
 
-    @Resource
-    private AdminUserService adminUserService;
+    private final AdminUserService adminUserService;
+
+    public NoticeServiceImpl(
+            NoticeMapper noticeMapper, NotifyMessageMapper notifyMessageMapper, AdminUserService adminUserService) {
+        this.noticeMapper = noticeMapper;
+        this.notifyMessageMapper = notifyMessageMapper;
+        this.adminUserService = adminUserService;
+    }
 
     @Override
     public Long createNotice(NoticeDO notice) {

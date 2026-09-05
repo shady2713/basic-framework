@@ -7,6 +7,7 @@ import com.basicframework.framework.mq.redis.core.interceptor.RedisMessageInterc
 import com.basicframework.framework.mq.redis.core.message.AbstractRedisMessage;
 import java.lang.reflect.Type;
 import java.util.List;
+import java.util.Objects;
 import lombok.Setter;
 import lombok.SneakyThrows;
 import org.springframework.data.redis.connection.Message;
@@ -53,6 +54,10 @@ public abstract class AbstractRedisChannelMessageListener<T extends AbstractRedi
     @Override
     public final void onMessage(Message message, byte[] bytes) {
         T messageObj = JsonUtils.parseObject(message.getBody(), messageType);
+        if (messageObj == null) {
+            throw new IllegalArgumentException("Redis Channel 消息内容不能为 null");
+        }
+        requireRedisMQTemplate();
         try {
             consumeMessageBefore(messageObj);
             // 消费消息
@@ -85,18 +90,20 @@ public abstract class AbstractRedisChannelMessageListener<T extends AbstractRedi
     }
 
     private void consumeMessageBefore(AbstractRedisMessage message) {
-        assert redisMQTemplate != null;
-        List<RedisMessageInterceptor> interceptors = redisMQTemplate.getInterceptors();
+        List<RedisMessageInterceptor> interceptors = requireRedisMQTemplate().getInterceptors();
         // 正序
         interceptors.forEach(interceptor -> interceptor.consumeMessageBefore(message));
     }
 
     private void consumeMessageAfter(AbstractRedisMessage message) {
-        assert redisMQTemplate != null;
-        List<RedisMessageInterceptor> interceptors = redisMQTemplate.getInterceptors();
+        List<RedisMessageInterceptor> interceptors = requireRedisMQTemplate().getInterceptors();
         // 倒序
         for (int i = interceptors.size() - 1; i >= 0; i--) {
             interceptors.get(i).consumeMessageAfter(message);
         }
+    }
+
+    private RedisMQTemplate requireRedisMQTemplate() {
+        return Objects.requireNonNull(redisMQTemplate, "redisMQTemplate must be configured");
     }
 }

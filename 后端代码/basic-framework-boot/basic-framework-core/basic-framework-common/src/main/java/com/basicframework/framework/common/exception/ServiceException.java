@@ -1,58 +1,36 @@
 package com.basicframework.framework.common.exception;
 
-import com.basicframework.framework.common.exception.enums.ServiceErrorCodeRange;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
+import lombok.Getter;
 
 /**
  * 业务逻辑异常 Exception
  */
-@Data
-@EqualsAndHashCode(callSuper = true)
+@Getter
 public final class ServiceException extends RuntimeException {
+
+    private static final long serialVersionUID = 1L;
 
     /**
      * 业务错误码
      *
-     * @see ServiceErrorCodeRange
      */
-    private Integer code;
-    /**
-     * 错误提示
-     */
-    private String message;
-
-    /**
-     * 空构造方法，避免反序列化问题
-     */
-    public ServiceException() {}
+    private final Integer code;
 
     public ServiceException(ErrorCode errorCode) {
-        this.code = errorCode.getCode();
-        this.message = errorCode.getMsg();
+        this(errorCode.getCode(), errorCode.getMsg());
     }
 
     public ServiceException(Integer code, String message) {
+        super(message);
         this.code = code;
-        this.message = message;
     }
 
-    public Integer getCode() {
-        return code;
-    }
-
-    public ServiceException setCode(Integer code) {
-        this.code = code;
-        return this;
-    }
-
-    @Override
-    public String getMessage() {
-        return message;
-    }
-
-    public ServiceException setMessage(String message) {
-        this.message = message;
-        return this;
+    /**
+     * 返回允许展示给调用方的业务文案。调用方应使用本方法显式表达该信任边界，基础设施异常不得转换为该文案。
+     *
+     * @return 业务错误文案
+     */
+    public String getPublicMessage() {
+        return super.getMessage();
     }
 }

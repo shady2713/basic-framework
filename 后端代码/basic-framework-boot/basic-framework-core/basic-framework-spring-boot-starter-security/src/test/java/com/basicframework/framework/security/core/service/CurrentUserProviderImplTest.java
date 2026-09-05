@@ -28,7 +28,6 @@ class CurrentUserProviderImplTest {
         assertThat(provider.getLoginUserId()).isEqualTo(7L);
         assertThat(provider.getLoginUserType()).isEqualTo(2);
         assertThat(provider.getContext("traceId", String.class)).isEqualTo("trace-1");
-        assertThat(provider.isSkipPermissionCheck()).isFalse();
     }
 
     @Test
@@ -38,5 +37,7 @@ class CurrentUserProviderImplTest {
         assertThat(provider.getLoginUserId()).isNull();
         assertThat(provider.getLoginUserType()).isNull();
         assertThat(provider.getContext("traceId", String.class)).isNull();
+        assertThat(SecurityFrameworkUtils.getLoginUserNickname()).isNull();
+        assertThat(SecurityFrameworkUtils.getLoginUserDeptId()).isNull();
     }
 }

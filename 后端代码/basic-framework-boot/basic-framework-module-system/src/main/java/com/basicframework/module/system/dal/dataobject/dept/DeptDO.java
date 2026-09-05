@@ -10,6 +10,7 @@ import com.basicframework.framework.mybatis.core.dataobject.SoftDeletableDO;
 import com.basicframework.module.system.dal.dataobject.user.AdminUserDO;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import lombok.ToString;
 
 /**
  * 部门表
@@ -52,10 +53,12 @@ public class DeptDO extends SoftDeletableDO {
     /**
      * 联系电话
      */
+    @ToString.Exclude
     private String phone;
     /**
      * 邮箱
      */
+    @ToString.Exclude
     private String email;
     /**
      * 部门状态

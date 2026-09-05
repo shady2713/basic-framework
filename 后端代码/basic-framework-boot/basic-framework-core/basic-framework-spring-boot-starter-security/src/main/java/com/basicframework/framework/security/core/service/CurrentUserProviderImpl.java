@@ -35,9 +35,4 @@ public class CurrentUserProviderImpl implements CurrentUserProvider {
             loginUser.setContext(key, value);
         }
     }
-
-    @Override
-    public boolean isSkipPermissionCheck() {
-        return SecurityFrameworkUtils.skipPermissionCheck();
-    }
 }

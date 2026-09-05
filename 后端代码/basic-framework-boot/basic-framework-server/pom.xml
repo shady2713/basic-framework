@@ -15,7 +15,7 @@
     <name>${project.artifactId}</name>
     <description>
         后端 Server 的主项目，通过引入需要 basic-framework-module-xxx 的依赖，
-        从而实现提供 RESTful API 给 basic-framework-admin、basic-framework-ui-user 等前端项目。
+        从而实现为管理后台及外部应用端提供 RESTful API。
         本质上来说，它就是个空壳（容器）！
     </description>
 
@@ -30,13 +30,6 @@
             <artifactId>basic-framework-module-infra</artifactId>
             <version>${revision}</version>
         </dependency>
-        <!-- 场景 2 演练业务模块：客户档案（契约/权限/前端联调验证） -->
-        <dependency>
-            <groupId>com.basicframework</groupId>
-            <artifactId>basic-framework-module-crm</artifactId>
-            <version>${revision}</version>
-        </dependency>
-
         <!-- spring boot 配置所需依赖 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -136,7 +129,7 @@
                                         <limit>
                                             <counter>LINE</counter>
                                             <value>COVEREDRATIO</value>
-                                            <minimum>0.00</minimum>
+                                            <minimum>0.838</minimum>
                                         </limit>
                                     </limits>
                                 </rule>

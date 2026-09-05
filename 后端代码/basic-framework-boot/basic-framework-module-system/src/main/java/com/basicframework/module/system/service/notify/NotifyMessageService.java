@@ -52,7 +52,7 @@ public interface NotifyMessageService {
      * @param userType   用户类型
      * @return 站内信分页
      */
-    PageResult<NotifyMessageDO> getMyMyNotifyMessagePage(
+    PageResult<NotifyMessageDO> getMyNotifyMessagePage(
             PageParam pageParam, Boolean readStatus, LocalDateTime[] createTime, Long userId, Integer userType);
 
     /**

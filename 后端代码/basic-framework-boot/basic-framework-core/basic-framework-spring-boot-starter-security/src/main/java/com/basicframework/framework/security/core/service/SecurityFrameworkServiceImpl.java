@@ -1,7 +1,6 @@
 package com.basicframework.framework.security.core.service;
 
 import static com.basicframework.framework.security.core.util.SecurityFrameworkUtils.getLoginUserId;
-import static com.basicframework.framework.security.core.util.SecurityFrameworkUtils.skipPermissionCheck;
 
 import com.basicframework.module.system.api.permission.PermissionCommonApi;
 import lombok.AllArgsConstructor;
@@ -22,11 +21,6 @@ public class SecurityFrameworkServiceImpl implements SecurityFrameworkService {
 
     @Override
     public boolean hasAnyPermissions(String... permissions) {
-        // 特殊：跨租户访问
-        if (skipPermissionCheck()) {
-            return true;
-        }
-
         // 权限校验
         Long userId = getLoginUserId();
         if (userId == null) {
@@ -42,11 +36,6 @@ public class SecurityFrameworkServiceImpl implements SecurityFrameworkService {
 
     @Override
     public boolean hasAnyRoles(String... roles) {
-        // 特殊：跨租户访问
-        if (skipPermissionCheck()) {
-            return true;
-        }
-
         // 权限校验
         Long userId = getLoginUserId();
         if (userId == null) {

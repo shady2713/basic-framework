@@ -5,6 +5,7 @@ import com.basicframework.module.system.framework.sms.core.client.SmsClientFacto
 import com.basicframework.module.system.framework.sms.core.enums.SmsChannelEnum;
 import com.basicframework.module.system.framework.sms.core.property.SmsChannelProperties;
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import lombok.extern.slf4j.Slf4j;
@@ -60,14 +61,14 @@ public class SmsClientFactoryImpl implements SmsClientFactory {
 
     @Override
     public SmsClient createOrUpdateSmsClient(SmsChannelProperties properties) {
-        AbstractSmsClient client = channelIdClients.get(properties.getId());
-        if (client == null) {
-            client = initializeSmsClient(properties);
-            channelIdClients.put(client.getId(), client);
-        } else {
-            client.refresh(properties);
-        }
-        return client;
+        return channelIdClients.compute(properties.getId(), (channelId, existingClient) -> {
+            // 渠道类型变更时必须替换实现，不能在旧供应商客户端上只刷新配置。
+            if (existingClient == null || !Objects.equals(existingClient.properties.getCode(), properties.getCode())) {
+                return initializeSmsClient(properties);
+            }
+            existingClient.refresh(properties);
+            return existingClient;
+        });
     }
 
     @Override

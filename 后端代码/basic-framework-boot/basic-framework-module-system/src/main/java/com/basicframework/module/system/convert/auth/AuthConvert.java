@@ -7,8 +7,6 @@ import static com.basicframework.module.system.dal.dataobject.permission.MenuDO.
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjUtil;
 import com.basicframework.framework.common.util.object.BeanUtils;
-import com.basicframework.module.system.api.sms.dto.code.SmsCodeSendReqDTO;
-import com.basicframework.module.system.api.sms.dto.code.SmsCodeUseReqDTO;
 import com.basicframework.module.system.controller.admin.auth.vo.AuthPermissionInfoRespVO;
 import com.basicframework.module.system.dal.dataobject.permission.MenuDO;
 import com.basicframework.module.system.dal.dataobject.permission.RoleDO;
@@ -16,6 +14,8 @@ import com.basicframework.module.system.dal.dataobject.user.AdminUserDO;
 import com.basicframework.module.system.enums.permission.MenuTypeEnum;
 import com.basicframework.module.system.service.auth.dto.AuthSmsLoginDTO;
 import com.basicframework.module.system.service.auth.dto.AuthSmsSendDTO;
+import com.basicframework.module.system.service.sms.dto.SmsCodeSendReqDTO;
+import com.basicframework.module.system.service.sms.dto.SmsCodeUseReqDTO;
 import java.util.*;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -41,6 +41,8 @@ public interface AuthConvert {
     /**
      * 将菜单列表，构建成菜单树
      *
+     * <p>不会修改调用方传入的菜单集合。</p>
+     *
      * @param menuList 菜单列表
      * @return 菜单树
      */
@@ -48,15 +50,16 @@ public interface AuthConvert {
         if (CollUtil.isEmpty(menuList)) {
             return Collections.emptyList();
         }
+        List<MenuDO> menus = new ArrayList<>(menuList);
         // 移除按钮
-        menuList.removeIf(menu -> menu.getType().equals(MenuTypeEnum.BUTTON.getType()));
+        menus.removeIf(menu -> menu.getType().equals(MenuTypeEnum.BUTTON.getType()));
         // 排序，保证菜单的有序性
-        menuList.sort(Comparator.comparing(MenuDO::getSort));
+        menus.sort(Comparator.comparing(MenuDO::getSort));
 
         // 构建菜单树
         // 使用 LinkedHashMap 的原因，是为了排序 。实际也可以用 Stream API ，就是太丑了。
         Map<Long, AuthPermissionInfoRespVO.MenuVO> treeNodeMap = new LinkedHashMap<>();
-        menuList.forEach(
+        menus.forEach(
                 menu -> treeNodeMap.put(menu.getId(), BeanUtils.toBean(menu, AuthPermissionInfoRespVO.MenuVO.class)));
         // 处理父子关系
         treeNodeMap.values().stream()

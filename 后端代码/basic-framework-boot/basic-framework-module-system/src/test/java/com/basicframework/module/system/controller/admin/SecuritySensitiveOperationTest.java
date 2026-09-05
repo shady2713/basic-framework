@@ -37,6 +37,7 @@ class SecuritySensitiveOperationTest {
                 "deleteUserList",
                 "updateUserPassword",
                 "updateUserStatus",
+                "unlockLogin",
                 "exportUserList",
                 "importExcel");
         assertProtectedMethods(

@@ -23,11 +23,18 @@ public class BasicFrameworkCaptchaConfiguration {
     @Primary
     public CaptchaCacheService captchaCacheService(
             AjCaptchaProperties config, StringRedisTemplate stringRedisTemplate) {
+        validateCaptchaProtocol(config);
         CaptchaCacheService captchaCacheService =
                 CaptchaServiceFactory.getCache(config.getCacheType().name());
         if (captchaCacheService instanceof RedisCaptchaServiceImpl) {
             ((RedisCaptchaServiceImpl) captchaCacheService).setStringRedisTemplate(stringRedisTemplate);
         }
         return captchaCacheService;
+    }
+
+    static void validateCaptchaProtocol(AjCaptchaProperties config) {
+        if (!Boolean.FALSE.equals(config.getAesStatus())) {
+            throw new IllegalStateException("aj.captcha.aes-status 必须为 false：浏览器端密钥不提供保密性，且框架不支持该伪加密协议");
+        }
     }
 }

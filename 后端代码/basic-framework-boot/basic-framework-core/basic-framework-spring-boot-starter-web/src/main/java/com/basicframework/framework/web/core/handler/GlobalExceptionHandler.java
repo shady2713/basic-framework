@@ -1,8 +1,10 @@
 package com.basicframework.framework.web.core.handler;
 
 import static com.basicframework.framework.common.exception.enums.GlobalErrorCodeConstants.*;
+import static com.basicframework.framework.common.util.exception.SafeExceptionLogUtils.format;
 import static com.basicframework.framework.web.core.util.SensitiveDataSanitizer.sanitizeJson;
 import static com.basicframework.framework.web.core.util.SensitiveDataSanitizer.sanitizeMap;
+import static com.basicframework.framework.web.core.util.SensitiveDataSanitizer.sanitizeRequestPath;
 import static java.util.Map.entry;
 
 import cn.hutool.core.collection.CollUtil;
@@ -31,6 +33,7 @@ import java.util.Map;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -73,28 +76,26 @@ public class GlobalExceptionHandler {
      */
     private static final String RETRY_AFTER_SECONDS = "1";
 
-    private static final int MAX_PERSISTED_STACK_TRACE_LENGTH = 32_000;
-
-    private static final int MAX_CAUSE_DEPTH = 8;
-
     /**
      * Explicit HTTP status for framework global codes (GlobalErrorCodeConstants), restricted to
-     * the ADR 0003 status set 400/401/403/404/409/422/429/500: concurrency/duplication codes map
-     * to 409, demo-mode denial to 403, and server-side capability codes to 500.
+     * the ADR 0003 status set: concurrency/duplication codes map to 409, authorization denials to
+     * 403, transport contract failures to their standard 4xx status, and server-side capability
+     * codes to 500.
      */
     private static final Map<Integer, Integer> FRAMEWORK_CODE_STATUS = Map.ofEntries(
             entry(BAD_REQUEST.getCode(), HttpStatus.BAD_REQUEST.value()),
             entry(UNAUTHORIZED.getCode(), HttpStatus.UNAUTHORIZED.value()),
             entry(FORBIDDEN.getCode(), HttpStatus.FORBIDDEN.value()),
             entry(NOT_FOUND.getCode(), HttpStatus.NOT_FOUND.value()),
-            entry(METHOD_NOT_ALLOWED.getCode(), HttpStatus.BAD_REQUEST.value()),
+            entry(METHOD_NOT_ALLOWED.getCode(), HttpStatus.METHOD_NOT_ALLOWED.value()),
+            entry(PAYLOAD_TOO_LARGE.getCode(), HttpStatus.PAYLOAD_TOO_LARGE.value()),
+            entry(UNSUPPORTED_MEDIA_TYPE.getCode(), HttpStatus.UNSUPPORTED_MEDIA_TYPE.value()),
             entry(LOCKED.getCode(), HttpStatus.CONFLICT.value()),
             entry(TOO_MANY_REQUESTS.getCode(), HttpStatus.TOO_MANY_REQUESTS.value()),
             entry(INTERNAL_SERVER_ERROR.getCode(), HttpStatus.INTERNAL_SERVER_ERROR.value()),
             entry(NOT_IMPLEMENTED.getCode(), HttpStatus.INTERNAL_SERVER_ERROR.value()),
             entry(ERROR_CONFIGURATION.getCode(), HttpStatus.INTERNAL_SERVER_ERROR.value()),
             entry(REPEATED_REQUESTS.getCode(), HttpStatus.CONFLICT.value()),
-            entry(DEMO_DENY.getCode(), HttpStatus.FORBIDDEN.value()),
             // system AUTH_MFA_STEP_UP_REQUIRED：已登录但认证强度不足。
             entry(1_002_000_016, HttpStatus.FORBIDDEN.value()),
             entry(UNKNOWN.getCode(), HttpStatus.INTERNAL_SERVER_ERROR.value()));
@@ -119,7 +120,7 @@ public class GlobalExceptionHandler {
      * @param ex 异常
      * @return 通用返回，携带 ADR 0003 映射后的 HTTP 状态码
      */
-    public ResponseEntity<CommonResult<?>> allExceptionHandler(HttpServletRequest request, Throwable ex) {
+    public ResponseEntity<CommonResult<?>> allExceptionHandler(HttpServletRequest request, Exception ex) {
         if (ex instanceof MissingServletRequestParameterException) {
             return missingServletRequestParameterExceptionHandler((MissingServletRequestParameterException) ex);
         }
@@ -153,6 +154,12 @@ public class GlobalExceptionHandler {
         if (ex instanceof HttpMediaTypeNotSupportedException) {
             return httpMediaTypeNotSupportedExceptionHandler((HttpMediaTypeNotSupportedException) ex);
         }
+        if (ex instanceof HttpMessageNotReadableException) {
+            return methodArgumentTypeInvalidFormatExceptionHandler((HttpMessageNotReadableException) ex);
+        }
+        if (ex instanceof UncheckedExecutionException) {
+            return uncheckedExecutionExceptionHandler(request, (UncheckedExecutionException) ex);
+        }
         if (ex instanceof ServiceException) {
             return serviceExceptionHandler((ServiceException) ex);
         }
@@ -164,8 +171,8 @@ public class GlobalExceptionHandler {
 
     /**
      * Write a ResponseEntity produced by this handler into a raw servlet response. Servlet
-     * filters (for example, token authentication and demo mode) run outside the SpringMVC flow but
-     * must share the same status semantics.
+     * filters (for example, token authentication and authorization-denial filters) run outside the
+     * SpringMVC flow but must share the same status semantics.
      *
      * @param response raw servlet response
      * @param entity entity produced by this handler
@@ -319,7 +326,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<CommonResult<?>> maxUploadSizeExceededExceptionHandler(MaxUploadSizeExceededException ex) {
-        return error(HttpStatus.BAD_REQUEST, CommonResult.error(BAD_REQUEST.getCode(), "上传文件过大，请调整后重试"));
+        return error(HttpStatus.PAYLOAD_TOO_LARGE, CommonResult.error(PAYLOAD_TOO_LARGE));
     }
 
     /**
@@ -357,8 +364,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<CommonResult<?>> httpRequestMethodNotSupportedExceptionHandler(
             HttpRequestMethodNotSupportedException ex) {
         log.debug("[httpRequestMethodNotSupportedExceptionHandler][method({})]", ex.getMethod());
-        return error(
-                HttpStatus.BAD_REQUEST,
+        ResponseEntity.BodyBuilder builder = ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED);
+        Set<HttpMethod> supportedMethods = ex.getSupportedHttpMethods();
+        if (CollUtil.isNotEmpty(supportedMethods)) {
+            builder.allow(supportedMethods.toArray(HttpMethod[]::new));
+        }
+        return builder.body(
                 CommonResult.error(METHOD_NOT_ALLOWED.getCode(), String.format("请求方法不正确:%s", ex.getMethod())));
     }
 
@@ -371,9 +382,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<CommonResult<?>> httpMediaTypeNotSupportedExceptionHandler(
             HttpMediaTypeNotSupportedException ex) {
         log.debug("[httpMediaTypeNotSupportedExceptionHandler][contentType({})]", ex.getContentType());
-        return error(
-                HttpStatus.BAD_REQUEST,
-                CommonResult.error(BAD_REQUEST.getCode(), String.format("请求类型不正确:%s", ex.getContentType())));
+        return error(HttpStatus.UNSUPPORTED_MEDIA_TYPE, CommonResult.error(UNSUPPORTED_MEDIA_TYPE));
     }
 
     /**
@@ -387,7 +396,7 @@ public class GlobalExceptionHandler {
         log.warn(
                 "[accessDeniedExceptionHandler][userId({}) 无法访问 url({})]",
                 WebFrameworkUtils.getLoginUserId(req),
-                req.getRequestURI());
+                sanitizeRequestPath(req));
         return error(HttpStatus.FORBIDDEN, CommonResult.error(FORBIDDEN));
     }
 
@@ -399,7 +408,14 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(value = UncheckedExecutionException.class)
     public ResponseEntity<CommonResult<?>> uncheckedExecutionExceptionHandler(
             HttpServletRequest req, UncheckedExecutionException ex) {
-        return allExceptionHandler(req, ex.getCause());
+        Throwable cause = ex.getCause();
+        if (cause instanceof Exception exception) {
+            return allExceptionHandler(req, exception);
+        }
+        if (cause instanceof Error error) {
+            throw error;
+        }
+        return defaultExceptionHandler(req, ex);
     }
 
     /**
@@ -417,14 +433,14 @@ public class GlobalExceptionHandler {
         if (status == HttpStatus.TOO_MANY_REQUESTS.value()) {
             builder.header(HttpHeaders.RETRY_AFTER, RETRY_AFTER_SECONDS);
         }
-        return builder.body(CommonResult.error(ex.getCode(), ex.getMessage()));
+        return builder.body(CommonResult.error(ex.getCode(), ex.getPublicMessage()));
     }
 
     /**
      * 处理系统异常，兜底处理所有的一切
      */
     @ExceptionHandler(value = Exception.class)
-    public ResponseEntity<CommonResult<?>> defaultExceptionHandler(HttpServletRequest req, Throwable ex) {
+    public ResponseEntity<CommonResult<?>> defaultExceptionHandler(HttpServletRequest req, Exception ex) {
         // 包装异常中的业务异常仍按业务错误返回
         if (ex.getCause() instanceof ServiceException serviceException) {
             return serviceExceptionHandler(serviceException);
@@ -437,7 +453,7 @@ public class GlobalExceptionHandler {
         log.error(
                 "[defaultExceptionHandler][exceptionName({}) stackTrace({})]",
                 ex.getClass().getName(),
-                formatStackTraceWithoutMessages(ex));
+                format(ex));
         // 插入异常日志
         createExceptionLog(req, ex);
         // 返回 ERROR CommonResult；对外固定文案，ex.getMessage() 不进入响应
@@ -449,7 +465,7 @@ public class GlobalExceptionHandler {
     /**
      * 处理数据库唯一索引冲突异常，映射为 HTTP 409（ADR 0003：已知约束名映射到领域冲突）
      */
-    private ResponseEntity<CommonResult<?>> handleSqlException(Throwable ex) {
+    private ResponseEntity<CommonResult<?>> handleSqlException(Exception ex) {
         Throwable cause = ex;
         while (cause != null) {
             if (cause instanceof java.sql.SQLIntegrityConstraintViolationException) {
@@ -467,7 +483,7 @@ public class GlobalExceptionHandler {
         return null;
     }
 
-    private void createExceptionLog(HttpServletRequest req, Throwable e) {
+    private void createExceptionLog(HttpServletRequest req, Exception e) {
         // 插入错误日志
         ApiErrorLogCreateReqDTO errorLog = new ApiErrorLogCreateReqDTO();
         try {
@@ -475,17 +491,17 @@ public class GlobalExceptionHandler {
             buildExceptionLog(errorLog, req, e);
             // 执行插入 errorLog
             apiErrorLogApi.createApiErrorLogAsync(errorLog);
-        } catch (Throwable th) {
+        } catch (Exception logException) {
             log.error(
                     "[createExceptionLog][url({}) traceId({}) exceptionName({}) logExceptionName({}) 记录失败]",
-                    req.getRequestURI(),
+                    sanitizeRequestPath(req),
                     errorLog.getTraceId(),
                     errorLog.getExceptionName(),
-                    th.getClass().getName());
+                    logException.getClass().getName());
         }
     }
 
-    private void buildExceptionLog(ApiErrorLogCreateReqDTO errorLog, HttpServletRequest request, Throwable e) {
+    private void buildExceptionLog(ApiErrorLogCreateReqDTO errorLog, HttpServletRequest request, Exception e) {
         // 处理用户信息
         errorLog.setUserId(WebFrameworkUtils.getLoginUserId(request));
         errorLog.setUserType(WebFrameworkUtils.getLoginUserType(request));
@@ -493,7 +509,7 @@ public class GlobalExceptionHandler {
         errorLog.setExceptionName(e.getClass().getName());
         errorLog.setExceptionMessage(e.getClass().getName());
         errorLog.setExceptionRootCauseMessage(getRootCauseClassName(e));
-        errorLog.setExceptionStackTrace(formatStackTraceWithoutMessages(e));
+        errorLog.setExceptionStackTrace(format(e));
         StackTraceElement[] stackTraceElements = e.getStackTrace();
         StackTraceElement stackTraceElement = stackTraceElements.length == 0
                 ? new StackTraceElement(e.getClass().getName(), "unknown", null, -1)
@@ -505,7 +521,7 @@ public class GlobalExceptionHandler {
         // 设置其它字段
         errorLog.setTraceId(TracerUtils.getTraceId());
         errorLog.setApplicationName(applicationName);
-        errorLog.setRequestUrl(request.getRequestURI());
+        errorLog.setRequestUrl(sanitizeRequestPath(request));
         Map<String, Object> requestParams = MapUtil.<String, Object>builder()
                 .put("query", sanitizeMap(ServletUtils.getParamMap(request)))
                 .put("body", sanitizeJson(ServletUtils.getBody(request)))
@@ -515,30 +531,6 @@ public class GlobalExceptionHandler {
         errorLog.setUserAgent(ServletUtils.getUserAgent(request));
         errorLog.setUserIp(ServletUtils.getClientIP(request));
         errorLog.setExceptionTime(LocalDateTime.now());
-    }
-
-    /**
-     * 保留异常类型和调用位置，删除可能携带凭证、SQL 参数或请求原值的异常消息。
-     */
-    private static String formatStackTraceWithoutMessages(Throwable throwable) {
-        StringBuilder result = new StringBuilder();
-        Set<Throwable> visited = Collections.newSetFromMap(new IdentityHashMap<>());
-        Throwable current = throwable;
-        for (int depth = 0; current != null && depth < MAX_CAUSE_DEPTH && visited.add(current); depth++) {
-            if (depth > 0) {
-                result.append("\nCaused by: ");
-            }
-            result.append(current.getClass().getName());
-            for (StackTraceElement element : current.getStackTrace()) {
-                String frame = "\n\tat " + element;
-                if (result.length() + frame.length() > MAX_PERSISTED_STACK_TRACE_LENGTH) {
-                    return result.append("\n\t... truncated").toString();
-                }
-                result.append(frame);
-            }
-            current = current.getCause();
-        }
-        return result.toString();
     }
 
     private static String getRootCauseClassName(Throwable throwable) {

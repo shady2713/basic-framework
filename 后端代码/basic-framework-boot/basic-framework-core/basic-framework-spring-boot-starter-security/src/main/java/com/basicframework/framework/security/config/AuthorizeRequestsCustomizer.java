@@ -1,7 +1,6 @@
 package com.basicframework.framework.security.config;
 
 import com.basicframework.framework.web.config.WebProperties;
-import jakarta.annotation.Resource;
 import org.springframework.core.Ordered;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -16,8 +15,11 @@ public abstract class AuthorizeRequestsCustomizer
         implements Customizer<AuthorizeHttpRequestsConfigurer<HttpSecurity>.AuthorizationManagerRequestMatcherRegistry>,
                 Ordered {
 
-    @Resource
-    private WebProperties webProperties;
+    private final WebProperties webProperties;
+
+    protected AuthorizeRequestsCustomizer(WebProperties webProperties) {
+        this.webProperties = webProperties;
+    }
 
     protected String buildAdminApi(String url) {
         return webProperties.getAdminApi().getPrefix() + url;

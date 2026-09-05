@@ -2,6 +2,7 @@ package com.basicframework.module.system.framework.sms.core.client.dto;
 
 import java.time.LocalDateTime;
 import lombok.Data;
+import lombok.ToString;
 
 /**
  * 消息接收 Response DTO
@@ -26,6 +27,7 @@ public class SmsReceiveRespDTO {
     /**
      * 手机号
      */
+    @ToString.Exclude
     private String mobile;
     /**
      * 用户接收时间

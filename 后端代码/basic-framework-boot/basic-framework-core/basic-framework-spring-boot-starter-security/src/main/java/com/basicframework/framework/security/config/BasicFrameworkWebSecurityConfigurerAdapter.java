@@ -4,10 +4,8 @@ import static com.basicframework.framework.common.util.collection.CollectionUtil
 
 import cn.hutool.core.collection.CollUtil;
 import com.basicframework.framework.security.core.filter.TokenAuthenticationFilter;
-import com.basicframework.framework.web.config.WebProperties;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
-import jakarta.annotation.Resource;
 import jakarta.annotation.security.PermitAll;
 import jakarta.servlet.DispatcherType;
 import java.util.HashSet;
@@ -31,6 +29,7 @@ import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.util.Assert;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
@@ -43,38 +42,36 @@ import org.springframework.web.util.pattern.PathPattern;
 @EnableMethodSecurity(securedEnabled = true)
 public class BasicFrameworkWebSecurityConfigurerAdapter {
 
-    @Resource
-    private WebProperties webProperties;
-
-    @Resource
-    private SecurityProperties securityProperties;
-
     /**
      * 认证失败处理类 Bean
      */
-    @Resource
-    private AuthenticationEntryPoint authenticationEntryPoint;
+    private final AuthenticationEntryPoint authenticationEntryPoint;
     /**
      * 权限不够处理器 Bean
      */
-    @Resource
-    private AccessDeniedHandler accessDeniedHandler;
+    private final AccessDeniedHandler accessDeniedHandler;
     /**
      * Token 认证过滤器 Bean
      */
-    @Resource
-    private TokenAuthenticationFilter authenticationTokenFilter;
+    private final TokenAuthenticationFilter authenticationTokenFilter;
 
     /**
      * 自定义的权限映射 Bean 们
      *
      * @see #filterChain(HttpSecurity)
      */
-    @Resource
-    private List<AuthorizeRequestsCustomizer> authorizeRequestsCustomizers;
+    private final List<AuthorizeRequestsCustomizer> authorizeRequestsCustomizers;
 
-    @Resource
-    private ApplicationContext applicationContext;
+    public BasicFrameworkWebSecurityConfigurerAdapter(
+            AuthenticationEntryPoint authenticationEntryPoint,
+            AccessDeniedHandler accessDeniedHandler,
+            TokenAuthenticationFilter authenticationTokenFilter,
+            List<AuthorizeRequestsCustomizer> authorizeRequestsCustomizers) {
+        this.authenticationEntryPoint = authenticationEntryPoint;
+        this.accessDeniedHandler = accessDeniedHandler;
+        this.authenticationTokenFilter = authenticationTokenFilter;
+        this.authorizeRequestsCustomizers = List.copyOf(authorizeRequestsCustomizers);
+    }
 
     /**
      * 由于 Spring Security 创建 AuthenticationManager 对象时，没声明 @Bean 注解，导致无法被注入
@@ -107,8 +104,9 @@ public class BasicFrameworkWebSecurityConfigurerAdapter {
     protected SecurityFilterChain filterChain(HttpSecurity httpSecurity) throws Exception {
         httpSecurity
                 .cors(Customizer.withDefaults())
-                // 令牌仅从显式 Header/请求参数读取，不依赖浏览器自动携带的认证 Cookie；
-                // 若未来引入 Cookie 认证，必须在同一变更中恢复 CSRF 防护。
+                // access token 仅从显式 Header/请求参数读取；刷新令牌 Cookie 仅限认证端点，
+                // 且由 AuthRefreshTokenCookieManager 校验浏览器 Origin。若引入 Cookie access token，
+                // 必须在同一变更中恢复通用 CSRF 防护。
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(c -> c.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .headers(c -> c.frameOptions(HeadersConfigurer.FrameOptionsConfig::sameOrigin))
@@ -116,7 +114,9 @@ public class BasicFrameworkWebSecurityConfigurerAdapter {
                         c.authenticationEntryPoint(authenticationEntryPoint).accessDeniedHandler(accessDeniedHandler));
         // 登录服务负责多用户、多登录方式的第一因子认证；过滤链负责后续令牌校验与授权。
 
-        Multimap<HttpMethod, String> permitAllUrls = getPermitAllUrlsFromAnnotations();
+        ApplicationContext applicationContext = httpSecurity.getSharedObject(ApplicationContext.class);
+        Assert.state(applicationContext != null, "Spring Security 未提供 ApplicationContext 共享对象");
+        Multimap<HttpMethod, String> permitAllUrls = getPermitAllUrlsFromAnnotations(applicationContext);
         httpSecurity
                 // 全局公开规则必须先于项目扩展规则注册。
                 .authorizeHttpRequests(c -> c.requestMatchers(HttpMethod.GET, "/*.html", "/*.css", "/*.js")
@@ -144,8 +144,6 @@ public class BasicFrameworkWebSecurityConfigurerAdapter {
                         .requestMatchers(
                                 HttpMethod.PATCH,
                                 permitAllUrls.get(HttpMethod.PATCH).toArray(new String[0]))
-                        .permitAll()
-                        .requestMatchers(securityProperties.getPermitAllUrls().toArray(new String[0]))
                         .permitAll())
                 // 项目只能通过扩展点追加规则，不能绕过最终认证兜底。
                 .authorizeHttpRequests(c -> authorizeRequestsCustomizers.forEach(customizer -> customizer.customize(c)))
@@ -159,11 +157,7 @@ public class BasicFrameworkWebSecurityConfigurerAdapter {
         return httpSecurity.build();
     }
 
-    private String buildAppApi(String url) {
-        return webProperties.getAppApi().getPrefix() + url;
-    }
-
-    private Multimap<HttpMethod, String> getPermitAllUrlsFromAnnotations() {
+    private Multimap<HttpMethod, String> getPermitAllUrlsFromAnnotations(ApplicationContext applicationContext) {
         Multimap<HttpMethod, String> result = HashMultimap.create();
         RequestMappingHandlerMapping requestMappingHandlerMapping =
                 (RequestMappingHandlerMapping) applicationContext.getBean("requestMappingHandlerMapping");
@@ -217,6 +211,8 @@ public class BasicFrameworkWebSecurityConfigurerAdapter {
                     case PATCH:
                         result.putAll(HttpMethod.PATCH, urls);
                         break;
+                    default:
+                        throw new IllegalStateException("@PermitAll 不支持请求方法 " + requestMethod);
                 }
             });
         }

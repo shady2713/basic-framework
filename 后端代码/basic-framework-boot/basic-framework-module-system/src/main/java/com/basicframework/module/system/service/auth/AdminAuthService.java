@@ -19,7 +19,7 @@ import jakarta.validation.Valid;
 public interface AdminAuthService {
 
     /**
-     * 验证账号 + 密码。如果通过，则返回用户
+     * 验证账号 + 密码。如果通过，则返回用户。未知账号与已锁定账号仍执行一次部署强度的假哈希校验，避免形成时序枚举旁路；启用账号的旧工作因子哈希会按当前强度条件升级。
      *
      * @param username 账号
      * @param password 密码
@@ -60,7 +60,7 @@ public interface AdminAuthService {
     void logoutByRefreshToken(String refreshToken, Integer logType);
 
     /**
-     * 短信验证码发送
+     * 短信验证码发送。未知手机号不会发送验证码，但与已存在账号保持相同的外部响应。
      *
      * @param reqDTO 发送请求
      */
@@ -91,9 +91,16 @@ public interface AdminAuthService {
     UserSessionDO refreshToken(String refreshToken);
 
     /**
-     * 重置密码
+     * 重置密码。短信码校验先于账号查询；校验成功后账号已不存在时保持通用成功响应。
      *
      * @param reqDTO 验证码信息
      */
     void resetPassword(AuthResetPasswordDTO reqDTO);
+
+    /**
+     * 管理员解除指定用户的临时登录锁定。
+     *
+     * @param userId 用户编号
+     */
+    void unlockLogin(Long userId);
 }

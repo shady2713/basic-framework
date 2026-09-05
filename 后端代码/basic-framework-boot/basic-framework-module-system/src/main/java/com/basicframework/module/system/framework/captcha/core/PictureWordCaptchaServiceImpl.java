@@ -4,14 +4,15 @@ import cn.hutool.core.util.RandomUtil;
 import com.anji.captcha.model.common.RepCodeEnum;
 import com.anji.captcha.model.common.ResponseModel;
 import com.anji.captcha.model.vo.CaptchaVO;
+import com.anji.captcha.service.CaptchaCacheService;
 import com.anji.captcha.service.impl.AbstractCaptchaService;
 import com.anji.captcha.service.impl.CaptchaServiceFactory;
-import com.anji.captcha.util.AESUtil;
 import com.anji.captcha.util.ImageUtils;
 import com.anji.captcha.util.RandomUtils;
 import java.awt.*;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
+import java.security.SecureRandom;
 import java.util.Properties;
 import org.apache.commons.lang3.Strings;
 
@@ -29,7 +30,10 @@ public class PictureWordCaptchaServiceImpl extends AbstractCaptchaService {
     /**
      * 验证码长度
      */
-    private static final Integer LENGTH = 4;
+    private static final int LENGTH = 4;
+
+    private static final int MAX_CAPTCHA_TEXT_LENGTH = 64;
+    private static final SecureRandom CAPTCHA_RANDOM = new SecureRandom();
 
     private static final int WIDTH = 120;
     private static final int HEIGHT = 40;
@@ -64,17 +68,17 @@ public class PictureWordCaptchaServiceImpl extends AbstractCaptchaService {
             return r;
         }
 
-        // 取出验证码
+        // 原子消费验证码，避免并发请求重放同一令牌。
         String codeKey = String.format(REDIS_CAPTCHA_KEY, captchaVO.getToken());
-        if (!CaptchaServiceFactory.getCache(cacheType).exists(codeKey)) {
+        String codeValue = consumeCaptcha(CaptchaServiceFactory.getCache(cacheType), codeKey);
+        if (codeValue == null) {
             return ResponseModel.errorMsg(RepCodeEnum.API_CAPTCHA_INVALID);
         }
-        // 正确的验证码
-        String codeValue = CaptchaServiceFactory.getCache(cacheType).get(codeKey);
-        String code = getCodeByCodeValue(codeValue);
-        String secretKey = getSecretKeyByCodeValue(codeValue);
-        // 验证码只用一次，即刻失效
-        CaptchaServiceFactory.getCache(cacheType).delete(codeKey);
+        String[] codeAndSecret = codeValue.split(",", 2);
+        if (codeAndSecret.length != 2 || codeAndSecret[0].isBlank()) {
+            return ResponseModel.errorMsg(RepCodeEnum.API_CAPTCHA_INVALID);
+        }
+        String code = codeAndSecret[0];
 
         // 用户输入的验证码(CaptchaVO 中 没有预留字段，暂时用 pointJson 无需加解密)
         String userCode = captchaVO.getPointJson();
@@ -84,14 +88,7 @@ public class PictureWordCaptchaServiceImpl extends AbstractCaptchaService {
         }
 
         // 校验成功，将信息存入缓存
-        String value;
-        try {
-            value = AESUtil.aesEncrypt(captchaVO.getToken().concat("---").concat(userCode), secretKey);
-        } catch (Exception e) {
-            logger.error("AES 加密失败，异常类型：{}", e.getClass().getName());
-            afterValidateFail(captchaVO);
-            return ResponseModel.errorMsg(RepCodeEnum.API_CAPTCHA_ERROR);
-        }
+        String value = captchaVO.getToken().concat("---").concat(userCode);
         String secondKey = String.format(REDIS_SECOND_CAPTCHA_KEY, value);
         CaptchaServiceFactory.getCache(cacheType).set(secondKey, captchaVO.getToken(), EXPIRESIN_THREE);
         captchaVO.setResult(true);
@@ -107,11 +104,9 @@ public class PictureWordCaptchaServiceImpl extends AbstractCaptchaService {
         }
         try {
             String codeKey = String.format(REDIS_SECOND_CAPTCHA_KEY, captchaVO.getCaptchaVerification());
-            if (!CaptchaServiceFactory.getCache(cacheType).exists(codeKey)) {
+            if (consumeCaptcha(CaptchaServiceFactory.getCache(cacheType), codeKey) == null) {
                 return ResponseModel.errorMsg(RepCodeEnum.API_CAPTCHA_INVALID);
             }
-            // 二次校验取值后，即刻失效
-            CaptchaServiceFactory.getCache(cacheType).delete(codeKey);
         } catch (Exception e) {
             logger.error("验证码解析失败，异常类型：{}", e.getClass().getName());
             return ResponseModel.errorMsg(RepCodeEnum.API_CAPTCHA_ERROR);
@@ -158,30 +153,31 @@ public class PictureWordCaptchaServiceImpl extends AbstractCaptchaService {
         }
         g.dispose();
 
-        String secretKey = null;
-        if (captchaAesStatus) {
-            secretKey = AESUtil.getKey();
-        }
-        dataVO.setSecretKey(secretKey);
+        dataVO.setSecretKey(null);
 
         dataVO.setOriginalImageBase64(ImageUtils.getImageToBase64Str(image).replaceAll("\r|\n", ""));
         dataVO.setToken(RandomUtils.getUUID());
         // 将坐标信息存入 redis 中
         String codeKey = String.format(REDIS_CAPTCHA_KEY, dataVO.getToken());
-        CaptchaServiceFactory.getCache(cacheType).set(codeKey, getCodeValue(text, secretKey), EXPIRESIN_SECONDS);
+        CaptchaServiceFactory.getCache(cacheType).set(codeKey, getCodeValue(text), EXPIRESIN_SECONDS);
         return dataVO;
     }
 
-    private String getCodeValue(String text, String secretKey) {
-        return text + "," + secretKey;
+    private String getCodeValue(String text) {
+        return text + ",";
     }
 
-    private String getCodeByCodeValue(String codeValue) {
-        return codeValue.split(",")[0];
-    }
-
-    private String getSecretKeyByCodeValue(String codeValue) {
-        return codeValue.split(",")[1];
+    private static String consumeCaptcha(CaptchaCacheService cache, String key) {
+        if (cache instanceof RedisCaptchaServiceImpl redisCache) {
+            return redisCache.getAndDelete(key);
+        }
+        synchronized (cache) {
+            String value = cache.get(key);
+            if (value != null) {
+                cache.delete(key);
+            }
+            return value;
+        }
     }
 
     private Color getRandomColor(int min, int max) {
@@ -194,12 +190,19 @@ public class PictureWordCaptchaServiceImpl extends AbstractCaptchaService {
     }
 
     /**
-     * 生成指定长度的随机字符串
+     * 使用密码学随机源生成指定长度的验证码文本。
      *
      * @param length 长度
-     * @return {@link String}
+     * @return 由验证码字符集组成的随机文本
      */
     public static String generateRandomText(int length) {
-        return RandomUtil.randomString(CHARACTERS, length);
+        if (length < 1 || length > MAX_CAPTCHA_TEXT_LENGTH) {
+            throw new IllegalArgumentException("验证码长度必须在 1 到 64 之间");
+        }
+        StringBuilder text = new StringBuilder(length);
+        for (int index = 0; index < length; index++) {
+            text.append(CHARACTERS.charAt(CAPTCHA_RANDOM.nextInt(CHARACTERS.length())));
+        }
+        return text.toString();
     }
 }

@@ -1,7 +1,7 @@
 package com.basicframework.module.system.event.session;
 
 import com.basicframework.module.system.service.session.UserSessionService;
-import jakarta.annotation.Resource;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
@@ -10,10 +10,10 @@ import org.springframework.transaction.event.TransactionalEventListener;
 /** 在业务事务提交前同步撤销用户会话，保证身份或权限变更与会话失效同成败。 */
 @Component
 @Slf4j
+@RequiredArgsConstructor
 public class UserSessionRevocationListener {
 
-    @Resource
-    private UserSessionService userSessionService;
+    private final UserSessionService userSessionService;
 
     /**
      * 处理会话撤销事件。无事务的发布者通过 fallback 立即执行。

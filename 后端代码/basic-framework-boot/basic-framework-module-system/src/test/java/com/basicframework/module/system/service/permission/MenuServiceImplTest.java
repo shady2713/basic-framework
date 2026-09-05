@@ -11,7 +11,6 @@ import static org.mockito.Mockito.when;
 import com.basicframework.framework.common.enums.CommonStatusEnum;
 import com.basicframework.framework.common.exception.ErrorCode;
 import com.basicframework.framework.common.exception.ServiceException;
-import com.basicframework.module.infra.api.codegen.CodegenReferenceCommonApi;
 import com.basicframework.module.system.dal.dataobject.permission.MenuDO;
 import com.basicframework.module.system.dal.mysql.permission.MenuMapper;
 import com.basicframework.module.system.enums.ErrorCodeConstants;
@@ -40,9 +39,6 @@ class MenuServiceImplTest {
     @Mock
     private PermissionService permissionService;
 
-    @Mock
-    private CodegenReferenceCommonApi codegenReferenceApi;
-
     @Test
     void createMenu_locksCompleteParentChain() {
         MenuDO grandparent = menu(1L, MenuDO.ID_ROOT, MenuTypeEnum.DIR);
@@ -57,6 +53,23 @@ class MenuServiceImplTest {
         inOrder.verify(menuMapper).selectByIdForShare(2L);
         inOrder.verify(menuMapper).selectByIdForShare(1L);
         verify(menuMapper).insert(child);
+    }
+
+    @Test
+    void createMenu_clearsNavigationPropertiesForButton() {
+        MenuDO button = menu(null, MenuDO.ID_ROOT, MenuTypeEnum.BUTTON)
+                .setComponent("system/example/index")
+                .setComponentName("SystemExample")
+                .setIcon("example")
+                .setPath("example");
+
+        menuService.createMenu(button);
+
+        assertThat(button.getComponent()).isEmpty();
+        assertThat(button.getComponentName()).isEmpty();
+        assertThat(button.getIcon()).isEmpty();
+        assertThat(button.getPath()).isEmpty();
+        verify(menuMapper).insert(button);
     }
 
     @Test
@@ -94,17 +107,6 @@ class MenuServiceImplTest {
     }
 
     @Test
-    void updateMenu_rejectsChangingCodegenParentToButton() {
-        MenuDO update = menu(1L, MenuDO.ID_ROOT, MenuTypeEnum.BUTTON);
-        when(menuMapper.selectByIdForUpdate(1L)).thenReturn(menu(1L, MenuDO.ID_ROOT, MenuTypeEnum.DIR));
-        when(codegenReferenceApi.isParentMenuReferenced(1L)).thenReturn(true);
-
-        assertServiceException(ErrorCodeConstants.MENU_USED_BY_CODEGEN, () -> menuService.updateMenu(update));
-
-        verify(menuMapper, never()).updateById(any(MenuDO.class));
-    }
-
-    @Test
     void deleteMenu_locksBeforeCheckingChildren() {
         when(menuMapper.selectByIdForUpdate(1L)).thenReturn(menu(1L, MenuDO.ID_ROOT, MenuTypeEnum.DIR));
         when(menuMapper.selectCountByParentId(1L)).thenReturn(1L);
@@ -114,16 +116,6 @@ class MenuServiceImplTest {
         InOrder inOrder = inOrder(menuMapper);
         inOrder.verify(menuMapper).selectByIdForUpdate(1L);
         inOrder.verify(menuMapper).selectCountByParentId(1L);
-        verify(menuMapper, never()).deleteById(1L);
-    }
-
-    @Test
-    void deleteMenu_rejectsCodegenParentMenu() {
-        when(menuMapper.selectByIdForUpdate(1L)).thenReturn(menu(1L, MenuDO.ID_ROOT, MenuTypeEnum.DIR));
-        when(codegenReferenceApi.isParentMenuReferenced(1L)).thenReturn(true);
-
-        assertServiceException(ErrorCodeConstants.MENU_USED_BY_CODEGEN, () -> menuService.deleteMenu(1L));
-
         verify(menuMapper, never()).deleteById(1L);
     }
 
@@ -155,6 +147,76 @@ class MenuServiceImplTest {
         List<MenuDO> menus = List.of(menu(1L, MenuDO.ID_ROOT, MenuTypeEnum.DIR), menu(2L, 1L, MenuTypeEnum.MENU));
 
         assertThat(menuService.filterDisableMenus(menus)).containsExactlyElementsOf(menus);
+    }
+
+    @Test
+    void updateMenu_success_updatesNavigationProperties() {
+        MenuDO update = menu(1L, MenuDO.ID_ROOT, MenuTypeEnum.MENU);
+        when(menuMapper.selectByIdForUpdate(1L)).thenReturn(menu(1L, MenuDO.ID_ROOT, MenuTypeEnum.MENU));
+        when(menuMapper.selectByParentIdAndName(MenuDO.ID_ROOT, update.getName()))
+                .thenReturn(null);
+
+        menuService.updateMenu(update);
+
+        verify(menuMapper).updateById(update);
+    }
+
+    @Test
+    void deleteMenu_success_deletesAndNotifiesPermissionService() {
+        when(menuMapper.selectByIdForUpdate(1L)).thenReturn(menu(1L, MenuDO.ID_ROOT, MenuTypeEnum.MENU));
+        when(menuMapper.selectCountByParentId(1L)).thenReturn(0L);
+        when(permissionServiceProvider.getObject()).thenReturn(permissionService);
+
+        menuService.deleteMenu(1L);
+
+        verify(menuMapper).deleteById(1L);
+        verify(permissionService).processMenuDeleted(1L);
+    }
+
+    @Test
+    void deleteMenuList_empty_doesNothing() {
+        menuService.deleteMenuList(List.of());
+
+        verify(menuMapper, never()).selectByIdForUpdate(any());
+    }
+
+    @Test
+    void deleteMenuList_rejectsNullId() {
+        assertServiceException(
+                ErrorCodeConstants.MENU_NOT_EXISTS,
+                () -> menuService.deleteMenuList(java.util.Arrays.asList(1L, null)));
+
+        verify(menuMapper, never()).selectByIdForUpdate(any());
+    }
+
+    @Test
+    void filterDisableMenus_empty_returnsEmpty() {
+        assertThat(menuService.filterDisableMenus(List.of())).isEmpty();
+    }
+
+    @Test
+    void getMenuList_emptyIds_returnsEmptyList() {
+        assertThat(menuService.getMenuList(List.of())).isEmpty();
+
+        verify(menuMapper, never()).selectByIds(any());
+    }
+
+    @Test
+    void getMenu_returnsById() {
+        MenuDO menu = menu(1L, MenuDO.ID_ROOT, MenuTypeEnum.MENU);
+        when(menuMapper.selectById(1L)).thenReturn(menu);
+
+        assertThat(menuService.getMenu(1L)).isSameAs(menu);
+    }
+
+    @Test
+    void getMenuIdListByPermissionFromCache_returnsIds() {
+        MenuDO first = menu(1L, MenuDO.ID_ROOT, MenuTypeEnum.MENU);
+        MenuDO second = menu(2L, MenuDO.ID_ROOT, MenuTypeEnum.MENU);
+        when(menuMapper.selectListByPermission("system:user:list")).thenReturn(List.of(first, second));
+
+        assertThat(menuService.getMenuIdListByPermissionFromCache("system:user:list"))
+                .containsExactly(1L, 2L);
     }
 
     private static MenuDO menu(Long id, Long parentId, MenuTypeEnum type) {

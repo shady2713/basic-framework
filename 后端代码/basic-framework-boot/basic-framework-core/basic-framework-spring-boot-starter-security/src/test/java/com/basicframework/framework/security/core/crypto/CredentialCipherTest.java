@@ -17,6 +17,10 @@ class CredentialCipherTest {
         String second = cipher.encrypt("TOP-SECRET", "sms-channel");
 
         assertThat(first).isNotEqualTo(second).doesNotContain("TOP-SECRET");
+        assertThat(cipher.isEncryptedValue(first)).isTrue();
+        assertThat(cipher.isEncryptedValue(null)).isFalse();
+        assertThat(cipher.isEncryptedValue("legacy-plaintext")).isFalse();
+        assertThat(cipher.isEncryptedValue("v1..ciphertext")).isFalse();
         assertThat(cipher.decrypt(first, "sms-channel")).isEqualTo("TOP-SECRET");
         assertThatThrownBy(() -> cipher.decrypt(first, "file-config"))
                 .isInstanceOf(IllegalStateException.class)
@@ -52,6 +56,49 @@ class CredentialCipherTest {
         assertThatThrownBy(() -> cipher.encrypt("secret", "sms-channel"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("凭据主密钥未配置");
+    }
+
+    @Test
+    void constructor_rejectsMalformedOrWrongLengthMasterKey() {
+        SecurityProperties malformed = new SecurityProperties();
+        malformed.setCredentialEncryptionKey("not-base64");
+        SecurityProperties shortKey = new SecurityProperties();
+        shortKey.setCredentialEncryptionKey(Base64.getEncoder().encodeToString(new byte[31]));
+
+        assertThatThrownBy(() -> new CredentialCipher(malformed))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("凭据主密钥必须是合法 Base64 值");
+        assertThatThrownBy(() -> new CredentialCipher(shortKey))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("凭据主密钥必须是 32 字节 Base64 值");
+    }
+
+    @Test
+    void operations_rejectBlankValuesAndContextsBeforeCryptography() {
+        CredentialCipher cipher = cipher();
+
+        assertThatThrownBy(() -> cipher.encrypt(" ", "context"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("待加密凭据");
+        assertThatThrownBy(() -> cipher.encrypt("secret", " "))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("凭据上下文");
+        assertThatThrownBy(() -> cipher.decrypt(" ", "context"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("待解密凭据");
+        assertThatThrownBy(() -> cipher.keyedDigest(" ", "context"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("待摘要凭据");
+        assertThatThrownBy(() -> cipher.keyedDigest("secret", " "))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("凭据上下文");
+    }
+
+    @Test
+    void decrypt_rejectsMalformedUrlBase64AsGenericDecryptionFailure() {
+        assertThatThrownBy(() -> cipher().decrypt("v1.!.!", "context"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("凭据解密失败");
     }
 
     private static CredentialCipher cipher() {

@@ -29,11 +29,10 @@ import com.basicframework.module.infra.framework.file.core.enums.FileStorageEnum
 import jakarta.validation.Validator;
 import java.util.List;
 import java.util.Map;
-import org.junit.jupiter.api.BeforeEach;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
-import org.springframework.test.util.ReflectionTestUtils;
 
 /** {@link FileConfigServiceImpl} 文件客户端缓存边界测试。 */
 class FileConfigServiceImplTest {
@@ -44,16 +43,32 @@ class FileConfigServiceImplTest {
     private final FileContentMapper fileContentMapper = mock(FileContentMapper.class);
     private final CredentialCipher credentialCipher = mock(CredentialCipher.class);
     private final Validator validator = mock(Validator.class);
-    private final FileConfigServiceImpl fileConfigService = new FileConfigServiceImpl();
+    private final FileConfigCredentialCodec credentialCodec =
+            new FileConfigCredentialCodec(validator, credentialCipher);
+    private final FileConfigServiceImpl fileConfigService = new FileConfigServiceImpl(
+            fileClientFactory, fileConfigMapper, fileMapper, fileContentMapper, credentialCodec);
 
-    @BeforeEach
-    void setUp() {
-        ReflectionTestUtils.setField(fileConfigService, "fileClientFactory", fileClientFactory);
-        ReflectionTestUtils.setField(fileConfigService, "fileConfigMapper", fileConfigMapper);
-        ReflectionTestUtils.setField(fileConfigService, "fileMapper", fileMapper);
-        ReflectionTestUtils.setField(fileConfigService, "fileContentMapper", fileContentMapper);
-        ReflectionTestUtils.setField(fileConfigService, "credentialCipher", credentialCipher);
-        ReflectionTestUtils.setField(fileConfigService, "validator", validator);
+    @Test
+    void updateFileConfig_withoutId_rejectsBeforeReadingCredentials() {
+        FileConfigDO command = new FileConfigDO().setName("missing-id");
+
+        assertThatThrownBy(() -> fileConfigService.updateFileConfig(command, Map.of()))
+                .isInstanceOf(ServiceException.class)
+                .extracting(exception -> ((ServiceException) exception).getCode())
+                .isEqualTo(FILE_CONFIG_NOT_EXISTS.getCode());
+
+        verifyNoInteractions(fileConfigMapper, credentialCipher);
+    }
+
+    @Test
+    void updateFileConfig_withoutPersistedConfig_rejectsBeforeReadingCredentials() {
+        FileConfigDO command = new FileConfigDO().setId(20L).setName("missing-config");
+        when(fileConfigMapper.selectByIdForUpdate(20L)).thenReturn(null);
+
+        assertServiceException(
+                FILE_CONFIG_NOT_EXISTS.getCode(), () -> fileConfigService.updateFileConfig(command, Map.of()));
+
+        verifyNoInteractions(credentialCipher);
     }
 
     @Test
@@ -76,12 +91,14 @@ class FileConfigServiceImplTest {
         FileConfigDO existing = new FileConfigDO()
                 .setId(21L)
                 .setStorage(FileStorageEnum.S3.getStorage())
+                .setMaster(true)
                 .setConfigCiphertext("v1.existing.config");
         when(fileConfigMapper.selectByIdForUpdate(21L)).thenReturn(existing);
         when(credentialCipher.decrypt("v1.existing.config", "file-client:config"))
                 .thenReturn(s3ConfigJson("existing-secret"));
         when(credentialCipher.encrypt(anyString(), eq("file-client:config"))).thenReturn("v1.updated.config");
         FileConfigDO command = new FileConfigDO().setId(21L).setName("s3");
+        fileConfigService.getClientCache().put(0L, Optional.of(mock(FileClient.class)));
 
         fileConfigService.updateFileConfig(command, s3ConfigMap(""));
 
@@ -92,6 +109,8 @@ class FileConfigServiceImplTest {
         assertThat(command.getConfigCiphertext()).isEqualTo("v1.updated.config");
         assertThat(command.getConfig()).isNull();
         verify(fileConfigMapper).updateById(command);
+        verify(fileClientFactory).removeFileClient(21L);
+        assertThat(fileConfigService.getClientCache().asMap()).doesNotContainKey(0L);
     }
 
     @Test
@@ -127,6 +146,19 @@ class FileConfigServiceImplTest {
         verify(fileClientFactory).createOrUpdateFileClient(7L, storage, clientConfig);
         verify(fileClientFactory).getFileClient(7L);
         verify(fileConfigMapper).selectByMaster();
+    }
+
+    @Test
+    void updateFileConfigMaster_promotesAndInvalidatesMasterCache() {
+        when(fileConfigMapper.selectById(30L))
+                .thenReturn(new FileConfigDO().setId(30L).setMaster(false));
+        fileConfigService.getClientCache().put(0L, Optional.of(mock(FileClient.class)));
+
+        fileConfigService.updateFileConfigMaster(30L);
+
+        verify(fileConfigMapper).updateBatch(new FileConfigDO().setMaster(false));
+        verify(fileConfigMapper).updateById(new FileConfigDO().setId(30L).setMaster(true));
+        assertThat(fileConfigService.getClientCache().asMap()).doesNotContainKey(0L);
     }
 
     @Test
@@ -184,6 +216,7 @@ class FileConfigServiceImplTest {
         fileConfigService.deleteFileConfig(13L);
 
         verify(fileConfigMapper).deleteById(13L);
+        verify(fileClientFactory).removeFileClient(13L);
         assertThat(fileConfigService.getClientCache().asMap()).doesNotContainKey(13L);
     }
 
@@ -200,6 +233,8 @@ class FileConfigServiceImplTest {
         inOrder.verify(fileConfigMapper).selectByIdForUpdate(15L);
         inOrder.verify(fileConfigMapper).selectByIdForUpdate(16L);
         inOrder.verify(fileConfigMapper).deleteByIds(List.of(15L, 16L));
+        verify(fileClientFactory).removeFileClient(15L);
+        verify(fileClientFactory).removeFileClient(16L);
     }
 
     @Test

@@ -6,7 +6,6 @@ import cn.hutool.core.date.LocalDateTimeUtil;
 import com.basicframework.framework.common.util.collection.CollectionUtils;
 import com.basicframework.framework.common.util.json.JsonUtils;
 import com.basicframework.module.system.dal.dataobject.session.UserSessionDO;
-import jakarta.annotation.Resource;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Collection;
@@ -19,8 +18,11 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class UserSessionRedisDAO {
 
-    @Resource
-    private StringRedisTemplate stringRedisTemplate;
+    private final StringRedisTemplate stringRedisTemplate;
+
+    public UserSessionRedisDAO(StringRedisTemplate stringRedisTemplate) {
+        this.stringRedisTemplate = stringRedisTemplate;
+    }
 
     public UserSessionDO getByAccessTokenHash(String accessTokenHash) {
         return JsonUtils.parseObject(

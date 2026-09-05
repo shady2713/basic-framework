@@ -18,7 +18,9 @@ import com.basicframework.module.system.dal.dataobject.dict.DictDataDO;
 import com.basicframework.module.system.dal.dataobject.dict.DictTypeDO;
 import com.basicframework.module.system.dal.mysql.dict.DictDataMapper;
 import com.basicframework.module.system.dal.mysql.dict.DictTypeMapper;
+import com.basicframework.module.system.dal.redis.RedisKeyConstants;
 import com.basicframework.module.system.enums.ErrorCodeConstants;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,6 +29,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 
 /**
  * 字典数据 Service 单元测试
@@ -310,5 +314,53 @@ class DictDataServiceImplTest {
                 .isInstanceOf(ServiceException.class)
                 .extracting(ex -> ((ServiceException) ex).getCode())
                 .isEqualTo(code);
+    }
+
+    @Test
+    void deleteDictDataList_emptyOrNull_doesNothing() {
+        assertThatCode(() -> dictDataService.deleteDictDataList(List.of())).doesNotThrowAnyException();
+        assertThatCode(() -> dictDataService.deleteDictDataList(null)).doesNotThrowAnyException();
+
+        verify(dictDataMapper, never()).deleteByIds(any());
+    }
+
+    // ---------- 缓存契约：钉住读缓存与写失效的注解约定，行为验证见 CacheAndProtectionIT ----------
+
+    @Test
+    void listQueries_declareRedisCacheContracts() throws Exception {
+        Cacheable listCache = DictDataServiceImpl.class
+                .getMethod("getDictDataList", Integer.class, String.class)
+                .getAnnotation(Cacheable.class);
+        assertThat(listCache).isNotNull();
+        assertThat(listCache.cacheNames()).containsExactly(RedisKeyConstants.DICT_DATA_LIST);
+        assertThat(listCache.key()).isEqualTo("#status + ':' + #dictType");
+
+        Cacheable typeListCache = DictDataServiceImpl.class
+                .getMethod("getDictDataListByDictType", String.class)
+                .getAnnotation(Cacheable.class);
+        assertThat(typeListCache).isNotNull();
+        assertThat(typeListCache.cacheNames()).containsExactly(RedisKeyConstants.DICT_DATA_LIST_BY_TYPE);
+        assertThat(typeListCache.key()).isEqualTo("#dictType");
+    }
+
+    @Test
+    void writeOperations_evictBothListCacheRegions() throws Exception {
+        assertEvictsBothListCaches(DictDataServiceImpl.class.getMethod("createDictData", DictDataDO.class));
+        assertEvictsBothListCaches(DictDataServiceImpl.class.getMethod("updateDictData", DictDataDO.class));
+        assertEvictsBothListCaches(DictDataServiceImpl.class.getMethod("deleteDictData", Long.class));
+        assertEvictsBothListCaches(DictDataServiceImpl.class.getMethod("deleteDictDataList", List.class));
+    }
+
+    private static void assertEvictsBothListCaches(Method method) {
+        Caching caching = method.getAnnotation(Caching.class);
+        assertThat(caching).as("%s 应声明 @Caching 失效", method.getName()).isNotNull();
+        assertThat(caching.evict())
+                .as("%s 应整体失效两个字典列表缓存", method.getName())
+                .allSatisfy(evict -> {
+                    assertThat(evict.allEntries()).isTrue();
+                    assertThat(evict.value())
+                            .containsAnyOf(RedisKeyConstants.DICT_DATA_LIST, RedisKeyConstants.DICT_DATA_LIST_BY_TYPE);
+                })
+                .hasSize(2);
     }
 }

@@ -2,9 +2,8 @@ package com.basicframework.module.system.mq.producer.sms;
 
 import com.basicframework.framework.common.core.KeyValue;
 import com.basicframework.module.system.mq.message.sms.SmsSendMessage;
-import jakarta.annotation.Resource;
 import java.util.List;
-import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
 
@@ -13,12 +12,11 @@ import org.springframework.stereotype.Component;
  *
  * @since 2021/3/9 16:35
  */
-@Slf4j
 @Component
+@RequiredArgsConstructor
 public class SmsProducer {
 
-    @Resource
-    private ApplicationContext applicationContext;
+    private final ApplicationContext applicationContext;
 
     /**
      * 发送 {@link SmsSendMessage} 消息

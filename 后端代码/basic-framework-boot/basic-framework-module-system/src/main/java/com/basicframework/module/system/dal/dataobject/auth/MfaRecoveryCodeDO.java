@@ -8,10 +8,12 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 
 /** 一次性 MFA 恢复码。只保存带密钥摘要，不保存明文。 */
 @TableName("system_user_mfa_recovery_code")
 @Data
+@ToString(exclude = {"codeHash"})
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor

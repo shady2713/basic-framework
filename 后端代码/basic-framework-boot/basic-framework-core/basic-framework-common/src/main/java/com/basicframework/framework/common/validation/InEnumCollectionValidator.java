@@ -1,6 +1,5 @@
 package com.basicframework.framework.common.validation;
 
-import cn.hutool.core.collection.CollUtil;
 import com.basicframework.framework.common.core.ArrayValuable;
 import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;
@@ -29,13 +28,13 @@ public class InEnumCollectionValidator implements ConstraintValidator<InEnum, Co
             return true;
         }
         // 校验通过
-        if (CollUtil.containsAll(values, list)) {
+        if (values.containsAll(list)) {
             return true;
         }
         // 校验不通过，自定义提示语句
         context.disableDefaultConstraintViolation(); // 禁用默认的 message 的值
         context.buildConstraintViolationWithTemplate(
-                        context.getDefaultConstraintMessageTemplate().replaceAll("\\{value}", CollUtil.join(list, ",")))
+                        context.getDefaultConstraintMessageTemplate().replace("{value}", values.toString()))
                 .addConstraintViolation(); // 重新添加错误提示语句
         return false;
     }

@@ -4,14 +4,12 @@ import cn.hutool.core.convert.Convert;
 import cn.hutool.core.util.StrUtil;
 import com.basicframework.framework.ip.core.utils.AreaUtils;
 import com.mzt.logapi.service.IParseFunction;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 /**
  * 地名的 {@link IParseFunction} 实现类
  *
  */
-@Slf4j
 @Component
 public class AreaParseFunction implements IParseFunction {
 

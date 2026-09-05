@@ -22,14 +22,21 @@ import org.springframework.validation.annotation.Validated;
 @ConfigurationProperties(prefix = "basic-framework.security.mfa")
 public class MfaProperties {
 
+    private static final Duration MIN_CHALLENGE_TTL = Duration.ofSeconds(1);
+    private static final Duration MAX_CHALLENGE_TTL = Duration.ofMinutes(10);
+    private static final Duration MIN_STEP_UP_TTL = Duration.ofSeconds(1);
+    private static final Duration MAX_STEP_UP_TTL = Duration.ofMinutes(15);
+
     private boolean enabled;
 
     @NotBlank
     private String issuer = "basic-framework";
 
+    /** 一次性登录、注册或 WebAuthn ceremony 挑战的有效窗口。 */
     @NotNull
     private Duration challengeTtl = Duration.ofMinutes(5);
 
+    /** 已完成 MFA 的 access token 可执行高风险操作的有效窗口。 */
     @NotNull
     private Duration stepUpTtl = Duration.ofMinutes(5);
 
@@ -37,9 +44,14 @@ public class MfaProperties {
     @NotNull
     private WebAuthn webauthn = new WebAuthn();
 
-    @AssertTrue(message = "MFA step-up-ttl 必须大于 0")
+    @AssertTrue(message = "MFA challenge-ttl 必须在 1 秒到 10 分钟之间")
+    public boolean isChallengeTtlValid() {
+        return isWithin(challengeTtl, MIN_CHALLENGE_TTL, MAX_CHALLENGE_TTL);
+    }
+
+    @AssertTrue(message = "MFA step-up-ttl 必须在 1 秒到 15 分钟之间")
     public boolean isStepUpTtlValid() {
-        return stepUpTtl != null && !stepUpTtl.isZero() && !stepUpTtl.isNegative();
+        return isWithin(stepUpTtl, MIN_STEP_UP_TTL, MAX_STEP_UP_TTL);
     }
 
     @AssertTrue(message = "WebAuthn 启用时必须配置合法 RP ID 与精确 HTTPS Origin（localhost 可用 HTTP）")
@@ -66,6 +78,10 @@ public class MfaProperties {
                 && Arrays.stream(labels)
                         .allMatch(
                                 label -> label.length() <= 63 && label.matches("(?i)[a-z0-9](?:[a-z0-9-]*[a-z0-9])?"));
+    }
+
+    private static boolean isWithin(Duration value, Duration minimum, Duration maximum) {
+        return value != null && value.compareTo(minimum) >= 0 && value.compareTo(maximum) <= 0;
     }
 
     private static boolean isValidOrigin(String origin, String rpId) {

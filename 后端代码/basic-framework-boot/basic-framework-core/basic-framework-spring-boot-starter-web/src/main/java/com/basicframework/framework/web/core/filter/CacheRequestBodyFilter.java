@@ -1,18 +1,23 @@
 package com.basicframework.framework.web.core.filter;
 
+import static com.basicframework.framework.common.exception.enums.GlobalErrorCodeConstants.PAYLOAD_TOO_LARGE;
+
 import cn.hutool.core.util.StrUtil;
+import com.basicframework.framework.common.pojo.CommonResult;
 import com.basicframework.framework.common.util.servlet.ServletUtils;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
  * Request Body 缓存 Filter，实现它的可重复读取
  *
  */
+@RequiredArgsConstructor
 public class CacheRequestBodyFilter extends OncePerRequestFilter {
 
     /**
@@ -22,10 +27,25 @@ public class CacheRequestBodyFilter extends OncePerRequestFilter {
      */
     private static final String[] IGNORE_URIS = {"/admin/", "/actuator/"};
 
+    private final int maxBodyBytes;
+
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws IOException, ServletException {
-        filterChain.doFilter(new CacheRequestBodyWrapper(request), response);
+        if (request.getContentLengthLong() > maxBodyBytes) {
+            writePayloadTooLarge(response);
+            return;
+        }
+        try {
+            filterChain.doFilter(new CacheRequestBodyWrapper(request, maxBodyBytes), response);
+        } catch (RequestBodyTooLargeException exception) {
+            writePayloadTooLarge(response);
+        }
+    }
+
+    private static void writePayloadTooLarge(HttpServletResponse response) throws IOException {
+        ServletUtils.writeJSON(
+                response, HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE, CommonResult.error(PAYLOAD_TOO_LARGE));
     }
 
     @Override

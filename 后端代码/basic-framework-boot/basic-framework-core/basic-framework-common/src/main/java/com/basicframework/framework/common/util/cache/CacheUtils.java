@@ -4,7 +4,8 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import java.time.Duration;
-import java.util.concurrent.Executors;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ForkJoinPool;
 
 /**
  * Cache 工具类
@@ -18,6 +19,9 @@ public class CacheUtils {
      * @see <a href="">本地缓存 CacheUtils 工具类建议</a>
      */
     private static final Integer CACHE_MAX_SIZE = 10000;
+
+    /** 缓存刷新属于短时计算任务，复用 JVM 公共池，避免每个缓存创建无法关闭的线程池。 */
+    private static final Executor CACHE_REFRESH_EXECUTOR = ForkJoinPool.commonPool();
 
     /**
      * 构建异步刷新的 LoadingCache 对象
@@ -38,8 +42,7 @@ public class CacheUtils {
                 // 只阻塞当前数据加载线程，其他线程返回旧值
                 .refreshAfterWrite(duration)
                 // 通过 asyncReloading 实现全异步加载，包括 refreshAfterWrite 被阻塞的加载线程
-                // 当前默认使用共享线程池，如后续出现资源隔离需求，再抽成可配置项。
-                .build(CacheLoader.asyncReloading(loader, Executors.newCachedThreadPool()));
+                .build(CacheLoader.asyncReloading(loader, CACHE_REFRESH_EXECUTOR));
     }
 
     /**

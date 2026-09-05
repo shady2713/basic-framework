@@ -47,13 +47,16 @@ class SmsChannelServiceImplTest {
     private CredentialCipher credentialCipher;
 
     @Test
-    void createSmsChannel_encryptsSecretAndClearsPlaintextBeforeInsert() {
-        SmsChannelDO channel = channel(null).setApiSecret("request-secret");
+    void createSmsChannel_encryptsCredentialsAndClearsPlaintextBeforeInsert() {
+        SmsChannelDO channel = channel(null).setApiKey("request-key").setApiSecret("request-secret");
+        when(credentialCipher.encrypt("request-key", "sms-channel:api-key")).thenReturn("v1.encrypted.key");
         when(credentialCipher.encrypt("request-secret", "sms-channel:api-secret"))
                 .thenReturn("v1.encrypted.value");
 
         service.createSmsChannel(channel);
 
+        assertThat(channel.getApiKey()).isNull();
+        assertThat(channel.getApiKeyCiphertext()).isEqualTo("v1.encrypted.key");
         assertThat(channel.getApiSecret()).isNull();
         assertThat(channel.getApiSecretCiphertext()).isEqualTo("v1.encrypted.value");
         verify(smsChannelMapper).insert(channel);
@@ -93,7 +96,9 @@ class SmsChannelServiceImplTest {
     void updateSmsChannel_locksRowAndCleansCachedClient() {
         SmsChannelDO update = channel(1L).setCode("aliyun");
         when(smsChannelMapper.selectByIdForUpdate(1L))
-                .thenReturn(channel(1L).setApiSecretCiphertext("v1.existing.value"));
+                .thenReturn(
+                        channel(1L).setApiKeyCiphertext("v1.existing.key").setApiSecretCiphertext("v1.existing.value"));
+        when(credentialCipher.isEncryptedValue("v1.existing.key")).thenReturn(true);
 
         service.updateSmsChannel(update);
 
@@ -101,16 +106,22 @@ class SmsChannelServiceImplTest {
         inOrder.verify(smsChannelMapper).selectByIdForUpdate(1L);
         inOrder.verify(smsChannelMapper).updateById(update);
         inOrder.verify(smsClientFactory).removeSmsClient(1L);
+        assertThat(update.getApiKey()).isNull();
+        assertThat(update.getApiKeyCiphertext()).isEqualTo("v1.existing.key");
         assertThat(update.getApiSecretCiphertext()).isEqualTo("v1.existing.value");
         verify(credentialCipher, never())
                 .encrypt(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
     }
 
     @Test
-    void getSmsClient_decryptsSecretOnlyForClientInitialization() {
-        SmsChannelDO channel = channel(1L).setApiSecretCiphertext("v1.encrypted.value");
+    void getSmsClient_decryptsCredentialsOnlyForClientInitialization() {
+        SmsChannelDO channel =
+                channel(1L).setApiKeyCiphertext("v1.encrypted.key").setApiSecretCiphertext("v1.encrypted.value");
         SmsClient client = org.mockito.Mockito.mock(SmsClient.class);
         when(smsChannelMapper.selectById(1L)).thenReturn(channel);
+        when(credentialCipher.isEncryptedValue("v1.encrypted.key")).thenReturn(true);
+        when(credentialCipher.decrypt("v1.encrypted.key", "sms-channel:api-key"))
+                .thenReturn("runtime-key");
         when(credentialCipher.decrypt("v1.encrypted.value", "sms-channel:api-secret"))
                 .thenReturn("runtime-secret");
         when(smsClientFactory.createOrUpdateSmsClient(org.mockito.ArgumentMatchers.any()))
@@ -121,8 +132,27 @@ class SmsChannelServiceImplTest {
         org.mockito.ArgumentCaptor<SmsChannelProperties> propertiesCaptor =
                 org.mockito.ArgumentCaptor.forClass(SmsChannelProperties.class);
         verify(smsClientFactory).createOrUpdateSmsClient(propertiesCaptor.capture());
+        assertThat(propertiesCaptor.getValue().getApiKey()).isEqualTo("runtime-key");
         assertThat(propertiesCaptor.getValue().getApiSecret()).isEqualTo("runtime-secret");
+        assertThat(channel.getApiKey()).isNull();
         assertThat(channel.getApiSecret()).isNull();
+    }
+
+    @Test
+    void getSmsClient_migratesLegacyPlaintextApiKeyWithCompareAndSet() {
+        SmsChannelDO channel =
+                channel(1L).setApiKeyCiphertext("legacy-key").setApiSecretCiphertext("v1.encrypted.value");
+        when(smsChannelMapper.selectById(1L)).thenReturn(channel);
+        when(credentialCipher.encrypt("legacy-key", "sms-channel:api-key")).thenReturn("v1.encrypted.key");
+        when(smsChannelMapper.replaceLegacyApiKey(1L, "legacy-key", "v1.encrypted.key"))
+                .thenReturn(true);
+        when(credentialCipher.decrypt("v1.encrypted.value", "sms-channel:api-secret"))
+                .thenReturn("runtime-secret");
+
+        service.getSmsClient(1L);
+
+        verify(smsChannelMapper).replaceLegacyApiKey(1L, "legacy-key", "v1.encrypted.key");
+        assertThat(channel.getApiKeyCiphertext()).isEqualTo("v1.encrypted.key");
     }
 
     @Test

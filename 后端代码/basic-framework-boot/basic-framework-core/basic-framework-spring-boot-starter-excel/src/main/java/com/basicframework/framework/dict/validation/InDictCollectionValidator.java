@@ -25,7 +25,8 @@ public class InDictCollectionValidator implements ConstraintValidator<InDict, Co
         // 校验全部通过
         List<String> dbValues = DictFrameworkUtils.getDictDataValueList(dictType);
         boolean match = list.stream()
-                .allMatch(v -> dbValues.stream().anyMatch(dbValue -> dbValue.equalsIgnoreCase(v.toString())));
+                .allMatch(v ->
+                        v != null && dbValues.stream().anyMatch(dbValue -> dbValue.equalsIgnoreCase(v.toString())));
         if (match) {
             return true;
         }
@@ -33,7 +34,7 @@ public class InDictCollectionValidator implements ConstraintValidator<InDict, Co
         // 校验不通过，自定义提示语句
         context.disableDefaultConstraintViolation(); // 禁用默认的 message 的值
         context.buildConstraintViolationWithTemplate(
-                        context.getDefaultConstraintMessageTemplate().replaceAll("\\{value}", dbValues.toString()))
+                        context.getDefaultConstraintMessageTemplate().replace("{value}", dbValues.toString()))
                 .addConstraintViolation(); // 重新添加错误提示语句
         return false;
     }

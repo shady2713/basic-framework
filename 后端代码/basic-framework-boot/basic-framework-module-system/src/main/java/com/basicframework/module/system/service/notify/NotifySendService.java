@@ -20,7 +20,7 @@ public interface NotifySendService {
      */
     Long sendSingleNotifyToAdmin(Long userId, String templateCode, Map<String, Object> templateParams);
     /**
-     * 发送单条站内信给用户 APP 的用户
+     * 发送单条站内信给应用端会员
      *
      * 在 mobile 为空时，使用 userId 加载对应会员的手机号
      *

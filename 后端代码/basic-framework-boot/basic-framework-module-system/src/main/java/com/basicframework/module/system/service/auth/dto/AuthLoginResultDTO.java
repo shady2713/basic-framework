@@ -7,9 +7,11 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 
 /** 登录结果；MFA 完成前绝不包含 access/refresh token。 */
 @Data
+@ToString(exclude = {"accessToken", "refreshToken", "mfaToken", "recoveryCodes"})
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor

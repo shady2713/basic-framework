@@ -7,9 +7,11 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 
 @Schema(description = "管理后台 - 登录 Response VO")
 @Data
+@ToString(exclude = {"accessToken", "mfaToken", "recoveryCodes"})
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder

@@ -4,7 +4,6 @@ import cn.hutool.core.util.StrUtil;
 import com.basicframework.framework.dict.core.DictFrameworkUtils;
 import com.basicframework.module.system.enums.DictTypeConstants;
 import com.mzt.logapi.service.IParseFunction;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 /**
@@ -12,7 +11,6 @@ import org.springframework.stereotype.Component;
  *
  */
 @Component
-@Slf4j
 public class BooleanParseFunction implements IParseFunction {
 
     public static final String NAME = "getBoolean";

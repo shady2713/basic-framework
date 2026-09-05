@@ -1,5 +1,7 @@
 package com.basicframework.module.infra.framework.file.core.utils;
 
+import static com.basicframework.framework.common.util.exception.SafeExceptionLogUtils.format;
+
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.IoUtil;
 import cn.hutool.core.util.StrUtil;
@@ -26,6 +28,11 @@ public class FileTypeUtils {
      * 图片后缀集合，图片统一按 image/* 的 MIME 规则校验。
      */
     private static final Set<String> IMAGE_EXTENSIONS = Set.of("jpg", "jpeg", "png", "gif", "bmp", "webp");
+    /**
+     * 可安全上传和内联预览的光栅图片 MIME 白名单，显式排除 SVG 等可携带主动内容的图片格式。
+     */
+    private static final Set<String> SAFE_RASTER_IMAGE_MIME_TYPES =
+            Set.of("image/jpeg", "image/png", "image/gif", "image/bmp", "image/x-ms-bmp", "image/webp");
     /**
      * 当前允许上传的文件后缀白名单。
      */
@@ -90,7 +97,7 @@ public class FileTypeUtils {
         try {
             return MimeTypes.getDefaultMimeTypes().forName(mineType).getExtension();
         } catch (MimeTypeException e) {
-            log.warn("[getExtension][获取文件后缀({}) 失败]", mineType, e);
+            log.warn("[getExtension][获取文件后缀({}) 失败，stackTrace({})]", mineType, format(e));
             return null;
         }
     }
@@ -118,10 +125,10 @@ public class FileTypeUtils {
         if (StrUtil.isEmpty(extension) || !ALLOWED_EXTENSIONS.contains(extension)) {
             return false;
         }
-        String mineType = StrUtil.nullToDefault(getMineType(data, fileName), "").toLowerCase();
-        // 图片统一按 image/* 校验，兼容 jpeg、png 等具体子类型。
+        String mineType = StrUtil.nullToDefault(getMineType(data, fileName), "").toLowerCase(Locale.ROOT);
+        // 图片仅允许明确白名单中的安全光栅格式，不能把 SVG 等主动内容当作普通图片。
         if (IMAGE_EXTENSIONS.contains(extension)) {
-            return isImage(mineType);
+            return isSafeRasterImage(mineType);
         }
         return switch (extension) {
             case "pdf" -> StrUtil.equals(mineType, "application/pdf");
@@ -138,7 +145,7 @@ public class FileTypeUtils {
     }
 
     /**
-     * 将文件内容按附件方式写回响应；图片走 inline，其他文件走 attachment。
+     * 将文件内容按附件方式写回响应；仅安全光栅图片走 inline，其他文件走 attachment。
      *
      * @param response 响应对象
      * @param filename 文件名
@@ -148,8 +155,8 @@ public class FileTypeUtils {
             throws IOException {
         String mineType = getMineType(content, filename);
         response.setContentType(mineType);
-        // 图片直接预览，其他类型触发浏览器下载。
-        if (isImage(mineType)) {
+        // 仅白名单内的安全光栅图片可直接预览，避免浏览器执行 SVG 等主动内容。
+        if (isSafeRasterImage(mineType)) {
             response.setHeader("Content-Disposition", "inline;filename=" + HttpUtils.encodeUtf8(filename));
         } else {
             response.setHeader("Content-Disposition", "attachment;filename=" + HttpUtils.encodeUtf8(filename));
@@ -171,5 +178,10 @@ public class FileTypeUtils {
      */
     public static boolean isImage(String mineType) {
         return StrUtil.startWith(mineType, "image/");
+    }
+
+    private static boolean isSafeRasterImage(String mineType) {
+        return SAFE_RASTER_IMAGE_MIME_TYPES.contains(
+                StrUtil.nullToDefault(mineType, "").toLowerCase(Locale.ROOT));
     }
 }

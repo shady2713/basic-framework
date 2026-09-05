@@ -3,6 +3,7 @@ package com.basicframework.framework.idempotent.core.redis;
 import java.util.concurrent.TimeUnit;
 import lombok.AllArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.util.Assert;
 
 /**
  * 幂等 Redis DAO
@@ -22,12 +23,16 @@ public class IdempotentRedisDAO {
 
     private final StringRedisTemplate redisTemplate;
 
-    public Boolean setIfAbsent(String key, long timeout, TimeUnit timeUnit) {
+    public boolean setIfAbsent(String key, long timeout, TimeUnit timeUnit) {
+        Assert.hasText(key, "幂等 Key 不能为空");
+        Assert.isTrue(timeout > 0, "幂等超时时间必须大于 0");
+        Assert.notNull(timeUnit, "幂等超时时间单位不能为空");
         String redisKey = formatKey(key);
-        return redisTemplate.opsForValue().setIfAbsent(redisKey, "", timeout, timeUnit);
+        return Boolean.TRUE.equals(redisTemplate.opsForValue().setIfAbsent(redisKey, "", timeout, timeUnit));
     }
 
     public void delete(String key) {
+        Assert.hasText(key, "幂等 Key 不能为空");
         String redisKey = formatKey(key);
         redisTemplate.delete(redisKey);
     }

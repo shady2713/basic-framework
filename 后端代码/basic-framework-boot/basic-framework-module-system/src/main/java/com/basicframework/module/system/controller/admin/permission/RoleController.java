@@ -9,6 +9,7 @@ import com.basicframework.framework.common.pojo.PageParam;
 import com.basicframework.framework.common.pojo.PageResult;
 import com.basicframework.framework.common.util.object.BeanUtils;
 import com.basicframework.framework.excel.core.util.ExcelUtils;
+import com.basicframework.framework.security.core.annotation.AuthenticatedOnly;
 import com.basicframework.framework.security.core.annotation.MfaStepUp;
 import com.basicframework.module.system.controller.admin.permission.vo.role.RolePageReqVO;
 import com.basicframework.module.system.controller.admin.permission.vo.role.RoleRespVO;
@@ -18,12 +19,13 @@ import com.basicframework.module.system.service.permission.RoleService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -32,10 +34,10 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/system/role")
 @Validated
+@RequiredArgsConstructor
 public class RoleController {
 
-    @Resource
-    private RoleService roleService;
+    private final RoleService roleService;
 
     @PostMapping("/create")
     @Operation(summary = "创建角色")
@@ -59,7 +61,7 @@ public class RoleController {
     @Parameter(name = "id", description = "角色编号", required = true, example = "1024")
     @PreAuthorize("@ss.hasPermission('system:role:delete')")
     @MfaStepUp
-    public CommonResult<Boolean> deleteRole(@RequestParam("id") Long id) {
+    public CommonResult<Boolean> deleteRole(@RequestParam("id") @Positive Long id) {
         roleService.deleteRole(id);
         return success(true);
     }
@@ -77,7 +79,7 @@ public class RoleController {
     @GetMapping("/get")
     @Operation(summary = "获得角色信息")
     @PreAuthorize("@ss.hasPermission('system:role:query')")
-    public CommonResult<RoleRespVO> getRole(@RequestParam("id") Long id) {
+    public CommonResult<RoleRespVO> getRole(@RequestParam("id") @Positive Long id) {
         RoleDO role = roleService.getRole(id);
         return success(BeanUtils.toBean(role, RoleRespVO.class));
     }
@@ -85,14 +87,15 @@ public class RoleController {
     @GetMapping("/page")
     @Operation(summary = "获得角色分页")
     @PreAuthorize("@ss.hasPermission('system:role:query')")
-    public CommonResult<PageResult<RoleRespVO>> getRolePage(RolePageReqVO pageReqVO) {
+    public CommonResult<PageResult<RoleRespVO>> getRolePage(@Valid RolePageReqVO pageReqVO) {
         PageResult<RoleDO> pageResult = roleService.getRolePage(
                 pageReqVO, pageReqVO.getName(), pageReqVO.getCode(), pageReqVO.getStatus(), pageReqVO.getCreateTime());
         return success(BeanUtils.toBean(pageResult, RoleRespVO.class));
     }
 
-    @GetMapping({"/list-all-simple", "/simple-list"})
+    @GetMapping("/simple-list")
     @Operation(summary = "获取角色精简信息列表", description = "包含所有状态的角色，主要用于前端的下拉选项")
+    @AuthenticatedOnly
     public CommonResult<List<RoleRespVO>> getSimpleRoleList() {
         List<RoleDO> list = roleService.getRoleList();
         list.sort(Comparator.comparing(RoleDO::getSort));

@@ -5,6 +5,7 @@ import static com.basicframework.framework.common.pojo.CommonResult.success;
 import com.basicframework.framework.common.enums.CommonStatusEnum;
 import com.basicframework.framework.common.pojo.CommonResult;
 import com.basicframework.framework.common.util.object.BeanUtils;
+import com.basicframework.framework.security.core.annotation.AuthenticatedOnly;
 import com.basicframework.framework.security.core.annotation.MfaStepUp;
 import com.basicframework.module.system.controller.admin.permission.vo.menu.MenuListReqVO;
 import com.basicframework.module.system.controller.admin.permission.vo.menu.MenuRespVO;
@@ -15,10 +16,12 @@ import com.basicframework.module.system.service.permission.MenuService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 import java.util.Comparator;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -27,10 +30,10 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/system/menu")
 @Validated
+@RequiredArgsConstructor
 public class MenuController {
 
-    @Resource
-    private MenuService menuService;
+    private final MenuService menuService;
 
     @PostMapping("/create")
     @Operation(summary = "创建菜单")
@@ -55,7 +58,7 @@ public class MenuController {
     @Parameter(name = "id", description = "菜单编号", required = true, example = "1024")
     @PreAuthorize("@ss.hasPermission('system:menu:delete')")
     @MfaStepUp
-    public CommonResult<Boolean> deleteMenu(@RequestParam("id") Long id) {
+    public CommonResult<Boolean> deleteMenu(@RequestParam("id") @Positive Long id) {
         menuService.deleteMenu(id);
         return success(true);
     }
@@ -65,7 +68,8 @@ public class MenuController {
     @Parameter(name = "ids", description = "编号列表", required = true)
     @PreAuthorize("@ss.hasPermission('system:menu:delete')")
     @MfaStepUp
-    public CommonResult<Boolean> deleteMenuList(@RequestParam("ids") List<Long> ids) {
+    public CommonResult<Boolean> deleteMenuList(
+            @RequestParam("ids") @Size(min = 1, max = 100) List<@Positive Long> ids) {
         menuService.deleteMenuList(ids);
         return success(true);
     }
@@ -79,10 +83,11 @@ public class MenuController {
         return success(BeanUtils.toBean(list, MenuRespVO.class));
     }
 
-    @GetMapping({"/list-all-simple", "simple-list"})
+    @GetMapping("/simple-list")
     @Operation(summary = "获取菜单精简信息列表", description = "只包含被开启的菜单，用于【角色分配菜单】功能的选项。")
+    @AuthenticatedOnly
     public CommonResult<List<MenuSimpleRespVO>> getSimpleMenuList() {
-        List<MenuDO> list = menuService.getMenuListFiltered(null, CommonStatusEnum.ENABLE.getStatus());
+        List<MenuDO> list = menuService.getMenuList(null, CommonStatusEnum.ENABLE.getStatus());
         list = menuService.filterDisableMenus(list);
         list.sort(Comparator.comparing(MenuDO::getSort));
         return success(BeanUtils.toBean(list, MenuSimpleRespVO.class));
@@ -91,7 +96,7 @@ public class MenuController {
     @GetMapping("/get")
     @Operation(summary = "获取菜单信息")
     @PreAuthorize("@ss.hasPermission('system:menu:query')")
-    public CommonResult<MenuRespVO> getMenu(Long id) {
+    public CommonResult<MenuRespVO> getMenu(@RequestParam("id") @Positive Long id) {
         MenuDO menu = menuService.getMenu(id);
         return success(BeanUtils.toBean(menu, MenuRespVO.class));
     }

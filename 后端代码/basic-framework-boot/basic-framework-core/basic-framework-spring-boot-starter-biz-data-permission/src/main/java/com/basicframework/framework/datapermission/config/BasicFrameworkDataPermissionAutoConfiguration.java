@@ -2,7 +2,6 @@ package com.basicframework.framework.datapermission.config;
 
 import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
 import com.baomidou.mybatisplus.extension.plugins.inner.DataPermissionInterceptor;
-import com.basicframework.framework.common.security.CurrentUserProvider;
 import com.basicframework.framework.datapermission.core.aop.DataPermissionAnnotationAdvisor;
 import com.basicframework.framework.datapermission.core.db.DataPermissionRuleHandler;
 import com.basicframework.framework.datapermission.core.rule.DataPermissionRule;
@@ -10,7 +9,6 @@ import com.basicframework.framework.datapermission.core.rule.DataPermissionRuleF
 import com.basicframework.framework.datapermission.core.rule.DataPermissionRuleFactoryImpl;
 import com.basicframework.framework.mybatis.core.util.MyBatisUtils;
 import java.util.List;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.context.annotation.Bean;
 
@@ -28,11 +26,9 @@ public class BasicFrameworkDataPermissionAutoConfiguration {
 
     @Bean
     public DataPermissionRuleHandler dataPermissionRuleHandler(
-            MybatisPlusInterceptor interceptor,
-            DataPermissionRuleFactory ruleFactory,
-            ObjectProvider<CurrentUserProvider> currentUserProvider) {
+            MybatisPlusInterceptor interceptor, DataPermissionRuleFactory ruleFactory) {
         // 创建 DataPermissionInterceptor 拦截器
-        DataPermissionRuleHandler handler = new DataPermissionRuleHandler(ruleFactory, currentUserProvider);
+        DataPermissionRuleHandler handler = new DataPermissionRuleHandler(ruleFactory);
         DataPermissionInterceptor inner = new DataPermissionInterceptor(handler);
         // 添加到 interceptor 中
         // 需要加在首个，主要是为了在分页插件前面。这个是 MyBatis Plus 的规定

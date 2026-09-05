@@ -1,5 +1,7 @@
 package com.basicframework.framework.mq.redis.core.job;
 
+import static com.basicframework.framework.common.util.exception.SafeExceptionLogUtils.format;
+
 import com.basicframework.framework.mq.redis.config.RedisMQProperties;
 import com.basicframework.framework.mq.redis.core.RedisMQTemplate;
 import com.basicframework.framework.mq.redis.core.stream.AbstractRedisStreamMessageListener;
@@ -49,7 +51,7 @@ public class RedisPendingMessageResendJob {
             try {
                 execute();
             } catch (Exception ex) {
-                log.error("[messageResend][执行异常]", ex);
+                log.error("[messageResend][执行异常，stackTrace({})]", format(ex));
             } finally {
                 lock.unlock();
             }
@@ -75,10 +77,10 @@ public class RedisPendingMessageResendJob {
                     (consumerName, count) -> processConsumerSafely(ops, listener, consumerName, count));
         } catch (Exception exception) {
             log.error(
-                    "[processListener][Stream({}) 消费者组({}) pending 恢复异常]",
+                    "[processListener][Stream({}) 消费者组({}) pending 恢复异常，stackTrace({})]",
                     listener.getStreamKey(),
                     listener.getGroup(),
-                    exception);
+                    format(exception));
         }
     }
 
@@ -97,11 +99,11 @@ public class RedisPendingMessageResendJob {
             pendingMessages.forEach(pendingMessage -> processPendingMessageSafely(ops, listener, pendingMessage));
         } catch (Exception exception) {
             log.error(
-                    "[processConsumer][Stream({}) 消费者组({}) 消费者({}) pending 恢复异常]",
+                    "[processConsumer][Stream({}) 消费者组({}) 消费者({}) pending 恢复异常，stackTrace({})]",
                     listener.getStreamKey(),
                     listener.getGroup(),
                     consumerName,
-                    exception);
+                    format(exception));
         }
     }
 
@@ -130,11 +132,11 @@ public class RedisPendingMessageResendJob {
             log.info("[processPendingMessage][消息({})重新处理完成，第({})次投递]", recordId, deliveryCount);
         } catch (Exception exception) {
             log.error(
-                    "[processPendingMessage][Stream({}) 消费者组({}) 消息({})恢复失败，保留 pending 等待重试]",
+                    "[processPendingMessage][Stream({}) 消费者组({}) 消息({})恢复失败，保留 pending 等待重试，stackTrace({})]",
                     listener.getStreamKey(),
                     listener.getGroup(),
                     recordId,
-                    exception);
+                    format(exception));
         }
     }
 

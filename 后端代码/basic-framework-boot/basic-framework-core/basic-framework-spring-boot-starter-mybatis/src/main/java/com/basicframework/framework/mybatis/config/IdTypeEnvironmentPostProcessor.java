@@ -3,8 +3,8 @@ package com.basicframework.framework.mybatis.config;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.annotation.DbType;
 import com.baomidou.mybatisplus.annotation.IdType;
-import com.basicframework.framework.common.util.collection.SetUtils;
 import com.basicframework.framework.mybatis.core.util.JdbcUtils;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -28,8 +28,24 @@ public class IdTypeEnvironmentPostProcessor implements EnvironmentPostProcessor 
     private static final String QUARTZ_JOB_STORE_DRIVER_KEY =
             "spring.quartz.properties.org.quartz.jobStore.driverDelegateClass";
 
-    private static final Set<DbType> INPUT_ID_TYPES = SetUtils.asSet(
-            DbType.ORACLE, DbType.ORACLE_12C, DbType.POSTGRE_SQL, DbType.KINGBASE_ES, DbType.DB2, DbType.H2);
+    private static final Set<DbType> INPUT_ID_TYPES =
+            Set.of(DbType.ORACLE, DbType.ORACLE_12C, DbType.POSTGRE_SQL, DbType.KINGBASE_ES, DbType.DB2, DbType.H2);
+
+    /**
+     * 需要显式指定 Quartz JobStore 委托的数据库；其余数据库（MySQL、H2 等）使用 Quartz
+     * 默认的 StdJDBCDelegate，无需覆盖——不在此表中的 DbType 不做任何处理。
+     */
+    private static final EnumMap<DbType, String> QUARTZ_JOB_STORE_DELEGATES = new EnumMap<>(DbType.class);
+
+    static {
+        QUARTZ_JOB_STORE_DELEGATES.put(DbType.POSTGRE_SQL, "org.quartz.impl.jdbcjobstore.PostgreSQLDelegate");
+        QUARTZ_JOB_STORE_DELEGATES.put(DbType.ORACLE, "org.quartz.impl.jdbcjobstore.oracle.OracleDelegate");
+        QUARTZ_JOB_STORE_DELEGATES.put(DbType.ORACLE_12C, "org.quartz.impl.jdbcjobstore.oracle.OracleDelegate");
+        QUARTZ_JOB_STORE_DELEGATES.put(DbType.SQL_SERVER, "org.quartz.impl.jdbcjobstore.MSSQLDelegate");
+        QUARTZ_JOB_STORE_DELEGATES.put(DbType.SQL_SERVER2005, "org.quartz.impl.jdbcjobstore.MSSQLDelegate");
+        QUARTZ_JOB_STORE_DELEGATES.put(DbType.DM, "org.quartz.impl.jdbcjobstore.StdJDBCDelegate");
+        QUARTZ_JOB_STORE_DELEGATES.put(DbType.KINGBASE_ES, "org.quartz.impl.jdbcjobstore.StdJDBCDelegate");
+    }
 
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
@@ -61,8 +77,7 @@ public class IdTypeEnvironmentPostProcessor implements EnvironmentPostProcessor 
         try {
             return StrUtil.isNotBlank(value) ? IdType.valueOf(value) : IdType.NONE;
         } catch (IllegalArgumentException ex) {
-            log.error("[getIdType][无法解析 id-type 配置值({})]", value, ex);
-            return IdType.NONE;
+            throw new IllegalStateException("无法解析 MyBatis Plus id-type 配置值: " + value, ex);
         }
     }
 
@@ -78,27 +93,10 @@ public class IdTypeEnvironmentPostProcessor implements EnvironmentPostProcessor 
         if (StrUtil.isNotEmpty(driverClass)) {
             return;
         }
-        // 根据 dbType 类型，获取对应的 driverClass
-        switch (dbType) {
-            case POSTGRE_SQL:
-                driverClass = "org.quartz.impl.jdbcjobstore.PostgreSQLDelegate";
-                break;
-            case ORACLE:
-            case ORACLE_12C:
-                driverClass = "org.quartz.impl.jdbcjobstore.oracle.OracleDelegate";
-                break;
-            case SQL_SERVER:
-            case SQL_SERVER2005:
-                driverClass = "org.quartz.impl.jdbcjobstore.MSSQLDelegate";
-                break;
-            case DM:
-            case KINGBASE_ES:
-                driverClass = "org.quartz.impl.jdbcjobstore.StdJDBCDelegate";
-                break;
-        }
-        // 设置 driverClass 变量
-        if (StrUtil.isNotEmpty(driverClass)) {
-            environment.getSystemProperties().put(QUARTZ_JOB_STORE_DRIVER_KEY, driverClass);
+        // 不在映射表中的数据库无需特殊委托，保持 Quartz 默认（StdJDBCDelegate），不输出任何配置
+        String delegate = QUARTZ_JOB_STORE_DELEGATES.get(dbType);
+        if (StrUtil.isNotEmpty(delegate)) {
+            environment.getSystemProperties().put(QUARTZ_JOB_STORE_DRIVER_KEY, delegate);
         }
     }
 

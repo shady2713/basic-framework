@@ -21,7 +21,7 @@ import java.lang.annotation.Target;
 @Constraint(validatedBy = PasswordValidator.class)
 public @interface Password {
 
-    String message() default "密码必须为 6-16 位，且同时包含大写字母、小写字母和数字";
+    String message() default "密码至少 15 个字符，且 UTF-8 编码不能超过 72 字节";
 
     Class<?>[] groups() default {};
 

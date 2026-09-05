@@ -59,8 +59,22 @@ class SystemDataIntegrityIT extends AbstractPersistenceIntegrationTest {
         verifyDictDataTypeReferenceIntegrity();
         verifySmsTemplateChannelReferenceIntegrity();
         verifyDepartmentReferenceIntegrity();
+        verifyRoleDataScopeDefault();
         verifyRoleDataScopeDepartmentIntegrity();
         verifySystemRelationForeignKeys();
+    }
+
+    private void verifyRoleDataScopeDefault() {
+        assertThat(jdbcTemplate.queryForObject(
+                        """
+                        SELECT COLUMN_DEFAULT
+                        FROM information_schema.COLUMNS
+                        WHERE TABLE_SCHEMA = DATABASE()
+                          AND TABLE_NAME = 'system_role'
+                          AND COLUMN_NAME = 'data_scope'
+                        """,
+                        String.class))
+                .isEqualTo(DataScopeEnum.SELF.getScope().toString());
     }
 
     private void verifyDepartmentReferenceIntegrity() {
@@ -280,7 +294,7 @@ class SystemDataIntegrityIT extends AbstractPersistenceIntegrationTest {
                         .setSort(99),
                 RoleTypeEnum.CUSTOM.getType());
 
-        permissionService.assignRoleDataScope(roleId, DataScopeEnum.DEPT_CUSTOM.getScope(), Set.of(deptId));
+        permissionService.assignRoleDataScope(1L, roleId, DataScopeEnum.DEPT_CUSTOM.getScope(), Set.of(deptId));
         assertThat(jdbcTemplate.queryForObject(
                         "SELECT data_scope_dept_ids FROM system_role WHERE id = ?", String.class, roleId))
                 .isEqualTo("[" + deptId + "]");
@@ -289,7 +303,7 @@ class SystemDataIntegrityIT extends AbstractPersistenceIntegrationTest {
         assertServiceException(
                 ErrorCodeConstants.DEPT_NOT_EXISTS.getCode(),
                 () -> permissionService.assignRoleDataScope(
-                        roleId, DataScopeEnum.DEPT_CUSTOM.getScope(), Set.of(9_077_999L)));
+                        1L, roleId, DataScopeEnum.DEPT_CUSTOM.getScope(), Set.of(9_077_999L)));
 
         jdbcTemplate.update("UPDATE system_dept SET deleted = b'1' WHERE id = ?", deptId);
         assertThatThrownBy(() -> systemDataIntegrityAuditJob.execute(""))
@@ -297,7 +311,7 @@ class SystemDataIntegrityIT extends AbstractPersistenceIntegrationTest {
                 .hasMessage("system_role.data_scope_dept_ids 孤儿引用 1 条");
 
         jdbcTemplate.update("UPDATE system_dept SET deleted = b'0' WHERE id = ?", deptId);
-        permissionService.assignRoleDataScope(roleId, DataScopeEnum.ALL.getScope(), Set.of(deptId));
+        permissionService.assignRoleDataScope(1L, roleId, DataScopeEnum.ALL.getScope(), Set.of(deptId));
         assertThat(jdbcTemplate.queryForObject(
                         "SELECT data_scope_dept_ids FROM system_role WHERE id = ?", String.class, roleId))
                 .isEqualTo("[]");

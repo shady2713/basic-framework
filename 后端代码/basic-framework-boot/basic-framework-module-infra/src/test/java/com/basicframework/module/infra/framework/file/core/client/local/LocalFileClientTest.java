@@ -58,6 +58,25 @@ class LocalFileClientTest {
     }
 
     @Test
+    void getContent_existingFile_returnsStoredBytes() {
+        byte[] content = "hello".getBytes(StandardCharsets.UTF_8);
+        client.upload(content, "a/readme.txt", CONTENT_TYPE);
+
+        assertThat(client.getContent("a/readme.txt")).isEqualTo(content);
+    }
+
+    @Test
+    void delete_existingFile_removesOnlyTheRequestedFile() {
+        client.upload("delete".getBytes(StandardCharsets.UTF_8), "a/delete.txt", CONTENT_TYPE);
+        client.upload("keep".getBytes(StandardCharsets.UTF_8), "a/keep.txt", CONTENT_TYPE);
+
+        client.delete("a/delete.txt");
+
+        assertThat(baseDir.resolve("a/delete.txt")).doesNotExist();
+        assertThat(baseDir.resolve("a/keep.txt")).hasContent("keep");
+    }
+
+    @Test
     void getContent_ioFailure_isNotMistakenForMissingFile() throws IOException {
         Files.createDirectories(baseDir.resolve("directory"));
 
@@ -72,6 +91,16 @@ class LocalFileClientTest {
         assertThatThrownBy(() -> client.upload("x".getBytes(StandardCharsets.UTF_8), "../escape.txt", CONTENT_TYPE))
                 .isInstanceOf(RuntimeException.class);
         assertThat(tempDir.resolve("escape.txt")).doesNotExist();
+    }
+
+    @Test
+    void upload_absolutePathTraversal_rejected() {
+        Path outsideFile = tempDir.resolve("outside/escape.txt").toAbsolutePath();
+
+        assertThatThrownBy(
+                        () -> client.upload("x".getBytes(StandardCharsets.UTF_8), outsideFile.toString(), CONTENT_TYPE))
+                .isInstanceOf(RuntimeException.class);
+        assertThat(outsideFile).doesNotExist();
     }
 
     @Test

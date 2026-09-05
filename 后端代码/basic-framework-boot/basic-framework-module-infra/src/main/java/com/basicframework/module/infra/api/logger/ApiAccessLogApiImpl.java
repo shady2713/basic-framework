@@ -2,7 +2,7 @@ package com.basicframework.module.infra.api.logger;
 
 import com.basicframework.module.infra.api.logger.dto.ApiAccessLogCreateReqDTO;
 import com.basicframework.module.infra.service.logger.ApiAccessLogService;
-import jakarta.annotation.Resource;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.validation.annotation.Validated;
 
@@ -12,10 +12,10 @@ import org.springframework.validation.annotation.Validated;
  */
 @Service
 @Validated
+@RequiredArgsConstructor
 public class ApiAccessLogApiImpl implements ApiAccessLogCommonApi {
 
-    @Resource
-    private ApiAccessLogService apiAccessLogService;
+    private final ApiAccessLogService apiAccessLogService;
 
     @Override
     public void createApiAccessLog(ApiAccessLogCreateReqDTO createDTO) {

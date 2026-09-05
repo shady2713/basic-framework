@@ -1,5 +1,7 @@
 package com.basicframework.framework.ip.core.utils;
 
+import static com.basicframework.framework.common.util.exception.SafeExceptionLogUtils.format;
+
 import cn.hutool.core.io.resource.ResourceUtil;
 import com.basicframework.framework.ip.core.Area;
 import java.io.IOException;
@@ -37,7 +39,7 @@ public class IPUtils {
             SEARCHER = Searcher.newWithBuffer(bytes);
             log.info("启动加载 IPUtils 成功，耗时 ({}) 毫秒", System.currentTimeMillis() - now);
         } catch (IOException e) {
-            log.error("启动加载 IPUtils 失败", e);
+            log.error("启动加载 IPUtils 失败，stackTrace({})", format(e));
         }
     }
 

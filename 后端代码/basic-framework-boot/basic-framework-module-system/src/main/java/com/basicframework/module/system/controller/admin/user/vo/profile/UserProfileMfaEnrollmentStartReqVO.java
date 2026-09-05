@@ -4,9 +4,11 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
+import lombok.ToString;
 
 @Schema(description = "管理后台 - 当前用户 MFA 自助注册开始 Request VO")
 @Data
+@ToString(exclude = {"password"})
 public class UserProfileMfaEnrollmentStartReqVO {
 
     @Schema(description = "当前密码", requiredMode = Schema.RequiredMode.REQUIRED)

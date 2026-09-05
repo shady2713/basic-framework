@@ -7,9 +7,11 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 
 @Schema(description = "管理后台 - 短信验证码的登录 Request VO")
 @Data
+@ToString(exclude = {"mobile", "code"})
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder

@@ -24,6 +24,11 @@ public class SystemDataRetentionProperties {
     @Max(3650)
     private int smsLogDays = 30;
 
+    /** 短信验证码只增不减会无限膨胀；验证码分钟级失效，保留期远大于有效期即可安全清理。 */
+    @Min(1)
+    @Max(3650)
+    private int smsCodeDays = 7;
+
     @Min(1)
     @Max(3650)
     private int readNotifyMessageDays = 90;
