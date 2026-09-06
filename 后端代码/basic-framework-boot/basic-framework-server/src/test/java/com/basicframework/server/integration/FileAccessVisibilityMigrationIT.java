@@ -8,7 +8,7 @@ import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationVersion;
 import org.flywaydb.core.api.configuration.FluentConfiguration;
 import org.junit.jupiter.api.Test;
-import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.testcontainers.containers.MySQLContainer;
@@ -60,8 +60,12 @@ class FileAccessVisibilityMigrationIT {
         assertThat(jdbcTemplate.queryForObject(
                         "SELECT owner_user_id FROM infra_file WHERE id = ?", Long.class, 9_037_002L))
                 .isNull();
+        // MySQL 3819（check constraint 被违反）在 Spring 的 MySQL 错误码翻译表中
+        // 缺失，会包装成 UncategorizedSQLException 而非 DataIntegrityViolationException；
+        // 这里钉住行为本身：约束必须拒绝 access_type=3
         assertThatThrownBy(() -> jdbcTemplate.update("UPDATE infra_file SET access_type = 3 WHERE id = ?", 9_037_001L))
-                .isInstanceOf(DataIntegrityViolationException.class);
+                .isInstanceOf(DataAccessException.class)
+                .hasStackTraceContaining("ck_file_access_type");
     }
 
     private static void insertFileConfig(JdbcTemplate jdbcTemplate, long configId) {
