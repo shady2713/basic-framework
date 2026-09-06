@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import type { Recordable } from '@vben/types';
-
 import type { VbenFormSchema } from '@vben-core/form-ui';
 
 import type { AuthenticationProps } from './types';
@@ -42,7 +40,7 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const emit = defineEmits<{
-  submit: [Recordable<any>];
+  submit: [Record<string, unknown>];
 }>();
 
 const [Form, formApi] = useVbenForm(
@@ -65,11 +63,11 @@ const rememberMe = ref(!!localUsername);
 
 async function handleSubmit() {
   const { valid } = await formApi.validate();
-  const values = await formApi.getValues();
+  const values = await formApi.getValues<{ username?: string }>();
   if (valid) {
     localStorage.setItem(
       REMEMBER_ME_KEY,
-      rememberMe.value ? values?.username : '',
+      rememberMe.value ? (values.username ?? '') : '',
     );
     emit('submit', values);
   }
@@ -95,7 +93,7 @@ defineExpose({
     <slot name="title">
       <Title>
         <slot name="title">
-          {{ title || `${$t('authentication.welcomeBack')} 👋🏻` }}
+          {{ title || `${$t('authentication.welcomeBack')}` }}
         </slot>
         <template #desc>
           <span class="text-muted-foreground">

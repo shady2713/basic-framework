@@ -1,5 +1,7 @@
 package com.basicframework.framework.common.util.json.databind;
 
+import static com.basicframework.framework.common.util.exception.SafeExceptionLogUtils.format;
+
 import cn.hutool.core.util.ObjUtil;
 import cn.hutool.core.util.ReflectUtil;
 import cn.hutool.core.util.StrUtil;
@@ -41,16 +43,18 @@ public class TimestampLocalDateTimeSerializer extends JsonSerializer<LocalDateTi
                 Field field = fieldMap.get(fieldName);
                 if (field != null && field.isAnnotationPresent(JsonFormat.class)) {
                     JsonFormat jsonFormat = field.getAnnotation(JsonFormat.class);
-                    try {
-                        DateTimeFormatter formatter = DateTimeFormatter.ofPattern(jsonFormat.pattern());
-                        gen.writeString(formatter.format(value));
-                        return;
-                    } catch (Exception ex) {
-                        log.warn(
-                                "[serialize][({}#{}) 使用 JsonFormat pattern 失败，尝试使用默认的 Long 时间戳]",
-                                clazz.getName(),
-                                fieldName,
-                                ex);
+                    if (StrUtil.isNotEmpty(jsonFormat.pattern())) {
+                        try {
+                            DateTimeFormatter formatter = DateTimeFormatter.ofPattern(jsonFormat.pattern());
+                            gen.writeString(formatter.format(value));
+                            return;
+                        } catch (IllegalArgumentException ex) {
+                            log.warn(
+                                    "[serialize][({}#{}) 使用 JsonFormat pattern 失败，尝试使用默认的 Long 时间戳，stackTrace({})]",
+                                    clazz.getName(),
+                                    fieldName,
+                                    format(ex));
+                        }
                     }
                 }
             }

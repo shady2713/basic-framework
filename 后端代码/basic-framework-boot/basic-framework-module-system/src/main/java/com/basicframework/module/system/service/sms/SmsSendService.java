@@ -23,7 +23,7 @@ public interface SmsSendService {
     Long sendSingleSmsToAdmin(String mobile, Long userId, String templateCode, Map<String, Object> templateParams);
 
     /**
-     * 发送单条短信给用户 APP 的用户
+     * 发送单条短信给应用端会员
      *
      * 在 mobile 为空时，使用 userId 加载对应会员的手机号
      *
@@ -61,7 +61,7 @@ public interface SmsSendService {
      *
      * @param channelCode 渠道编码
      * @param text 结果内容
-     * @throws Throwable 处理失败时，抛出异常
+     * @throws Exception 处理失败时，抛出异常
      */
-    void receiveSmsStatus(String channelCode, String text) throws Throwable;
+    void receiveSmsStatus(String channelCode, String text) throws Exception;
 }

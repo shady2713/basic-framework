@@ -20,21 +20,25 @@ export namespace InfraFileApi {
     url?: string;
     size?: number;
     type?: string;
+    accessType?: number;
     createTime?: Date;
   }
 
   /** 文件预签名地址 */
   export interface FilePresignedUrlRespVO {
-    configId: number; // 文件配置编号
+    uploadToken: string; // 一次性上传完成凭据
     uploadUrl: string; // 文件上传 URL
-    url: string; // 文件 URL
-    path: string; // 文件路径
+  }
+
+  export interface FileCreateReqVO {
+    uploadToken: string;
   }
 
   /** 上传文件 */
   export interface FileUploadReqVO {
     file: globalThis.File;
     directory?: string;
+    publicRead?: boolean;
   }
 }
 
@@ -56,18 +60,30 @@ export function deleteFileList(ids: number[]) {
 }
 
 /** 获取文件预签名地址 */
-export function getFilePresignedUrl(name: string, directory?: string) {
+export function getFilePresignedUrl(
+  name: string,
+  size: number,
+  type?: string,
+  directory?: string,
+  publicRead = false,
+) {
   return requestClient.get<InfraFileApi.FilePresignedUrlRespVO>(
     '/infra/file/presigned-url',
     {
-      params: { name, directory },
+      params: {
+        name,
+        size,
+        type,
+        directory,
+        ...(publicRead ? { publicRead } : {}),
+      },
     },
   );
 }
 
 /** 创建文件 */
-export function createFile(data: InfraFileApi.File) {
-  return requestClient.post('/infra/file/create', data);
+export function createFile(data: InfraFileApi.FileCreateReqVO) {
+  return requestClient.post<string>('/infra/file/create', data);
 }
 
 /** 上传文件 */
@@ -76,12 +92,18 @@ export function uploadFile(
   onUploadProgress?: AxiosProgressEvent,
   errorMode: ErrorMode = 'global',
 ) {
-  // 特殊：由于 upload 内部封装，即使 directory 为 undefined，也会传递给后端
-  if (!data.directory) {
-    delete data.directory;
-  }
-  return requestClient.upload('/infra/file/upload', data, {
-    errorMode,
-    onUploadProgress,
-  });
+  // upload 会把显式的 undefined 编码进 multipart；构造新对象以保持调用方参数不可变。
+  const payload: InfraFileApi.FileUploadReqVO = {
+    file: data.file,
+    ...(data.directory ? { directory: data.directory } : {}),
+    ...(data.publicRead ? { publicRead: true } : {}),
+  };
+  return requestClient.upload<string, InfraFileApi.FileUploadReqVO>(
+    '/infra/file/upload',
+    payload,
+    {
+      errorMode,
+      onUploadProgress,
+    },
+  );
 }

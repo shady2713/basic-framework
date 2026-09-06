@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "pnpm unbuild",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "typecheck": "vue-tsc --noEmit --skipLibCheck"
   },
   "files": [
     "dist"
@@ -41,5 +42,8 @@
     "vue": "catalog:",
     "zod": "catalog:",
     "zod-defaults": "catalog:"
+  },
+  "devDependencies": {
+    "@vue/test-utils": "catalog:"
   }
 }

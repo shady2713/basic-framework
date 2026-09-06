@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "pnpm unbuild",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "typecheck": "vue-tsc --noEmit --skipLibCheck"
   },
   "files": [
     "dist"
@@ -36,5 +37,8 @@
     "@vben-core/typings": "workspace:*",
     "@vueuse/core": "catalog:",
     "vue": "catalog:"
+  },
+  "devDependencies": {
+    "@vue/test-utils": "catalog:"
   }
 }

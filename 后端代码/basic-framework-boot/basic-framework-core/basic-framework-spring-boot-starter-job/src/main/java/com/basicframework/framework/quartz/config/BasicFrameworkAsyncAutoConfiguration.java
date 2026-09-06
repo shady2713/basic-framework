@@ -21,7 +21,8 @@ public class BasicFrameworkAsyncAutoConfiguration {
 
     /**
      * 配置 Spring Boot 受管的 applicationTaskExecutor，供 @Async 与程序化提交共用。
-     * 优雅关闭（server.shutdown: graceful）时等待在途任务完成再终止。
+     * 优雅关闭（server.shutdown: graceful）时等待在途任务完成再终止；
+     * 队列满载后的拒绝策略由 {@link BasicFrameworkAsyncProperties#getRejectedPolicy()} 决定，默认背压。
      *
      * @param properties 线程池配置项
      * @return Spring Boot 线程池定制器
@@ -35,6 +36,7 @@ public class BasicFrameworkAsyncAutoConfiguration {
             executor.setQueueCapacity(properties.getQueueCapacity());
             executor.setKeepAliveSeconds(properties.getKeepAliveSeconds());
             executor.setThreadNamePrefix("async-");
+            executor.setRejectedExecutionHandler(properties.getRejectedPolicy().toHandler());
             executor.setWaitForTasksToCompleteOnShutdown(true);
             executor.setAwaitTerminationSeconds(properties.getAwaitTerminationSeconds());
         };

@@ -47,18 +47,21 @@ class PackagedJarBootSmokeIT {
     private static final String MYSQL_ROOT_PASSWORD = "integration-only-root";
     private static final String REDIS_PASSWORD = "integration-only-redis";
     private static final String CREDENTIAL_ENCRYPTION_KEY = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
-    private static final int EXPECTED_MIGRATION_COUNT = 29;
-    private static final int EXPECTED_LATEST_MIGRATION = 30;
+    private static final int EXPECTED_MIGRATION_COUNT = MigrationTestSupport.migrationCount();
+    private static final int EXPECTED_LATEST_MIGRATION = MigrationTestSupport.latestVersion();
 
     @Container
-    private static final MySQLContainer<?> MYSQL = new MySQLContainer<>(DockerImageName.parse("mysql:8.4.8"))
+    private static final MySQLContainer<?> MYSQL = new MySQLContainer<>(DockerImageName.parse(
+                            "mysql:8.4.11@sha256:b3b90af2a6552ae30c266fdb7d5dd55f3afb72404bb78d37fe8a23eb857fd3fb")
+                    .asCompatibleSubstituteFor("mysql"))
             .withDatabaseName(DATABASE_NAME)
             .withUsername("root")
             .withPassword(MYSQL_ROOT_PASSWORD)
             .withInitScript("boot-smoke/mysql-init.sql");
 
     @Container
-    private static final GenericContainer<?> REDIS = new GenericContainer<>(DockerImageName.parse("redis:7-alpine"))
+    private static final GenericContainer<?> REDIS = new GenericContainer<>(DockerImageName.parse(
+                    "redis:7.4.11@sha256:71da9275c5f3fcb97d0fa0c8c5b36cc995327265420f17a04bfd544f458059f7"))
             .withCommand("redis-server", "--requirepass", REDIS_PASSWORD)
             .withExposedPorts(6379);
 

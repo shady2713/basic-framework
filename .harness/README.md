@@ -14,6 +14,10 @@ The adaptation keeps four properties from the upstream model:
 The repository-root `AGENTS.md` remains the authority for engineering rules.
 `verify.ps1` and `verify.sh` are platform providers for one named gate
 topology: Windows development uses PowerShell and Linux CI uses POSIX `sh`.
+The `dependencies` gate generates a resolved backend CycloneDX SBOM and scans it
+together with the exact frontend lockfile, container configuration, and final
+application image. Its Trivy container is pinned by version and digest, receives
+source inputs read-only, and runs without added Linux capabilities.
 
 ```powershell
 & .\.harness\verify.ps1 --list

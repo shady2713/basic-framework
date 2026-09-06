@@ -21,7 +21,7 @@ const {
 
 const emit = defineEmits<{
   complete: [];
-  sendError: [error: any];
+  sendError: [error: unknown];
 }>();
 
 const timer = ref<ReturnType<typeof setTimeout>>();

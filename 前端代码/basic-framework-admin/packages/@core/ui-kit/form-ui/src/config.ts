@@ -58,8 +58,8 @@ export function setupVbenForm<
   });
 
   if (defineRules) {
-    for (const key of Object.keys(defineRules)) {
-      defineRule(key, defineRules[key as never]);
+    for (const [key, rule] of Object.entries(defineRules)) {
+      defineRule(key, rule);
     }
   }
 
@@ -71,9 +71,9 @@ export function setupVbenForm<
 
   const components = globalShareState.getComponents();
 
-  for (const component of Object.keys(components)) {
+  for (const [component, definition] of Object.entries(components)) {
     const key = component as BaseFormComponentType;
-    COMPONENT_MAP[key] = components[component as never];
+    COMPONENT_MAP[key] = definition;
 
     if (baseModelPropName !== DEFAULT_MODEL_PROP_NAME) {
       COMPONENT_BIND_EVENT_MAP[key] = baseModelPropName;

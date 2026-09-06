@@ -1,6 +1,7 @@
 package com.basicframework.module.infra.framework.web.config;
 
 import com.basicframework.framework.swagger.config.BasicFrameworkSwaggerAutoConfiguration;
+import com.basicframework.framework.web.config.WebProperties;
 import org.springdoc.core.models.GroupedOpenApi;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -16,7 +17,7 @@ public class InfraWebConfiguration {
      * infra 模块的 API 分组
      */
     @Bean
-    public GroupedOpenApi infraGroupedOpenApi() {
-        return BasicFrameworkSwaggerAutoConfiguration.buildGroupedOpenApi("infra");
+    public GroupedOpenApi infraGroupedOpenApi(WebProperties webProperties) {
+        return BasicFrameworkSwaggerAutoConfiguration.buildGroupedOpenApi("infra", webProperties);
     }
 }

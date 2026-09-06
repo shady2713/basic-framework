@@ -10,6 +10,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
+import lombok.ToString;
 
 @Schema(description = "管理后台 - 部门创建/修改 Request VO")
 @Data
@@ -36,11 +37,13 @@ public class DeptSaveReqVO {
 
     @Schema(description = "联系电话", example = "15601691000")
     @Mobile
+    @ToString.Exclude
     private String phone;
 
     @Schema(description = "邮箱", example = "basicframework@example.com")
     @EmailEx
     @Size(max = 50, message = "邮箱长度不能超过 50 个字符")
+    @ToString.Exclude
     private String email;
 
     @Schema(description = "状态，参见 CommonStatusEnum 枚举", requiredMode = Schema.RequiredMode.REQUIRED, example = "1")

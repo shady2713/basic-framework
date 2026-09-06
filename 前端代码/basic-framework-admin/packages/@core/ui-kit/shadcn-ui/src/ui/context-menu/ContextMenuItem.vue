@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { ContextMenuItemEmits, ContextMenuItemProps } from 'reka-ui';
 
+import type { HTMLAttributes } from 'vue';
+
 import { computed } from 'vue';
 
 import { cn } from '@vben-core/shared/utils';
@@ -8,7 +10,7 @@ import { cn } from '@vben-core/shared/utils';
 import { ContextMenuItem, useForwardPropsEmits } from 'reka-ui';
 
 const props = defineProps<
-  ContextMenuItemProps & { class?: any; inset?: boolean }
+  ContextMenuItemProps & { class?: HTMLAttributes['class']; inset?: boolean }
 >();
 const emits = defineEmits<ContextMenuItemEmits>();
 

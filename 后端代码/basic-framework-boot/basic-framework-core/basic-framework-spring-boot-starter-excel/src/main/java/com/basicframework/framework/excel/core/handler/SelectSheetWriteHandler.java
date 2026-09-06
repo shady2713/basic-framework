@@ -24,7 +24,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.hssf.usermodel.HSSFDataValidation;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddressList;
@@ -33,7 +32,6 @@ import org.apache.poi.ss.util.CellRangeAddressList;
  * 基于固定 sheet 实现下拉框
  *
  */
-@Slf4j
 public class SelectSheetWriteHandler implements SheetWriteHandler {
 
     /**

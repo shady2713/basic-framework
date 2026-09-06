@@ -18,7 +18,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 /**
  * 权限校验服务单元测试
  *
- * 覆盖 hasAnyPermissions/hasAnyRoles 的登录用户代理查询，以及未登录、跳过校验和权限缺失边界。
+ * 覆盖 hasAnyPermissions/hasAnyRoles 的登录用户代理查询，以及未登录和权限缺失边界。
  * SecurityFrameworkUtils 为静态安全上下文，用 mockStatic。
  */
 @ExtendWith(MockitoExtension.class)
@@ -52,16 +52,6 @@ class SecurityFrameworkServiceImplTest {
         utils.when(SecurityFrameworkUtils::getLoginUserId).thenReturn(null);
 
         assertThat(newService().hasAnyPermissions("system:user:query")).isFalse();
-        verify(permissionApi, never())
-                .hasAnyPermissions(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
-    }
-
-    @Test
-    void hasAnyPermissions_trueWhenPermissionCheckSkipped() {
-        utils = mockStatic(SecurityFrameworkUtils.class);
-        utils.when(SecurityFrameworkUtils::skipPermissionCheck).thenReturn(true);
-
-        assertThat(newService().hasAnyPermissions("anything")).isTrue();
         verify(permissionApi, never())
                 .hasAnyPermissions(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }

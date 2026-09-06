@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { NumberFieldDecrementProps } from 'reka-ui';
 
+import type { HTMLAttributes } from 'vue';
+
 import { computed } from 'vue';
 
 import { cn } from '@vben-core/shared/utils';
@@ -8,7 +10,9 @@ import { cn } from '@vben-core/shared/utils';
 import { Minus } from 'lucide-vue-next';
 import { NumberFieldDecrement, useForwardProps } from 'reka-ui';
 
-const props = defineProps<NumberFieldDecrementProps & { class?: any }>();
+const props = defineProps<
+  NumberFieldDecrementProps & { class?: HTMLAttributes['class'] }
+>();
 
 const delegatedProps = computed(() => {
   const { class: _, ...delegated } = props;

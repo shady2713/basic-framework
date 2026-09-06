@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { DialogContentEmits, DialogContentProps } from 'reka-ui';
 
+import type { HTMLAttributes } from 'vue';
+
 import type { SheetVariants } from './sheet';
 
 import { computed, ref } from 'vue';
@@ -14,7 +16,7 @@ import SheetOverlay from './SheetOverlay.vue';
 
 interface SheetContentProps extends DialogContentProps {
   appendTo?: HTMLElement | string;
-  class?: any;
+  class?: HTMLAttributes['class'];
   modal?: boolean;
   open?: boolean;
   overlayBlur?: number;

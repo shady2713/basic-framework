@@ -1,17 +1,13 @@
 package com.basicframework.framework.apilog.core.interceptor;
 
-import cn.hutool.core.io.FileUtil;
-import cn.hutool.core.io.resource.ResourceUtil;
+import static com.basicframework.framework.web.core.util.SensitiveDataSanitizer.sanitizeRequestPath;
+
 import cn.hutool.core.util.StrUtil;
 import com.basicframework.framework.common.util.servlet.ServletUtils;
 import com.basicframework.framework.common.util.spring.SpringUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import java.lang.reflect.Method;
-import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.stream.IntStream;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.StopWatch;
 import org.springframework.web.method.HandlerMethod;
@@ -41,13 +37,12 @@ public class ApiAccessLogInterceptor implements HandlerInterceptor {
             String requestBody = ServletUtils.isJsonRequest(request) ? ServletUtils.getBody(request) : null;
             log.info(
                     "[preHandle][开始请求 URL({}) queryCount({}) bodyLength({})]",
-                    request.getRequestURI(),
+                    sanitizeRequestPath(request),
                     queryString.size(),
                     StrUtil.length(requestBody));
             StopWatch stopWatch = new StopWatch();
             stopWatch.start();
             request.setAttribute(ATTRIBUTE_STOP_WATCH, stopWatch);
-            printHandlerMethodPosition(handlerMethod);
         }
         return true;
     }
@@ -60,32 +55,9 @@ public class ApiAccessLogInterceptor implements HandlerInterceptor {
             stopWatch.stop();
             log.info(
                     "[afterCompletion][完成请求 URL({}) status({}) 耗时({} ms)]",
-                    request.getRequestURI(),
+                    sanitizeRequestPath(request),
                     response.getStatus(),
                     stopWatch.getTotalTimeMillis());
-        }
-    }
-
-    private void printHandlerMethodPosition(HandlerMethod handlerMethod) {
-        if (handlerMethod == null) {
-            return;
-        }
-        Method method = handlerMethod.getMethod();
-        Class<?> clazz = method.getDeclaringClass();
-        try {
-            List<String> clazzContents = FileUtil.readUtf8Lines(
-                    ResourceUtil.getResource(null, clazz).getPath().replace("/target/classes/", "/src/main/java/")
-                            + clazz.getSimpleName() + ".java");
-            Optional<Integer> lineNumber = IntStream.range(0, clazzContents.size())
-                    .filter(i -> clazzContents.get(i).contains(" " + method.getName() + "("))
-                    .mapToObj(i -> i + 1)
-                    .findFirst();
-            if (!lineNumber.isPresent()) {
-                return;
-            }
-            log.debug("Controller 方法路径：{}({}.java:{})", clazz.getName(), clazz.getSimpleName(), lineNumber.get());
-        } catch (Exception ignore) {
-            // 忽略异常。原因：仅仅打印，非重要逻辑
         }
     }
 }

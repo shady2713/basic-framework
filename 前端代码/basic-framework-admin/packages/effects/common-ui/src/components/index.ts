@@ -5,7 +5,6 @@ export * from './card/summary-card';
 export * from './col-page';
 export * from './content-wrap';
 export * from './count-to';
-export * from './doc-alert';
 export * from './ellipsis-text';
 export * from './icon-picker';
 export * from './iframe';

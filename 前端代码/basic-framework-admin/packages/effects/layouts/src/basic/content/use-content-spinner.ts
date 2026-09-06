@@ -1,47 +1,88 @@
-import { computed, ref } from 'vue';
+import type { RouteLocationNormalized } from 'vue-router';
+
+import { computed, onScopeDispose, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { preferences } from '@vben/preferences';
 
-function useContentSpinner() {
-  const spinning = ref(false);
-  const startTime = ref(0);
-  const router = useRouter();
-  const minShowTime = 500; // 最小显示时间
-  const enableLoading = computed(() => preferences.transition.loading);
+const MINIMUM_VISIBLE_TIME_MS = 500;
 
-  // 结束加载动画
-  const onEnd = () => {
-    if (!enableLoading.value) {
+function useContentSpinner() {
+  const router = useRouter();
+  const spinning = ref(false);
+  const enableLoading = computed(() => preferences.transition.loading);
+  const pendingRoutes = new Set<RouteLocationNormalized>();
+
+  let hideTimer: ReturnType<typeof setTimeout> | undefined;
+  let visibleSince = 0;
+
+  function clearHideTimer() {
+    if (hideTimer) {
+      clearTimeout(hideTimer);
+      hideTimer = undefined;
+    }
+  }
+
+  function hide() {
+    clearHideTimer();
+    spinning.value = false;
+    visibleSince = 0;
+  }
+
+  function start() {
+    clearHideTimer();
+    if (!spinning.value) {
+      visibleSince = performance.now();
+      spinning.value = true;
+    }
+  }
+
+  function finish() {
+    if (!spinning.value || pendingRoutes.size > 0) {
       return;
     }
-    const processTime = performance.now() - startTime.value;
-    if (processTime < minShowTime) {
-      setTimeout(() => {
-        spinning.value = false;
-      }, minShowTime - processTime);
-    } else {
-      spinning.value = false;
-    }
-  };
 
-  // 路由前置守卫
-  router.beforeEach((to) => {
-    if (to.meta.loaded || !enableLoading.value || to.meta.iframeSrc) {
-      return true;
+    const remainingTime =
+      MINIMUM_VISIBLE_TIME_MS - (performance.now() - visibleSince);
+    if (remainingTime <= 0) {
+      hide();
+      return;
     }
-    startTime.value = performance.now();
-    spinning.value = true;
+
+    hideTimer = setTimeout(hide, remainingTime);
+  }
+
+  function shouldTrack(route: RouteLocationNormalized) {
+    return enableLoading.value && !route.meta.loaded && !route.meta.iframeSrc;
+  }
+
+  const removeBeforeGuard = router.beforeEach((to) => {
+    if (shouldTrack(to)) {
+      pendingRoutes.add(to);
+      start();
+    }
     return true;
   });
 
-  // 路由后置守卫
-  router.afterEach((to) => {
-    if (to.meta.loaded || !enableLoading.value || to.meta.iframeSrc) {
-      return true;
+  const removeAfterHook = router.afterEach((to) => {
+    if (pendingRoutes.delete(to)) {
+      finish();
     }
-    onEnd();
-    return true;
+  });
+
+  const stopPreferenceWatch = watch(enableLoading, (enabled) => {
+    if (!enabled) {
+      pendingRoutes.clear();
+      hide();
+    }
+  });
+
+  onScopeDispose(() => {
+    removeBeforeGuard();
+    removeAfterHook();
+    stopPreferenceWatch();
+    pendingRoutes.clear();
+    hide();
   });
 
   return { spinning };

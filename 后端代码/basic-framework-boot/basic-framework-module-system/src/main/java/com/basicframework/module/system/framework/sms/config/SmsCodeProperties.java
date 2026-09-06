@@ -1,5 +1,6 @@
 package com.basicframework.module.system.framework.sms.config;
 
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import java.time.Duration;
 import lombok.Data;
@@ -26,4 +27,11 @@ public class SmsCodeProperties {
      */
     @NotNull(message = "每日发送最大数量不能为空")
     private Integer sendMaximumQuantityPerDay;
+
+    /**
+     * 校验失败达到该次数后，作废当前最新验证码，阻断对 6 位短码的持续猜测
+     */
+    @NotNull(message = "校验失败最大次数不能为空")
+    @Min(1)
+    private Integer maxValidateFailures = 5;
 }

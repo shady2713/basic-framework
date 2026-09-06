@@ -1,6 +1,6 @@
 <configuration>
     <!-- %tid：SkyWalking traceId，由 apm-toolkit-logback-1.x 提供；未挂 agent 时输出 N/A -->
-    <conversionRule conversionWord="tid" converterClass="org.apache.skywalking.apm.toolkit.log.logback.v1.x.LogbackPatternConverter"/>
+    <conversionRule conversionWord="tid" class="org.apache.skywalking.apm.toolkit.log.logback.v1.x.LogbackPatternConverter"/>
 
     <!-- 格式化输出：%d 表示日期，%thread 表示线程名，%-5level：级别从左显示 5 个字符宽度，%msg：日志消息，%n是换行符 -->
     <property name="CONSOLE_LOG_PATTERN" value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [%tid] %highlight(%-5level) %cyan(%logger{50}:%L) - %msg%n"/>
@@ -26,6 +26,8 @@
                 <fileNamePattern>${LOG_FILE}.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
                 <maxHistory>30</maxHistory>
                 <maxFileSize>10MB</maxFileSize>
+                <!-- 归档总量上限：maxHistory×maxFileSize 只限单文件与天数，需总量兜底防磁盘打满 -->
+                <totalSizeCap>1GB</totalSizeCap>
             </rollingPolicy>
         </appender>
         <appender name="ASYNC" class="ch.qos.logback.classic.AsyncAppender">
@@ -57,6 +59,8 @@
                 <fileNamePattern>${LOG_FILE}.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
                 <maxHistory>60</maxHistory>
                 <maxFileSize>50MB</maxFileSize>
+                <!-- 归档总量上限：maxHistory×maxFileSize 只限单文件与天数，需总量兜底防磁盘打满 -->
+                <totalSizeCap>5GB</totalSizeCap>
             </rollingPolicy>
         </appender>
         <appender name="ASYNC_JSON" class="ch.qos.logback.classic.AsyncAppender">

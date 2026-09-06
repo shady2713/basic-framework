@@ -7,9 +7,11 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 
 @Schema(description = "管理后台 - 账号密码登录 Request VO")
 @Data
+@ToString(exclude = {"password"})
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder

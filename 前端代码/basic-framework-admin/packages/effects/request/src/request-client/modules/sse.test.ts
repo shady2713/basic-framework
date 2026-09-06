@@ -1,4 +1,5 @@
 import type { RequestClient } from '../request-client';
+import type { InterceptorRequestConfig } from '../types';
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -12,7 +13,7 @@ beforeEach(() => {
     'TextDecoder',
     class {
       private decoder = new OriginalTextDecoder();
-      decode(value: Uint8Array, opts?: any) {
+      decode(value: Uint8Array, opts?: TextDecodeOptions) {
         return this.decoder.decode(value, opts);
       }
     },
@@ -28,6 +29,7 @@ const createFetchMock = (chunks: string[], ok = true) => {
     status: ok ? 200 : 500,
     body: {
       getReader: () => ({
+        releaseLock: vi.fn(),
         read: async () => {
           if (index < chunks.length) {
             return { done: false, value: encoder.encode(chunks[index++]) };
@@ -41,19 +43,17 @@ const createFetchMock = (chunks: string[], ok = true) => {
 
 describe('sSE', () => {
   let client: RequestClient;
+  let prepareRequestConfig: ReturnType<typeof vi.fn>;
   let sse: SSE;
 
   beforeEach(() => {
     vi.restoreAllMocks();
+    prepareRequestConfig = vi.fn(
+      async (config: InterceptorRequestConfig) => config,
+    );
     client = {
       getBaseUrl: () => 'http://localhost',
-      instance: {
-        interceptors: {
-          request: {
-            handlers: [],
-          },
-        },
-      },
+      prepareRequestConfig,
     } as unknown as RequestClient;
     sse = new SSE(client);
   });
@@ -94,13 +94,13 @@ describe('sSE', () => {
   });
 
   it('should apply request interceptors', async () => {
-    const interceptor = vi.fn(async (config) => {
-      config.headers['x-test'] = 'intercepted';
-      return config;
-    });
-    (client.instance.interceptors.request as any).handlers.push({
-      fulfilled: interceptor,
-    });
+    prepareRequestConfig.mockImplementation(
+      async (config: InterceptorRequestConfig) => {
+        config.headers.set('x-test', 'intercepted');
+        return config;
+      },
+    );
+    const interceptor = prepareRequestConfig;
 
     // 创建 fetch mock，并挂到全局
     const fetchMock = createFetchMock(['data']);
@@ -126,6 +126,33 @@ describe('sSE', () => {
     const headers = init?.headers as Headers;
     expect(headers?.get('x-test')).toBe('intercepted');
     expect(headers?.get('accept')).toBe('text/event-stream');
+  });
+
+  it('serializes JSON bodies and rejects unsupported body values', async () => {
+    prepareRequestConfig.mockImplementation(
+      async (config: InterceptorRequestConfig) => {
+        config.headers.set('content-type', 'application/json');
+        return config;
+      },
+    );
+    const fetchMock = createFetchMock([]);
+    vi.stubGlobal('fetch', fetchMock);
+
+    await sse.postSSE('/sse', { name: 'framework' });
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost/sse',
+      expect.objectContaining({ body: '{"name":"framework"}' }),
+    );
+
+    prepareRequestConfig.mockImplementation(
+      async (config: InterceptorRequestConfig) => {
+        config.headers.delete('content-type');
+        return config;
+      },
+    );
+    await expect(sse.postSSE('/sse', { name: 'framework' })).rejects.toThrow(
+      'SSE request body must be a valid BodyInit value',
+    );
   });
 
   it('should throw error when no reader', async () => {

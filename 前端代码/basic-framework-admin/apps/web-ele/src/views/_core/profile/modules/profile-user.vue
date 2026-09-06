@@ -12,6 +12,7 @@ import { ElDescriptions, ElDescriptionsItem, ElTooltip } from 'element-plus';
 import { updateUserProfile } from '#/api/system/user/profile';
 import { CropperAvatar } from '#/components/cropper';
 import { useUpload } from '#/components/upload/use-upload';
+import { resolveUploadUrl } from '#/components/upload/use-upload-core';
 
 const props = defineProps<{
   profile?: SystemUserProfileApi.UserProfileRespVO;
@@ -33,10 +34,13 @@ async function handelUpload({
   filename: string;
 }) {
   // 1. 上传头像，获取 URL
-  const { httpRequest } = useUpload();
+  const { httpRequest } = useUpload(undefined, 'global', true);
   // 将 Blob 转换为 File
   const fileObj = new File([file], filename, { type: file.type });
-  const avatar = await httpRequest(fileObj);
+  const avatar = resolveUploadUrl(await httpRequest(fileObj));
+  if (!avatar) {
+    throw new Error('头像上传接口未返回 URL');
+  }
   // 2. 更新用户头像
   await updateUserProfile({ avatar });
 }

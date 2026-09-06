@@ -1,12 +1,13 @@
 <script lang="ts" setup>
 import type { Arrayable } from '@vueuse/core';
-import type { FlattenedItem } from 'reka-ui';
+import type { FlattenedItem, TreeItemEmits } from 'reka-ui';
 
-import type { ClassType, Recordable } from '@vben-core/typings';
+import type { ClassType } from '@vben-core/typings';
 
-import type { TreeProps } from './types';
+import type { FlattenedTreeNode } from './model';
+import type { TreeKey, TreeNode, TreeProps } from './types';
 
-import { onMounted, ref, watch, watchEffect } from 'vue';
+import { computed, ref, watch, watchEffect } from 'vue';
 
 import { ChevronRight, IconifyIcon } from '@vben-core/icons';
 import { cn, get } from '@vben-core/shared/utils';
@@ -14,91 +15,75 @@ import { cn, get } from '@vben-core/shared/utils';
 import { TreeItem, TreeRoot } from 'reka-ui';
 
 import { Checkbox } from '../checkbox';
+import { flattenTree, getTreeNodeChildren, getTreeNodeKey } from './model';
+import { getEnabledParentKeys } from './selection';
 import { treePropsDefaults } from './types';
 
 const props = withDefaults(defineProps<TreeProps>(), treePropsDefaults());
 
 const emits = defineEmits<{
-  expand: [value: FlattenedItem<Recordable<any>>];
-  select: [value: FlattenedItem<Recordable<any>>];
+  expand: [value: FlattenedItem<TreeNode>];
+  select: [value: FlattenedItem<TreeNode>];
 }>();
 
-interface InnerFlattenItem<T = Recordable<any>, P = number | string> {
-  hasChildren: boolean;
-  id: P;
-  level: number;
-  parentId: null | P;
-  parents: P[];
-  value: T;
+type TreeSelectEvent = TreeItemEmits<TreeNode>['select'][0];
+type TreeToggleEvent = TreeItemEmits<TreeNode>['toggle'][0];
+
+function getNodeKey(item: TreeNode): TreeKey {
+  return getTreeNodeKey(item, props.valueField);
 }
 
-function flatten<T = Recordable<any>, P = number | string>(
-  items: T[],
-  childrenField: string = 'children',
-  level = 0,
-  parentId: null | P = null,
-  parents: P[] = [],
-): InnerFlattenItem<T, P>[] {
-  const result: InnerFlattenItem<T, P>[] = [];
-  items.forEach((item) => {
-    const children = get(item, childrenField) as Array<T>;
-    const id = get(item, props.valueField) as P;
-    const val: InnerFlattenItem<T, P> = {
-      hasChildren: Array.isArray(children) && children.length > 0,
-      id,
-      level,
-      parentId,
-      parents: [...parents],
-      value: item,
-    };
-    result.push(val);
-    if (val.hasChildren)
-      result.push(
-        ...flatten(children, childrenField, level + 1, id, [...parents, id]),
-      );
-  });
-  return result;
+function getNodeChildren(item: TreeNode): TreeNode[] | undefined {
+  return getTreeNodeChildren(item, props.childrenField);
 }
 
-const flattenData = ref<Array<InnerFlattenItem>>([]);
-const modelValue = defineModel<Arrayable<number | string>>();
-const expanded = ref<Array<number | string>>(props.defaultExpandedKeys ?? []);
+function getNodeIcon(item: TreeNode): string | undefined {
+  const icon = get(item, props.iconField);
+  return typeof icon === 'string' ? icon : undefined;
+}
+
+const flattenData = ref<FlattenedTreeNode[]>([]);
+const modelValue = defineModel<Arrayable<TreeKey>>();
+const normalizedDefaultExpandedKeys = computed(() =>
+  (props.defaultExpandedKeys ?? []).map(String),
+);
+const expanded = ref<string[]>(normalizedDefaultExpandedKeys.value);
 
 // 监听 defaultExpandedKeys 变化，支持外部动态控制展开
 watch(
   () => props.defaultExpandedKeys,
-  (newVal) => {
-    expanded.value = newVal ?? [];
+  () => {
+    expanded.value = normalizedDefaultExpandedKeys.value;
   },
   { deep: true },
 );
 
-const treeValue = ref();
-let lastTreeData: any = null;
+const treeValue = ref<Arrayable<TreeNode>>();
 
-onMounted(() => {
-  watchEffect(() => {
-    flattenData.value = flatten(props.treeData, props.childrenField);
-    updateTreeValue();
-
-    // 只在 treeData 变化时执行展开
-    const currentTreeData = JSON.stringify(props.treeData);
-    if (lastTreeData !== currentTreeData) {
-      lastTreeData = currentTreeData;
-      if (
-        props.defaultExpandedLevel !== undefined &&
-        props.defaultExpandedLevel > 0
-      ) {
-        expandToLevel(props.defaultExpandedLevel);
-      }
-    }
+watchEffect(() => {
+  flattenData.value = flattenTree(props.treeData, {
+    childrenField: props.childrenField,
+    valueField: props.valueField,
   });
+  updateTreeValue();
 });
 
-function getItemByValue(value: number | string) {
-  return flattenData.value.find(
-    (item) => get(item.value, props.valueField) === value,
-  )?.value;
+watch(
+  [() => props.treeData, () => props.defaultExpandedLevel],
+  () => {
+    if (
+      props.defaultExpandedLevel !== undefined &&
+      props.defaultExpandedLevel > 0
+    ) {
+      expandToLevel(props.defaultExpandedLevel);
+    }
+  },
+  { deep: true, immediate: true },
+);
+
+function getItemByValue(value: TreeKey) {
+  return flattenData.value.find((item) => getNodeKey(item.value) === value)
+    ?.value;
 }
 
 function updateTreeValue() {
@@ -113,7 +98,9 @@ function updateTreeValue() {
         const item = getItemByValue(v);
         return item && !get(item, props.disabledField);
       });
-      treeValue.value = filteredValues.map((v) => getItemByValue(v));
+      treeValue.value = filteredValues
+        .map((v) => getItemByValue(v))
+        .filter((item): item is TreeNode => item !== undefined);
 
       if (filteredValues.length !== val.length) {
         modelValue.value = filteredValues;
@@ -130,13 +117,13 @@ function updateTreeValue() {
   }
 }
 
-function updateModelValue(val: Arrayable<Recordable<any>>) {
+function updateModelValue(val: Arrayable<TreeNode>) {
   if (Array.isArray(val)) {
     const filteredVal = val.filter((v) => !get(v, props.disabledField));
-    modelValue.value = filteredVal.map((v) => get(v, props.valueField));
+    modelValue.value = filteredVal.map((item) => getNodeKey(item));
   } else {
     if (val && !get(val, props.disabledField)) {
-      modelValue.value = get(val, props.valueField);
+      modelValue.value = getNodeKey(val);
     }
   }
 }
@@ -145,24 +132,25 @@ function expandToLevel(level: number) {
   const keys: string[] = [];
   flattenData.value.forEach((item) => {
     if (item.level <= level - 1) {
-      keys.push(get(item.value, props.valueField));
+      keys.push(String(getNodeKey(item.value)));
     }
   });
   expanded.value = keys;
 }
 
-function collapseNodes(value: Arrayable<number | string>) {
-  const keys = new Set(Array.isArray(value) ? value : [value]);
+function collapseNodes(value: Arrayable<TreeKey>) {
+  const keys = new Set((Array.isArray(value) ? value : [value]).map(String));
   expanded.value = expanded.value.filter((key) => !keys.has(key));
 }
 
-function expandNodes(value: Arrayable<number | string>) {
+function expandNodes(value: Arrayable<TreeKey>) {
   const keys = [...(Array.isArray(value) ? value : [value])];
   keys.forEach((key) => {
-    if (expanded.value.includes(key)) return;
+    const expandedKey = String(key);
+    if (expanded.value.includes(expandedKey)) return;
     const item = getItemByValue(key);
     if (item) {
-      expanded.value.push(key);
+      expanded.value.push(expandedKey);
     }
   });
 }
@@ -170,7 +158,7 @@ function expandNodes(value: Arrayable<number | string>) {
 function expandAll() {
   expanded.value = flattenData.value
     .filter((item) => item.hasChildren)
-    .map((item) => get(item.value, props.valueField));
+    .map((item) => String(getNodeKey(item.value)));
 }
 
 function collapseAll() {
@@ -183,7 +171,7 @@ function checkAll() {
     ...new Set(
       flattenData.value
         .filter((item) => !get(item.value, props.disabledField))
-        .map((item) => get(item.value, props.valueField)),
+        .map((item) => getNodeKey(item.value)),
     ),
   ];
   updateTreeValue();
@@ -195,14 +183,14 @@ function unCheckAll() {
   updateTreeValue();
 }
 
-function isNodeDisabled(item: FlattenedItem<Recordable<any>>) {
-  return props.disabled || get(item.value, props.disabledField);
+function isNodeDisabled(item: FlattenedItem<TreeNode>) {
+  return props.disabled || Boolean(get(item.value, props.disabledField));
 }
 
-function onToggle(item: FlattenedItem<Recordable<any>>) {
+function onToggle(item: FlattenedItem<TreeNode>) {
   emits('expand', item);
 }
-function onSelect(item: FlattenedItem<Recordable<any>>, isSelected: boolean) {
+function onSelect(item: FlattenedItem<TreeNode>, isSelected: boolean) {
   if (isNodeDisabled(item)) {
     return;
   }
@@ -213,18 +201,18 @@ function onSelect(item: FlattenedItem<Recordable<any>>, isSelected: boolean) {
     props.autoCheckParent &&
     isSelected
   ) {
-    flattenData.value
-      .find((i) => {
-        return (
-          get(i.value, props.valueField) === get(item.value, props.valueField)
-        );
-      })
-      ?.parents?.filter((item) => !get(item, props.disabledField))
-      ?.forEach((p) => {
-        if (Array.isArray(modelValue.value) && !modelValue.value.includes(p)) {
-          modelValue.value.push(p);
-        }
-      });
+    const parents = flattenData.value.find(
+      (entry) => entry.id === getNodeKey(item.value),
+    )?.parents;
+    getEnabledParentKeys(
+      parents ?? [],
+      flattenData.value,
+      props.disabledField,
+    ).forEach((p) => {
+      if (Array.isArray(modelValue.value) && !modelValue.value.includes(p)) {
+        modelValue.value.push(p);
+      }
+    });
   }
   if (
     !props.checkStrictly &&
@@ -232,33 +220,29 @@ function onSelect(item: FlattenedItem<Recordable<any>>, isSelected: boolean) {
     props.autoCheckParent &&
     !isSelected
   ) {
-    flattenData.value
-      .find((i) => {
-        return (
-          get(i.value, props.valueField) === get(item.value, props.valueField)
-        );
-      })
-      ?.parents?.filter((item) => !get(item, props.disabledField))
-      ?.toReversed()
+    const parents = flattenData.value.find(
+      (entry) => entry.id === getNodeKey(item.value),
+    )?.parents;
+    getEnabledParentKeys(parents ?? [], flattenData.value, props.disabledField)
+      .toReversed()
       .forEach((p) => {
         const children = flattenData.value.filter((i) => {
           return (
             i.parents.length > 0 &&
             i.parents.includes(p) &&
-            i.id !== item._id &&
+            i.id !== getNodeKey(item.value) &&
             i.parentId === p
           );
         });
-        if (Array.isArray(modelValue.value)) {
+        const selectedKeys = modelValue.value;
+        if (Array.isArray(selectedKeys)) {
           const hasSelectedChild = children.some((child) =>
-            (modelValue.value as unknown[]).includes(
-              get(child.value, props.valueField),
-            ),
+            selectedKeys.includes(getNodeKey(child.value)),
           );
           if (!hasSelectedChild) {
-            const index = modelValue.value.indexOf(p);
+            const index = selectedKeys.indexOf(p);
             if (index !== -1) {
-              modelValue.value.splice(index, 1);
+              selectedKeys.splice(index, 1);
             }
           }
         }
@@ -281,12 +265,12 @@ defineExpose({
 </script>
 <template>
   <TreeRoot
-    :get-key="(item) => get(item, valueField)"
-    :get-children="(item) => get(item, childrenField)"
+    :get-key="(item) => String(getNodeKey(item))"
+    :get-children="getNodeChildren"
     :items="treeData"
     :model-value="treeValue"
-    v-model:expanded="expanded as string[]"
-    :default-expanded="defaultExpandedKeys as string[]"
+    v-model:expanded="expanded"
+    :default-expanded="normalizedDefaultExpandedKeys"
     :propagate-select="!checkStrictly"
     :multiple="multiple"
     :disabled="disabled"
@@ -358,7 +342,7 @@ defineExpose({
           })
         "
         @select="
-          (event: any) => {
+          (event: TreeSelectEvent) => {
             if (isNodeDisabled(item)) {
               event.preventDefault();
               event.stopPropagation();
@@ -371,7 +355,7 @@ defineExpose({
           }
         "
         @toggle="
-          (event: any) => {
+          (event: TreeToggleEvent) => {
             if (event.detail.originalEvent.type === 'click') {
               event.preventDefault();
             }
@@ -381,11 +365,7 @@ defineExpose({
         class="tree-node focus:ring-grass8 my-0.5 flex items-center rounded p-1 outline-none focus:ring-2"
       >
         <ChevronRight
-          v-if="
-            item.hasChildren &&
-            Array.isArray(item.value[childrenField]) &&
-            item.value[childrenField].length > 0
-          "
+          v-if="item.hasChildren"
           class="size-4 cursor-pointer text-foreground/80 transition hover:text-foreground"
           :class="{ 'rotate-90': isExpanded }"
           @click.stop="
@@ -429,8 +409,8 @@ defineExpose({
             <slot name="node" v-bind="item">
               <IconifyIcon
                 class="size-4"
-                v-if="showIcon && get(item.value, iconField)"
-                :icon="get(item.value, iconField)"
+                v-if="showIcon && getNodeIcon(item.value)"
+                :icon="getNodeIcon(item.value)!"
               />
               {{ get(item.value, labelField) }}
             </slot>

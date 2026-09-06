@@ -37,6 +37,7 @@ public class SmsChannelProperties {
      * 短信 API 的账号
      */
     @NotEmpty(message = "短信 API 的账号不能为空")
+    @ToString.Exclude
     private String apiKey;
     /**
      * 短信 API 的密钥

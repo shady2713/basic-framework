@@ -1,3 +1,5 @@
+import type { RequestClient } from './request-client';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -21,7 +23,13 @@ describe('defaultResponseInterceptor', () => {
       data: { code: 0, data: { id: 1 } },
       status: 200,
     };
-    expect(interceptor.fulfilled?.(response as any)).toEqual({ id: 1 });
+    expect(
+      interceptor.fulfilled?.(
+        response as unknown as Parameters<
+          NonNullable<typeof interceptor.fulfilled>
+        >[0],
+      ),
+    ).toEqual({ id: 1 });
   });
 
   it('still rejects a 2xx response whose body code is not the success code', () => {
@@ -30,14 +38,18 @@ describe('defaultResponseInterceptor', () => {
       data: { code: 1_000_000_001, msg: 'boom' },
       status: 200,
     };
-    let thrown: any;
+    let thrown: unknown;
     try {
-      interceptor.fulfilled?.(response as any);
+      interceptor.fulfilled?.(
+        response as unknown as Parameters<
+          NonNullable<typeof interceptor.fulfilled>
+        >[0],
+      );
     } catch (error) {
       thrown = error;
     }
     expect(thrown).toBeDefined();
-    expect(thrown.response).toBe(response);
+    expect(thrown).toEqual(expect.objectContaining({ response }));
   });
 });
 
@@ -47,11 +59,11 @@ describe('authenticateResponseInterceptor', () => {
     const doRefreshToken = vi.fn();
     const client = {
       isRefreshing: false,
-      refreshTokenQueue: [],
+      refreshTokenQueue: [] as RequestClient['refreshTokenQueue'],
       request: vi.fn(),
     };
     const interceptor = authenticateResponseInterceptor({
-      client: client as any,
+      client: client as unknown as RequestClient,
       doReAuthenticate,
       doRefreshToken,
       enableRefreshToken,
@@ -92,6 +104,36 @@ describe('authenticateResponseInterceptor', () => {
 
     expect(doReAuthenticate).toHaveBeenCalledTimes(1);
     expect(client.isRefreshing).toBe(false);
+  });
+
+  it('rejects every queued request with its original 401 when refresh fails', async () => {
+    const { client, doRefreshToken, interceptor } = buildInterceptor(true);
+    let rejectRefresh: ((reason: unknown) => void) | undefined;
+    doRefreshToken.mockReturnValue(
+      new Promise<string>((_resolve, reject) => {
+        rejectRefresh = reject;
+      }),
+    );
+    const firstError = {
+      config: { headers: {}, url: '/first' },
+      response: { status: 401 },
+    };
+    const secondError = {
+      config: { headers: {}, url: '/second' },
+      response: { status: 401 },
+    };
+
+    const firstRequest = interceptor.rejected?.(firstError);
+    await vi.waitFor(() => expect(client.isRefreshing).toBe(true));
+    const secondRequest = interceptor.rejected?.(secondError);
+    expect(client.refreshTokenQueue).toHaveLength(1);
+
+    rejectRefresh?.(new Error('refresh unavailable'));
+
+    await expect(firstRequest).rejects.toBe(firstError);
+    await expect(secondRequest).rejects.toBe(secondError);
+    expect(client.refreshTokenQueue).toHaveLength(0);
+    expect(client.request).not.toHaveBeenCalled();
   });
 });
 

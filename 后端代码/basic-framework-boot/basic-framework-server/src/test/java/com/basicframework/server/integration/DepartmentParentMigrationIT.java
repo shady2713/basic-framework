@@ -21,7 +21,9 @@ import org.testcontainers.utility.DockerImageName;
 class DepartmentParentMigrationIT {
 
     @Container
-    private static final MySQLContainer<?> MYSQL = new MySQLContainer<>(DockerImageName.parse("mysql:8.4.8"))
+    private static final MySQLContainer<?> MYSQL = new MySQLContainer<>(DockerImageName.parse(
+                            "mysql:8.4.11@sha256:b3b90af2a6552ae30c266fdb7d5dd55f3afb72404bb78d37fe8a23eb857fd3fb")
+                    .asCompatibleSubstituteFor("mysql"))
             .withDatabaseName("basic_framework")
             .withUsername("root")
             .withPassword("integration-only");

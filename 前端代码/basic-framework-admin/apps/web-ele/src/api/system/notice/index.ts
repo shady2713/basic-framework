@@ -7,10 +7,9 @@ export namespace SystemNoticeApi {
   export interface Notice {
     id?: number;
     title: string;
-    type: number;
+    type: 1 | 2;
     content: string;
     status: number;
-    remark: string;
     creator?: string;
     createTime?: Date;
   }

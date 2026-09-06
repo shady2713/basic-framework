@@ -1,6 +1,10 @@
 package com.basicframework.module.system.service.permission;
 
+import static com.basicframework.framework.common.exception.util.ServiceExceptionUtil.exception;
 import static com.basicframework.framework.common.util.collection.CollectionUtils.convertSet;
+import static com.basicframework.module.system.enums.ErrorCodeConstants.MENU_IS_DISABLE;
+import static com.basicframework.module.system.enums.ErrorCodeConstants.MENU_NOT_EXISTS;
+import static com.basicframework.module.system.enums.ErrorCodeConstants.ROLE_SUPER_ADMIN_OPERATION_FORBIDDEN;
 import static com.basicframework.module.system.enums.LogRecordConstants.*;
 import static com.basicframework.module.system.enums.session.UserSessionRevocationReasonEnum.ROLE_PERMISSION_CHANGED;
 import static com.basicframework.module.system.enums.session.UserSessionRevocationReasonEnum.USER_ROLE_CHANGED;
@@ -8,7 +12,6 @@ import static com.basicframework.module.system.enums.session.UserSessionRevocati
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.collection.CollectionUtil;
 import cn.hutool.core.util.ArrayUtil;
-import cn.hutool.extra.spring.SpringUtil;
 import com.basicframework.framework.common.enums.CommonStatusEnum;
 import com.basicframework.framework.common.util.collection.CollectionUtils;
 import com.basicframework.framework.datapermission.core.annotation.DataPermission;
@@ -21,6 +24,7 @@ import com.basicframework.module.system.dal.mysql.permission.RoleMenuMapper;
 import com.basicframework.module.system.dal.mysql.permission.UserRoleMapper;
 import com.basicframework.module.system.dal.redis.RedisKeyConstants;
 import com.basicframework.module.system.enums.permission.DataScopeEnum;
+import com.basicframework.module.system.enums.permission.RoleCodeEnum;
 import com.basicframework.module.system.event.session.UserSessionRevocationPublisher;
 import com.basicframework.module.system.service.dept.DeptService;
 import com.basicframework.module.system.service.user.AdminUserService;
@@ -28,10 +32,10 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.Sets;
 import com.mzt.logapi.starter.annotation.LogRecord;
-import jakarta.annotation.Resource;
 import java.util.*;
 import java.util.function.Supplier;
-import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
@@ -43,29 +47,24 @@ import org.springframework.transaction.annotation.Transactional;
  *
  */
 @Service
-@Slf4j
+@RequiredArgsConstructor
 public class PermissionServiceImpl implements PermissionService {
 
-    @Resource
-    private RoleMenuMapper roleMenuMapper;
+    private final RoleMenuMapper roleMenuMapper;
 
-    @Resource
-    private UserRoleMapper userRoleMapper;
+    private final UserRoleMapper userRoleMapper;
 
-    @Resource
-    private RoleService roleService;
+    private final RoleService roleService;
 
-    @Resource
-    private MenuService menuService;
+    private final MenuService menuService;
 
-    @Resource
-    private DeptService deptService;
+    private final DeptService deptService;
 
-    @Resource
-    private AdminUserService userService;
+    private final AdminUserService userService;
 
-    @Resource
-    private UserSessionRevocationPublisher sessionRevocationPublisher;
+    private final UserSessionRevocationPublisher sessionRevocationPublisher;
+
+    private final ObjectProvider<PermissionServiceImpl> selfProvider;
 
     @Override
     public boolean hasAnyPermissions(Long userId, String... permissions) {
@@ -152,7 +151,10 @@ public class PermissionServiceImpl implements PermissionService {
             subType = SYSTEM_PERMISSION_ASSIGN_ROLE_MENU_SUB_TYPE,
             bizNo = "{{#roleId}}",
             success = SYSTEM_PERMISSION_ASSIGN_ROLE_MENU_SUCCESS)
-    public void assignRoleMenu(Long roleId, Set<Long> menuIds) {
+    public void assignRoleMenu(Long operatorUserId, Long roleId, Set<Long> menuIds) {
+        roleService.validateRoleList(Collections.singleton(roleId));
+        validatePrivilegedRoleMutation(operatorUserId, Collections.singleton(roleId));
+        validateMenuList(menuIds);
         // 获得角色拥有菜单编号
         Set<Long> dbMenuIds = convertSet(roleMenuMapper.selectListByRoleId(roleId), RoleMenuDO::getMenuId);
         // 计算新增和删除的菜单编号
@@ -236,9 +238,14 @@ public class PermissionServiceImpl implements PermissionService {
             subType = SYSTEM_PERMISSION_ASSIGN_USER_ROLE_SUB_TYPE,
             bizNo = "{{#userId}}",
             success = SYSTEM_PERMISSION_ASSIGN_USER_ROLE_SUCCESS)
-    public void assignUserRole(Long userId, Set<Long> roleIds) {
+    public void assignUserRole(Long operatorUserId, Long userId, Set<Long> roleIds) {
+        userService.validateUserList(Collections.singleton(userId));
+        roleService.validateRoleList(roleIds);
         // 获得角色拥有角色编号
         Set<Long> dbRoleIds = convertSet(userRoleMapper.selectListByUserId(userId), UserRoleDO::getRoleId);
+        Set<Long> involvedRoleIds = new HashSet<>(dbRoleIds);
+        involvedRoleIds.addAll(CollUtil.emptyIfNull(roleIds));
+        validatePrivilegedRoleMutation(operatorUserId, involvedRoleIds);
         // 计算新增和删除的角色编号
         Set<Long> roleIdList = CollUtil.emptyIfNull(roleIds);
         Collection<Long> createRoleIds = CollUtil.subtract(roleIdList, dbRoleIds);
@@ -285,6 +292,30 @@ public class PermissionServiceImpl implements PermissionService {
         return convertSet(userRoleMapper.selectListByRoleIds(roleIds), UserRoleDO::getUserId);
     }
 
+    private void validateMenuList(Collection<Long> menuIds) {
+        if (CollUtil.isEmpty(menuIds)) {
+            return;
+        }
+        Map<Long, MenuDO> menuMap = CollectionUtils.convertMap(menuService.getMenuList(menuIds), MenuDO::getId);
+        menuIds.forEach(menuId -> {
+            MenuDO menu = menuMap.get(menuId);
+            if (menu == null) {
+                throw exception(MENU_NOT_EXISTS);
+            }
+            if (!CommonStatusEnum.ENABLE.getStatus().equals(menu.getStatus())) {
+                throw exception(MENU_IS_DISABLE, menu.getName());
+            }
+        });
+    }
+
+    /** 超级管理员绕过普通权限与数据范围，因此任何触及该角色的授权变更都要求操作者本身持有启用中的超级管理员角色。 */
+    private void validatePrivilegedRoleMutation(Long operatorUserId, Collection<Long> involvedRoleIds) {
+        if (roleService.hasAnySuperAdmin(involvedRoleIds)
+                && !hasAnyRoles(operatorUserId, RoleCodeEnum.SUPER_ADMIN.getCode())) {
+            throw exception(ROLE_SUPER_ADMIN_OPERATION_FORBIDDEN);
+        }
+    }
+
     /**
      * 获得用户拥有的角色，并且这些角色是开启状态的
      *
@@ -309,7 +340,9 @@ public class PermissionServiceImpl implements PermissionService {
             subType = SYSTEM_PERMISSION_ASSIGN_ROLE_DATA_SCOPE_SUB_TYPE,
             bizNo = "{{#roleId}}",
             success = SYSTEM_PERMISSION_ASSIGN_ROLE_DATA_SCOPE_SUCCESS)
-    public void assignRoleDataScope(Long roleId, Integer dataScope, Set<Long> dataScopeDeptIds) {
+    public void assignRoleDataScope(Long operatorUserId, Long roleId, Integer dataScope, Set<Long> dataScopeDeptIds) {
+        roleService.validateRoleList(Collections.singleton(roleId));
+        validatePrivilegedRoleMutation(operatorUserId, Collections.singleton(roleId));
         roleService.updateRoleDataScope(roleId, dataScope, dataScopeDeptIds);
     }
 
@@ -331,48 +364,32 @@ public class PermissionServiceImpl implements PermissionService {
                 Suppliers.memoize(() -> userService.getUser(userId).getDeptId());
         // 遍历每个角色，计算
         for (RoleDO role : roles) {
-            // 为空时，跳过
-            if (role.getDataScope() == null) {
-                continue;
+            DataScopeEnum dataScope = requireDataScope(role);
+            switch (dataScope) {
+                case ALL -> result.setAll(true);
+                case DEPT_CUSTOM -> {
+                    CollUtil.addAll(result.getDeptIds(), role.getDataScopeDeptIds());
+                    CollUtil.addAll(result.getDeptIds(), userDeptId.get());
+                }
+                case DEPT_ONLY -> CollectionUtils.addIfNotNull(result.getDeptIds(), userDeptId.get());
+                case DEPT_AND_CHILD -> {
+                    CollUtil.addAll(result.getDeptIds(), deptService.getChildDeptIdListFromCache(userDeptId.get()));
+                    CollUtil.addAll(result.getDeptIds(), userDeptId.get());
+                }
+                case SELF -> result.setSelf(true);
+                default -> throw new IllegalStateException("Unsupported data scope: " + dataScope);
             }
-            // 情况一，ALL
-            if (Objects.equals(role.getDataScope(), DataScopeEnum.ALL.getScope())) {
-                result.setAll(true);
-                continue;
-            }
-            // 情况二，DEPT_CUSTOM
-            if (Objects.equals(role.getDataScope(), DataScopeEnum.DEPT_CUSTOM.getScope())) {
-                CollUtil.addAll(result.getDeptIds(), role.getDataScopeDeptIds());
-                // 自定义可见部门时，保证可以看到自己所在的部门。否则，一些场景下可能会有问题。
-                // 例如说，登录时，基于 t_user 的 username 查询会可能被 dept_id 过滤掉
-                CollUtil.addAll(result.getDeptIds(), userDeptId.get());
-                continue;
-            }
-            // 情况三，DEPT_ONLY
-            if (Objects.equals(role.getDataScope(), DataScopeEnum.DEPT_ONLY.getScope())) {
-                CollectionUtils.addIfNotNull(result.getDeptIds(), userDeptId.get());
-                continue;
-            }
-            // 情况四，DEPT_DEPT_AND_CHILD
-            if (Objects.equals(role.getDataScope(), DataScopeEnum.DEPT_AND_CHILD.getScope())) {
-                CollUtil.addAll(result.getDeptIds(), deptService.getChildDeptIdListFromCache(userDeptId.get()));
-                // 添加本身部门编号
-                CollUtil.addAll(result.getDeptIds(), userDeptId.get());
-                continue;
-            }
-            // 情况五，SELF
-            if (Objects.equals(role.getDataScope(), DataScopeEnum.SELF.getScope())) {
-                result.setSelf(true);
-                continue;
-            }
-            // 未知情况，error log 即可
-            log.error(
-                    "[getDeptDataPermission][loginUserId({}) roleId({}) dataScope({}) 无法处理]",
-                    userId,
-                    role.getId(),
-                    role.getDataScope());
         }
         return result;
+    }
+
+    private DataScopeEnum requireDataScope(RoleDO role) {
+        DataScopeEnum dataScope = DataScopeEnum.fromScope(role.getDataScope());
+        if (dataScope == null) {
+            throw new IllegalStateException(
+                    "Role(" + role.getId() + ") has invalid data scope: " + role.getDataScope());
+        }
+        return dataScope;
     }
 
     /**
@@ -381,6 +398,6 @@ public class PermissionServiceImpl implements PermissionService {
      * @return 自己
      */
     private PermissionServiceImpl getSelf() {
-        return SpringUtil.getBean(getClass());
+        return selfProvider.getObject();
     }
 }

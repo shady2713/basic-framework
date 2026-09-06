@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { NotificationItem } from '@vben/layouts';
 
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { AuthenticationLoginExpiredModal } from '@vben/common-ui';
 import { useWatermark } from '@vben/hooks';
@@ -34,6 +34,8 @@ const { destroyWatermark, updateWatermark } = useWatermark();
 
 const notifications = ref<NotificationItem[]>([]);
 const unreadCount = ref(0);
+const NOTIFICATION_POLL_INTERVAL_MS = 2 * 60 * 1000;
+let notificationPollId: ReturnType<typeof setInterval> | undefined;
 
 const menus = computed(() => [
   {
@@ -61,7 +63,7 @@ async function handleNotificationGetUnreadCount() {
 /** 获得消息列表 */
 async function handleNotificationGetList() {
   const list = await getUnreadNotifyMessageList();
-  notifications.value = list.map((item: any) => ({
+  notifications.value = list.map((item) => ({
     avatar: preferences.app.defaultAvatar,
     date: formatDateTime(item.createTime) as string,
     isRead: false,
@@ -114,14 +116,18 @@ onMounted(() => {
   // 首次加载未读数量
   handleNotificationGetUnreadCount();
   // 轮询刷新未读数量
-  setInterval(
-    () => {
-      if (userStore.userInfo) {
-        handleNotificationGetUnreadCount();
-      }
-    },
-    1000 * 60 * 2,
-  );
+  notificationPollId = setInterval(() => {
+    if (userStore.userInfo) {
+      void handleNotificationGetUnreadCount();
+    }
+  }, NOTIFICATION_POLL_INTERVAL_MS);
+});
+
+onUnmounted(() => {
+  if (notificationPollId !== undefined) {
+    clearInterval(notificationPollId);
+    notificationPollId = undefined;
+  }
 });
 
 watch(

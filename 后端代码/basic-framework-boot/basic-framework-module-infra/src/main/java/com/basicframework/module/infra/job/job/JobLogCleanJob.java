@@ -3,7 +3,7 @@ package com.basicframework.module.infra.job.job;
 import com.basicframework.framework.quartz.core.handler.JobHandler;
 import com.basicframework.module.infra.framework.retention.config.InfraDataRetentionProperties;
 import com.basicframework.module.infra.service.job.JobLogService;
-import jakarta.annotation.Resource;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -13,13 +13,12 @@ import org.springframework.stereotype.Component;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class JobLogCleanJob implements JobHandler {
 
-    @Resource
-    private JobLogService jobLogService;
+    private final JobLogService jobLogService;
 
-    @Resource
-    private InfraDataRetentionProperties retentionProperties;
+    private final InfraDataRetentionProperties retentionProperties;
 
     @Override
     public String execute(String param) {

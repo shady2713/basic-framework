@@ -1,82 +1,94 @@
-import type { VxeGridProps, VxeUIExport } from 'vxe-table';
-
-import type { Recordable } from '@vben/types';
+import type { VxeUIExport } from 'vxe-table';
 
 import type { VxeGridApi } from './api';
+import type {
+  VxeGridFormValues,
+  VxeGridRow,
+  VxeTableGridOptions,
+} from './types';
 
-import { formatDate, formatDateTime, isFunction } from '@vben/utils';
+import { formatDate, formatDateTime, isDate, isDayjsObject } from '@vben/utils';
 
-/** 扩展 VxeGrid 代理配置，自动将搜索表单值注入到代理请求参数中 */
-export function extendProxyOptions(
-  api: VxeGridApi,
-  options: VxeGridProps,
-  getFormValues: () => Recordable<any>,
-) {
-  [
-    'query',
-    'querySuccess',
-    'queryError',
-    'queryAll',
-    'queryAllSuccess',
-    'queryAllError',
-  ].forEach((key) => {
-    extendProxyOption(key, api, options, getFormValues);
-  });
+type ProxyQueryKey = 'query' | 'queryAll';
+type ProxyQuery = (...args: unknown[]) => unknown;
+type GridStateWriter<T extends object> = Pick<VxeGridApi<T>, 'setState'>;
+
+const PROXY_QUERY_KEYS: readonly ProxyQueryKey[] = ['query', 'queryAll'];
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function extendProxyOption(
-  key: string,
-  api: VxeGridApi,
-  options: VxeGridProps,
-  getFormValues: () => Recordable<any>,
-) {
-  const { proxyConfig } = options;
-  const configFn = (proxyConfig?.ajax as Recordable<any>)?.[key];
-  if (!isFunction(configFn)) {
-    return options;
-  }
+function isPointerEvent(value: unknown): boolean {
+  return typeof PointerEvent !== 'undefined' && value instanceof PointerEvent;
+}
 
-  const wrapperFn = async (
-    params: Recordable<any>,
-    customValues: Recordable<any>,
-    ...args: Recordable<any>[]
+function formatCellDate(value: unknown, includeTime: boolean): string {
+  if (
+    typeof value !== 'number' &&
+    typeof value !== 'string' &&
+    !isDate(value) &&
+    !isDayjsObject(value)
+  ) {
+    return '';
+  }
+  return includeTime ? formatDateTime(value) : formatDate(value);
+}
+
+/** Injects current form values into VXE query and query-all proxy calls. */
+export function extendProxyOptions<T extends object = VxeGridRow>(
+  api: GridStateWriter<T>,
+  options: VxeTableGridOptions<T>,
+  getFormValues: () => VxeGridFormValues,
+): void {
+  for (const key of PROXY_QUERY_KEYS) {
+    extendProxyOption(key, api, options, getFormValues);
+  }
+}
+
+function extendProxyOption<T extends object>(
+  key: ProxyQueryKey,
+  api: GridStateWriter<T>,
+  options: VxeTableGridOptions<T>,
+  getFormValues: () => VxeGridFormValues,
+): void {
+  const candidate: unknown = options.proxyConfig?.ajax?.[key];
+  if (typeof candidate !== 'function') return;
+  const query = candidate as ProxyQuery;
+
+  const wrappedQuery: ProxyQuery = async (
+    params: unknown,
+    customValues: unknown,
+    ...args: unknown[]
   ) => {
-    const formValues = getFormValues();
-    const data = await configFn(
+    const suppliedValues =
+      isRecord(customValues) && !isPointerEvent(customValues)
+        ? customValues
+        : {};
+    return await query(
       params,
-      {
-        /**
-         * 开启toolbarConfig.refresh功能
-         * 点击刷新按钮 这里的值为PointerEvent 会携带错误参数
-         */
-        ...(customValues instanceof PointerEvent ? {} : customValues),
-        ...formValues,
-      },
+      { ...suppliedValues, ...getFormValues() },
       ...args,
     );
-    return data;
   };
+
   api.setState({
     gridOptions: {
-      proxyConfig: {
-        ajax: {
-          [key]: wrapperFn,
-        },
-      },
+      proxyConfig: { ajax: { [key]: wrappedQuery } },
     },
   });
 }
 
-export function extendsDefaultFormatter(vxeUI: VxeUIExport) {
+export function extendsDefaultFormatter(vxeUI: VxeUIExport): void {
   vxeUI.formats.add('formatDate', {
     tableCellFormatMethod({ cellValue }) {
-      return formatDate(cellValue) as string;
+      return formatCellDate(cellValue, false);
     },
   });
 
   vxeUI.formats.add('formatDateTime', {
     tableCellFormatMethod({ cellValue }) {
-      return formatDateTime(cellValue) as string;
+      return formatCellDate(cellValue, true);
     },
   });
 }

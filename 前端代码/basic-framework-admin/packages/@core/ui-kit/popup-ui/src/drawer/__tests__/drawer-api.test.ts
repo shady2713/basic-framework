@@ -4,19 +4,21 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DrawerApi } from '../drawer-api';
 
-// 模拟 Store 类
+interface MockStoreOptions {
+  onUpdate: () => void;
+}
+
 vi.mock('@vben-core/shared/store', () => {
   return {
-    isFunction: (fn: any) => typeof fn === 'function',
     Store: class {
       get state() {
         return this._state;
       }
       private _state: DrawerState;
 
-      private options: any;
+      private options: MockStoreOptions;
 
-      constructor(initialState: DrawerState, options: any) {
+      constructor(initialState: DrawerState, options: MockStoreOptions) {
         this._state = initialState;
         this.options = options;
       }
@@ -53,16 +55,17 @@ describe('drawerApi', () => {
     expect(drawerApi.store.state.isOpen).toBe(true);
   });
 
-  it('should close the drawer if onBeforeClose allows it', () => {
-    drawerApi.close();
+  it('should close the drawer if onBeforeClose allows it', async () => {
+    drawerApi.open();
+    await drawerApi.close();
     expect(drawerApi.store.state.isOpen).toBe(false);
   });
 
-  it('should not close the drawer if onBeforeClose returns false', () => {
+  it('should not close the drawer if onBeforeClose returns false', async () => {
     const onBeforeClose = vi.fn(() => false);
     const drawerApiWithHook = new DrawerApi({ onBeforeClose });
     drawerApiWithHook.open();
-    drawerApiWithHook.close();
+    await drawerApiWithHook.close();
     expect(drawerApiWithHook.store.state.isOpen).toBe(true);
     expect(onBeforeClose).toHaveBeenCalled();
   });

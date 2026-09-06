@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import type { DepartmentRow } from './data';
+
 /** 部门管理页面 */
 import type { VxeTableGridOptions } from '#/adapter/vxe-table';
 import type { SystemDeptApi } from '#/api/system/dept';
@@ -10,11 +12,12 @@ import { isEmpty } from '@vben/utils';
 
 import { ACTION_ICON, TableAction, useVbenVxeGrid } from '#/adapter/vxe-table';
 import { deleteDept, deleteDeptList, getDeptList } from '#/api/system/dept';
+import { getSimpleUserList } from '#/api/system/user';
 import { useCrudActions } from '#/composables/use-crud-actions';
 import { $t } from '#/locales';
 import { showWarningMessage } from '#/utils/feedback';
 
-import { useGridColumns } from './data';
+import { attachDepartmentLeaderNames, useGridColumns } from './data';
 import Form from './modules/form.vue';
 
 const [FormModal, formModalApi] = useVbenModal({
@@ -83,7 +86,11 @@ const [Grid, gridApi] = useVbenVxeGrid({
     proxyConfig: {
       ajax: {
         query: async () => {
-          return await getDeptList();
+          const [departments, users] = await Promise.all([
+            getDeptList(),
+            getSimpleUserList(),
+          ]);
+          return attachDepartmentLeaderNames(departments, users);
         },
       },
     },
@@ -106,7 +113,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
       transform: true,
       expandAll: true,
     },
-  } as VxeTableGridOptions<SystemDeptApi.Dept>,
+  } as VxeTableGridOptions<DepartmentRow>,
   gridEvents: {
     checkboxAll: handleRowCheckboxChange,
     checkboxChange: handleRowCheckboxChange,

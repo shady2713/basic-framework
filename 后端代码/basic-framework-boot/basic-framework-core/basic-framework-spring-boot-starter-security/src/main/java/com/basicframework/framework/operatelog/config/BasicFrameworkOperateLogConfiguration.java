@@ -1,9 +1,9 @@
 package com.basicframework.framework.operatelog.config;
 
 import com.basicframework.framework.operatelog.core.service.LogRecordServiceImpl;
+import com.basicframework.module.system.api.logger.OperateLogCommonApi;
 import com.mzt.logapi.service.ILogRecordService;
 import com.mzt.logapi.starter.annotation.EnableLogRecord;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
@@ -14,12 +14,11 @@ import org.springframework.context.annotation.Primary;
  */
 @EnableLogRecord(tenant = "") // 第三方库必填参数，框架未使用多租户
 @AutoConfiguration
-@Slf4j
 public class BasicFrameworkOperateLogConfiguration {
 
     @Bean
     @Primary
-    public ILogRecordService iLogRecordServiceImpl() {
-        return new LogRecordServiceImpl();
+    public ILogRecordService iLogRecordServiceImpl(OperateLogCommonApi operateLogApi) {
+        return new LogRecordServiceImpl(operateLogApi);
     }
 }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { VbenFormSchema } from '@vben-core/form-ui';
+import type { FormValues, VbenFormSchema } from '@vben-core/form-ui';
 
 import { computed, reactive } from 'vue';
 import { useRouter } from 'vue-router';
@@ -48,7 +48,7 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const emit = defineEmits<{
-  submit: [Record<string, any>];
+  submit: [FormValues];
 }>();
 
 const [Form, formApi] = useVbenForm(
@@ -85,7 +85,7 @@ defineExpose({
   <div>
     <Title>
       <slot name="title">
-        {{ title || $t('authentication.forgetPassword') }} 🤦🏻‍♂️
+        {{ title || $t('authentication.forgetPassword') }}
       </slot>
       <template #desc>
         <slot name="subTitle">

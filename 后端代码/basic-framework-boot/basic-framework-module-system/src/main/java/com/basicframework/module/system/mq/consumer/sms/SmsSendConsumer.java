@@ -2,7 +2,7 @@ package com.basicframework.module.system.mq.consumer.sms;
 
 import com.basicframework.module.system.mq.message.sms.SmsSendMessage;
 import com.basicframework.module.system.service.sms.SmsSendService;
-import jakarta.annotation.Resource;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
@@ -14,10 +14,10 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @Slf4j
+@RequiredArgsConstructor
 public class SmsSendConsumer {
 
-    @Resource
-    private SmsSendService smsSendService;
+    private final SmsSendService smsSendService;
 
     @EventListener
     @Async // Spring Event 默认在 Producer 发送的线程，通过 @Async 实现异步

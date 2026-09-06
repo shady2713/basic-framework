@@ -4,13 +4,17 @@ import type {
   DropdownMenuSubContentProps,
 } from 'reka-ui';
 
+import type { HTMLAttributes } from 'vue';
+
 import { computed } from 'vue';
 
 import { cn } from '@vben-core/shared/utils';
 
 import { ContextMenuSubContent, useForwardPropsEmits } from 'reka-ui';
 
-const props = defineProps<DropdownMenuSubContentProps & { class?: any }>();
+const props = defineProps<
+  DropdownMenuSubContentProps & { class?: HTMLAttributes['class'] }
+>();
 const emits = defineEmits<DropdownMenuSubContentEmits>();
 
 const delegatedProps = computed(() => {

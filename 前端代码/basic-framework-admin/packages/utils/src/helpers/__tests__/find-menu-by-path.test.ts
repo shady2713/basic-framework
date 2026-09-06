@@ -1,25 +1,36 @@
+import type { MenuRecordRaw } from '@vben-core/typings';
+
 import { describe, expect, it } from 'vitest';
 
 import { findMenuByPath, findRootMenuByPath } from '../find-menu-by-path';
 
 // 示例菜单数据
-const menus: any[] = [
-  { path: '/', children: [] },
-  { path: '/about', children: [] },
+const menus: MenuRecordRaw[] = [
+  { name: 'Home', path: '/', children: [] },
+  { name: 'About', path: '/about', children: [] },
   {
+    name: 'Contact',
     path: '/contact',
     children: [
-      { path: '/contact/email', children: [] },
-      { path: '/contact/phone', children: [] },
+      { name: 'Email', path: '/contact/email', children: [] },
+      { name: 'Phone', path: '/contact/phone', children: [] },
     ],
   },
   {
+    name: 'Services',
     path: '/services',
     children: [
-      { path: '/services/design', children: [] },
+      { name: 'Design', path: '/services/design', children: [] },
       {
+        name: 'Development',
         path: '/services/development',
-        children: [{ path: '/services/development/web', children: [] }],
+        children: [
+          {
+            name: 'Web',
+            path: '/services/development/web',
+            children: [],
+          },
+        ],
       },
     ],
   },
@@ -50,7 +61,7 @@ describe('menu Finder Tests', () => {
 
   it('handles menu items without children', () => {
     const menu = findMenuByPath(
-      [{ path: '/only', children: undefined }] as any[],
+      [{ name: 'Only', path: '/only', children: undefined }],
       '/only',
     );
     expect(menu).toBeDefined();

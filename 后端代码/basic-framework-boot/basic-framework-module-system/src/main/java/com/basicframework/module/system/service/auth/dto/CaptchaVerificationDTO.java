@@ -2,6 +2,7 @@ package com.basicframework.module.system.service.auth.dto;
 
 import jakarta.validation.constraints.NotEmpty;
 import lombok.Data;
+import lombok.ToString;
 
 /**
  * 管理后台 - 验证码校验参数 DTO
@@ -10,6 +11,7 @@ import lombok.Data;
  * 供 service 层在开启验证码时做分组校验使用
  */
 @Data
+@ToString(exclude = {"captchaVerification"})
 public class CaptchaVerificationDTO {
 
     /**

@@ -120,7 +120,7 @@ export function useCrudDeleteActions<Row, Id extends RowKey = number>(
     checkedIds.value = [];
   }
 
-  function getGridEvents(extraEvents: Record<string, any> = {}) {
+  function getGridEvents(extraEvents: Record<string, unknown> = {}) {
     return {
       checkboxAll: handleRowCheckboxChange,
       checkboxChange: handleRowCheckboxChange,

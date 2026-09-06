@@ -2,6 +2,7 @@ package com.basicframework.framework.security.core.filter;
 
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
+import com.basicframework.framework.common.enums.UserTypeEnum;
 import com.basicframework.framework.common.exception.ServiceException;
 import com.basicframework.framework.security.config.SecurityProperties;
 import com.basicframework.framework.security.core.LoginUser;
@@ -15,8 +16,9 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.ObjectProvider;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -24,21 +26,28 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * Token 过滤器，负责校验请求携带的访问令牌。
  * 校验通过后，将解析出的 {@link LoginUser} 写入 Spring Security 上下文。
  */
-@RequiredArgsConstructor
 public class TokenAuthenticationFilter extends OncePerRequestFilter {
 
     private final SecurityProperties securityProperties;
 
     private final GlobalExceptionHandler globalExceptionHandler;
 
-    private final ObjectProvider<UserSessionCommonApi> userSessionApiProvider;
+    private final Map<Integer, UserSessionCommonApi> userSessionApis;
+
+    public TokenAuthenticationFilter(
+            SecurityProperties securityProperties,
+            GlobalExceptionHandler globalExceptionHandler,
+            List<UserSessionCommonApi> userSessionApis) {
+        this.securityProperties = securityProperties;
+        this.globalExceptionHandler = globalExceptionHandler;
+        this.userSessionApis = indexUserSessionApis(userSessionApis);
+    }
 
     @Override
     @SuppressWarnings("NullableProblems")
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
-        String token = SecurityFrameworkUtils.obtainAuthorization(
-                request, securityProperties.getTokenHeader(), securityProperties.getTokenParameter());
+        String token = SecurityFrameworkUtils.obtainAuthorization(request, securityProperties.getTokenHeader());
         if (StrUtil.isNotEmpty(token)) {
             Integer userType = WebFrameworkUtils.getLoginUserType(request);
             try {
@@ -48,7 +57,7 @@ public class TokenAuthenticationFilter extends OncePerRequestFilter {
                 if (loginUser != null) {
                     SecurityFrameworkUtils.setLoginUser(loginUser, request);
                 }
-            } catch (Throwable ex) {
+            } catch (Exception ex) {
                 GlobalExceptionHandler.writeResponse(response, globalExceptionHandler.allExceptionHandler(request, ex));
                 return;
             }
@@ -60,7 +69,8 @@ public class TokenAuthenticationFilter extends OncePerRequestFilter {
 
     private LoginUser buildLoginUserByToken(String token, Integer userType) {
         try {
-            UserSessionCheckRespDTO session = userSessionApiProvider.getObject().checkAccessToken(token);
+            UserSessionCommonApi userSessionApi = resolveUserSessionApi(userType);
+            UserSessionCheckRespDTO session = userSessionApi.checkAccessToken(token);
             if (session == null) {
                 return null;
             }
@@ -79,5 +89,36 @@ public class TokenAuthenticationFilter extends OncePerRequestFilter {
             // token 校验失败时直接按未登录处理，交由后续鉴权链路决定是否允许访问。
             return null;
         }
+    }
+
+    private UserSessionCommonApi resolveUserSessionApi(Integer userType) {
+        if (userType == null && userSessionApis.size() == 1) {
+            return userSessionApis.values().iterator().next();
+        }
+        UserSessionCommonApi userSessionApi = userSessionApis.get(userType);
+        if (userSessionApi == null) {
+            throw new AccessDeniedException("当前用户类型未配置会话校验器");
+        }
+        return userSessionApi;
+    }
+
+    private static Map<Integer, UserSessionCommonApi> indexUserSessionApis(List<UserSessionCommonApi> apis) {
+        if (apis == null || apis.isEmpty()) {
+            throw new IllegalStateException("至少需要一个会话校验器");
+        }
+        Map<Integer, UserSessionCommonApi> indexedApis = new HashMap<>();
+        for (UserSessionCommonApi api : apis) {
+            Integer userType = api.getSupportedUserType();
+            if (userType == null) {
+                throw new IllegalStateException("会话校验器必须声明用户类型");
+            }
+            if (UserTypeEnum.valueOf(userType) == null) {
+                throw new IllegalStateException("会话校验器声明了未知用户类型 " + userType);
+            }
+            if (indexedApis.putIfAbsent(userType, api) != null) {
+                throw new IllegalStateException("用户类型 " + userType + " 存在重复会话校验器");
+            }
+        }
+        return Map.copyOf(indexedApis);
     }
 }

@@ -4,10 +4,10 @@ import static com.basicframework.framework.apilog.core.interceptor.ApiAccessLogI
 import static com.basicframework.framework.common.util.json.JsonUtils.toJsonString;
 import static com.basicframework.framework.web.core.util.SensitiveDataSanitizer.sanitizeJson;
 import static com.basicframework.framework.web.core.util.SensitiveDataSanitizer.sanitizeMap;
+import static com.basicframework.framework.web.core.util.SensitiveDataSanitizer.sanitizeRequestPath;
 import static com.basicframework.framework.web.core.util.SensitiveDataSanitizer.sanitizeResult;
 
 import cn.hutool.core.date.LocalDateTimeUtil;
-import cn.hutool.core.exceptions.ExceptionUtil;
 import cn.hutool.core.map.MapUtil;
 import cn.hutool.core.util.BooleanUtil;
 import cn.hutool.core.util.StrUtil;
@@ -85,13 +85,13 @@ public class ApiAccessLogFilter extends ApiRequestFilter {
                 return;
             }
             apiAccessLogApi.createApiAccessLogAsync(accessLog);
-        } catch (Throwable th) {
+        } catch (Exception exception) {
             log.error(
-                    "[createApiAccessLog][url({}) traceId({}) resultCode({}) 发生异常]",
-                    request.getRequestURI(),
+                    "[createApiAccessLog][url({}) traceId({}) resultCode({}) exceptionName({}) 记录失败]",
+                    sanitizeRequestPath(request),
                     accessLog.getTraceId(),
                     accessLog.getResultCode(),
-                    th);
+                    exception.getClass().getName());
         }
     }
 
@@ -120,14 +120,14 @@ public class ApiAccessLogFilter extends ApiRequestFilter {
         } else if (ex != null) {
             accessLog
                     .setResultCode(GlobalErrorCodeConstants.INTERNAL_SERVER_ERROR.getCode())
-                    .setResultMsg(ExceptionUtil.getRootCauseMessage(ex));
+                    .setResultMsg(GlobalErrorCodeConstants.INTERNAL_SERVER_ERROR.getMsg());
         } else {
             accessLog.setResultCode(GlobalErrorCodeConstants.SUCCESS.getCode()).setResultMsg("");
         }
         accessLog
                 .setTraceId(TracerUtils.getTraceId())
                 .setApplicationName(applicationName)
-                .setRequestUrl(request.getRequestURI())
+                .setRequestUrl(sanitizeRequestPath(request))
                 .setRequestMethod(request.getMethod())
                 .setUserAgent(ServletUtils.getUserAgent(request))
                 .setUserIp(ServletUtils.getClientIP(request));

@@ -70,6 +70,9 @@ export const useAuthStore = defineStore('auth', () => {
     loginResult: AuthApi.LoginResult,
     onSuccess?: () => Promise<void> | void,
   ) {
+    if (!loginResult.accessToken) {
+      throw new Error('MFA login result did not include an access token');
+    }
     loginLoading.value = true;
     try {
       return await completeLogin(loginResult, onSuccess);

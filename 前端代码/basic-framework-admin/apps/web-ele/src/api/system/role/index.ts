@@ -11,6 +11,7 @@ export namespace SystemRoleApi {
     sort: number;
     status: number;
     type: number;
+    remark?: string;
     dataScope: number;
     dataScopeDeptIds: number[];
     createTime?: Date;

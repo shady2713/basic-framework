@@ -1,11 +1,21 @@
 <script setup lang="ts">
+import type { Component, ComponentPublicInstance } from 'vue';
+
+import type { CaptchaSuccessPayload } from '@vben/types';
+
 /**
  * Verify 验证码组件
  * @description 分发验证码使用
  */
 import type { VerificationProps } from './typing';
 
-import { defineAsyncComponent, markRaw, ref, toRefs, watchEffect } from 'vue';
+import {
+  defineAsyncComponent,
+  ref,
+  shallowRef,
+  toRefs,
+  watchEffect,
+} from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
@@ -36,39 +46,46 @@ const props = withDefaults(defineProps<VerificationProps>(), {
   space: 5,
 });
 
-const emit = defineEmits(['onSuccess', 'onError', 'onClose', 'onReady']);
+const emit = defineEmits<{
+  onClose: [];
+  onError: [instance: ComponentPublicInstance | null];
+  onReady: [instance: ComponentPublicInstance | null];
+  onSuccess: [payload: CaptchaSuccessPayload];
+}>();
 
 const VerifyPoints = defineAsyncComponent(() => import('./verify-points.vue'));
 const VerifySlide = defineAsyncComponent(() => import('./verify-slide.vue'));
 
 const { captchaType, mode, checkCaptchaApi, getCaptchaApi } = toRefs(props);
-const verifyType = ref();
-const componentType = ref();
+const verifyType = ref<'1' | '2'>('2');
+const componentType = shallowRef<Component>();
 
-const instance = ref<InstanceType<typeof VerifyPoints | typeof VerifySlide>>();
+interface VerificationInstance {
+  refresh: () => Promise<void> | void;
+}
 
-const showBox = ref(false);
+const instance = ref<VerificationInstance>();
+
+const showBox = ref(mode.value === 'fixed');
 
 /**
  * refresh
  * @description 刷新
  */
 const refresh = () => {
-  if (instance.value && instance.value.refresh) instance.value.refresh();
+  void instance.value?.refresh();
 };
 
 const show = () => {
   if (mode.value === 'pop') showBox.value = true;
 };
 
-const onError = (proxy: any) => {
+const onError = (proxy: ComponentPublicInstance | null) => {
   emit('onError', proxy);
-  refresh();
 };
 
-const onReady = (proxy: any) => {
+const onReady = (proxy: ComponentPublicInstance | null) => {
   emit('onReady', proxy);
-  refresh();
 };
 
 const onClose = () => {
@@ -76,7 +93,7 @@ const onClose = () => {
   showBox.value = false;
 };
 
-const onSuccess = (data: any) => {
+const onSuccess = (data: CaptchaSuccessPayload) => {
   emit('onSuccess', data);
 };
 
@@ -84,12 +101,12 @@ watchEffect(() => {
   switch (captchaType.value) {
     case 'blockPuzzle': {
       verifyType.value = '2';
-      componentType.value = markRaw(VerifySlide);
+      componentType.value = VerifySlide;
       break;
     }
     case 'clickWord': {
-      verifyType.value = '';
-      componentType.value = markRaw(VerifyPoints);
+      verifyType.value = '1';
+      componentType.value = VerifyPoints;
       break;
     }
   }
@@ -109,7 +126,7 @@ defineExpose({
   <div v-show="showBox">
     <div
       :class="mode === 'pop' ? 'verifybox' : ''"
-      :style="{ 'max-width': `${parseInt(imgSize.width) + 20}px` }"
+      :style="{ 'max-width': `${Number.parseInt(imgSize.width) + 20}px` }"
     >
       <div v-if="mode === 'pop'" class="verifybox-top">
         {{ $t('ui.captcha.title') }}

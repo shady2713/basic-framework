@@ -3,9 +3,7 @@ import type {
   VxeGridDefines,
   VxeGridInstance,
   VxeGridListeners,
-  VxeGridPropTypes,
   VxeGridProps as VxeTableGridProps,
-  VxeToolbarPropTypes,
 } from 'vxe-table';
 
 import type { SetupContext } from 'vue';
@@ -29,13 +27,7 @@ import { usePriorityValues } from '@vben/hooks';
 import { EmptyIcon } from '@vben/icons';
 import { $t } from '@vben/locales';
 import { usePreferences } from '@vben/preferences';
-import {
-  cloneDeep,
-  cn,
-  isBoolean,
-  isEqual,
-  mergeWithArrayOverride,
-} from '@vben/utils';
+import { cn, isEqual, mergeWithArrayOverride } from '@vben/utils';
 
 import { VbenHelpTooltip, VbenLoading } from '@vben-core/shadcn-ui';
 
@@ -43,6 +35,15 @@ import { VxeButton } from 'vxe-pc-ui';
 import { VxeGrid, VxeUI } from 'vxe-table';
 
 import { extendProxyOptions } from './extends';
+import {
+  buildGridOptions,
+  buildToolbarOptions,
+  getDelegatedFormSlots,
+  getDelegatedGridSlots,
+  getSeparatorBackground,
+  shouldShowDefaultEmpty,
+  shouldShowSeparator,
+} from './grid-options';
 import { useTableForm } from './init';
 
 import 'vxe-table/es/index.css';
@@ -78,26 +79,14 @@ const {
 } = usePriorityValues(props, state);
 
 const { isMobile } = usePreferences();
-const isSeparator = computed(() => {
-  if (
-    !formOptions.value ||
-    showSearchForm.value === false ||
-    separator.value === false
-  ) {
-    return false;
-  }
-  if (separator.value === true || separator.value === undefined) {
-    return true;
-  }
-  return separator.value.show !== false;
-});
-const separatorBg = computed(() => {
-  return !separator.value ||
-    isBoolean(separator.value) ||
-    !separator.value.backgroundColor
-    ? undefined
-    : separator.value.backgroundColor;
-});
+const isSeparator = computed(() =>
+  shouldShowSeparator(
+    Boolean(formOptions.value),
+    showSearchForm.value,
+    separator.value,
+  ),
+);
+const separatorBg = computed(() => getSeparatorBackground(separator.value));
 const slots: SetupContext['slots'] = useSlots();
 
 const [Form, formApi] = useTableForm({
@@ -142,95 +131,26 @@ const showToolbar = computed(() => {
 });
 
 const toolbarOptions = computed(() => {
-  const slotActions = slots[TOOLBAR_ACTIONS]?.();
-  const slotTools = slots[TOOLBAR_TOOLS]?.();
-  const searchBtn: VxeToolbarPropTypes.ToolConfig = {
-    code: 'search',
-    icon: 'vxe-icon-search',
-    circle: true,
-    status: showSearchForm.value ? 'primary' : undefined,
-    title: showSearchForm.value
-      ? $t('common.hideSearchPanel')
-      : $t('common.showSearchPanel'),
-  };
-  // 将搜索按钮合并到用户配置的toolbarConfig.tools中
-  const toolbarConfig: VxeGridPropTypes.ToolbarConfig = {
-    tools: (gridOptions.value?.toolbarConfig?.tools ??
-      []) as VxeToolbarPropTypes.ToolConfig[],
-  };
-  if (gridOptions.value?.toolbarConfig?.search && !!formOptions.value) {
-    toolbarConfig.tools = Array.isArray(toolbarConfig.tools)
-      ? [...toolbarConfig.tools, searchBtn]
-      : [searchBtn];
-  }
-
-  if (!showToolbar.value) {
-    toolbarConfig.enabled = false;
-    return { toolbarConfig };
-  }
-
-  // 强制使用固定的toolbar配置，不允许用户自定义
-  // 减少配置的复杂度，以及后续维护的成本
-  toolbarConfig.slots = {
-    ...(slotActions || showTableTitle.value
-      ? { buttons: TOOLBAR_ACTIONS }
-      : {}),
-    ...(slotTools ? { tools: TOOLBAR_TOOLS } : {}),
-  };
-  return { toolbarConfig };
+  return buildToolbarOptions({
+    gridOptions: gridOptions.value,
+    hasActionSlot: Boolean(slots[TOOLBAR_ACTIONS]?.()),
+    hasForm: Boolean(formOptions.value),
+    hasToolSlot: Boolean(slots[TOOLBAR_TOOLS]?.()),
+    showSearchForm: showSearchForm.value,
+    showTableTitle: Boolean(showTableTitle.value),
+    showToolbar: Boolean(showToolbar.value),
+    translate: $t,
+  });
 });
 
 const options = computed(() => {
   const globalGridConfig = VxeUI?.getConfig()?.grid ?? {};
-
-  const mergedOptions: VxeTableGridProps = cloneDeep(
-    mergeWithArrayOverride(
-      {},
-      toRaw(toolbarOptions.value),
-      toRaw(gridOptions.value),
-      globalGridConfig,
-    ),
+  return buildGridOptions(
+    globalGridConfig,
+    toRaw(gridOptions.value),
+    toRaw(toolbarOptions.value),
+    isMobile.value,
   );
-
-  if (mergedOptions.proxyConfig) {
-    const { ajax } = mergedOptions.proxyConfig;
-    mergedOptions.proxyConfig.enabled = !!ajax;
-    // 不自动加载数据, 由组件控制
-    mergedOptions.proxyConfig.autoLoad = false;
-  }
-
-  if (mergedOptions.pagerConfig) {
-    const mobileLayouts = [
-      'PrevJump',
-      'PrevPage',
-      'Number',
-      'NextPage',
-      'NextJump',
-    ] as any;
-    const layouts = [
-      'Total',
-      'Sizes',
-      'Home',
-      ...mobileLayouts,
-      'End',
-    ] as readonly string[];
-    mergedOptions.pagerConfig = mergeWithArrayOverride(
-      {},
-      mergedOptions.pagerConfig,
-      {
-        pageSize: 20,
-        background: true,
-        pageSizes: [10, 20, 30, 50, 100, 200],
-        className: 'mt-2 w-full',
-        layouts: isMobile.value ? mobileLayouts : layouts,
-        size: 'mini' as const,
-      },
-    );
-  }
-  if (mergedOptions.formConfig) {
-    mergedOptions.formConfig.enabled = false;
-  }
-  return mergedOptions;
 });
 
 function onToolbarToolClick(event: VxeGridDefines.ToolbarToolClickEventParams) {
@@ -254,39 +174,14 @@ const events = computed(() => {
 });
 
 const delegatedSlots = computed(() => {
-  const resultSlots: string[] = [];
-
-  for (const key of Object.keys(slots)) {
-    if (
-      !['empty', 'form', 'loading', TOOLBAR_ACTIONS, TOOLBAR_TOOLS].includes(
-        key,
-      )
-    ) {
-      resultSlots.push(key);
-    }
-  }
-  return resultSlots;
+  return getDelegatedGridSlots(Object.keys(slots));
 });
 
 const delegatedFormSlots = computed(() => {
-  const resultSlots: string[] = [];
-
-  for (const key of Object.keys(slots)) {
-    if (key.startsWith(FORM_SLOT_PREFIX)) {
-      resultSlots.push(key);
-    }
-  }
-  return resultSlots.map((key) => key.replace(FORM_SLOT_PREFIX, ''));
+  return getDelegatedFormSlots(Object.keys(slots));
 });
 
-const showDefaultEmpty = computed(() => {
-  // 检查是否有原生的 VXE Table 空状态配置
-  const hasEmptyText = options.value.emptyText !== undefined;
-  const hasEmptyRender = options.value.emptyRender !== undefined;
-
-  // 如果有原生配置，就不显示默认的空状态
-  return !hasEmptyText && !hasEmptyRender;
-});
+const showDefaultEmpty = computed(() => shouldShowDefaultEmpty(options.value));
 
 async function init() {
   await nextTick();

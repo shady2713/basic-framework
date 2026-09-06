@@ -3,11 +3,11 @@ package com.basicframework.module.system.service.logger;
 import com.basicframework.framework.common.pojo.PageParam;
 import com.basicframework.framework.common.pojo.PageResult;
 import com.basicframework.framework.common.util.object.BeanUtils;
-import com.basicframework.module.system.api.logger.dto.LoginLogCreateReqDTO;
 import com.basicframework.module.system.dal.dataobject.logger.LoginLogDO;
 import com.basicframework.module.system.dal.mysql.logger.LoginLogMapper;
-import jakarta.annotation.Resource;
+import com.basicframework.module.system.service.logger.dto.LoginLogCreateReqDTO;
 import java.time.LocalDateTime;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.validation.annotation.Validated;
 
@@ -16,10 +16,10 @@ import org.springframework.validation.annotation.Validated;
  */
 @Service
 @Validated
+@RequiredArgsConstructor
 public class LoginLogServiceImpl implements LoginLogService {
 
-    @Resource
-    private LoginLogMapper loginLogMapper;
+    private final LoginLogMapper loginLogMapper;
 
     @Override
     public LoginLogDO getLoginLog(Long id) {

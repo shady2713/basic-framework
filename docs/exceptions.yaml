@@ -6,9 +6,9 @@
 version: 1
 exceptions:
   - id: owasp-dependency-check-disabled
-    title: OWASP dependency check 未启用
-    description: .github/workflows/verify.yml 的 backend-build 仅跑 mvn verify，未挂 OWASP dependency-check，AGENTS.md 已如实标注；NVD 数据源依赖外网且当前无缓存策略，先解决可达性再启用。
+    title: 依赖漏洞扫描门禁缺失
+    description: 已由 Harness dependencies 门禁替代：扫描 Maven 解析后的 CycloneDX 聚合 SBOM 和 pnpm 锁文件，并在 HIGH/CRITICAL 漏洞出现时阻断 CI。
     owner: basic-framework 维护者
     dueDate: 2027-01-01
     removalCondition: 引入依赖漏洞扫描（dependency-check 或等价）并接入 backend-build 阻塞门禁后，本条目标记 removed。
-    status: active
+    status: removed

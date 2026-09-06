@@ -5,8 +5,10 @@ import com.basicframework.module.infra.controller.admin.config.vo.ConfigRespVO;
 import com.basicframework.module.infra.controller.admin.config.vo.ConfigSaveReqVO;
 import com.basicframework.module.infra.dal.dataobject.config.ConfigDO;
 import java.util.List;
+import org.mapstruct.AfterMapping;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
+import org.mapstruct.MappingTarget;
 import org.mapstruct.Mappings;
 import org.mapstruct.ReportingPolicy;
 import org.mapstruct.factory.Mappers;
@@ -23,6 +25,14 @@ public interface ConfigConvert {
     @Mapping(source = "configKey", target = "key")
     ConfigRespVO convert(ConfigDO bean);
 
+    /** 不可见配置可能包含敏感值，所有响应形态统一在转换边界清除。 */
+    @AfterMapping
+    default void redactInvisibleValue(ConfigDO source, @MappingTarget ConfigRespVO target) {
+        if (!Boolean.TRUE.equals(source.getVisible())) {
+            target.setValue(null);
+        }
+    }
+
     @Mappings({
         @Mapping(source = "key", target = "configKey"),
         @Mapping(target = "createTime", ignore = true),
@@ -31,7 +41,6 @@ public interface ConfigConvert {
         @Mapping(target = "updater", ignore = true),
         @Mapping(target = "deleted", ignore = true),
         @Mapping(target = "type", ignore = true),
-        @Mapping(target = "transMap", ignore = true),
     })
     ConfigDO convert(ConfigSaveReqVO bean);
 }

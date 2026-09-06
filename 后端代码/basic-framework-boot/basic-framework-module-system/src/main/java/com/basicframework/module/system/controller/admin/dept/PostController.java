@@ -9,6 +9,7 @@ import com.basicframework.framework.common.pojo.PageParam;
 import com.basicframework.framework.common.pojo.PageResult;
 import com.basicframework.framework.common.util.object.BeanUtils;
 import com.basicframework.framework.excel.core.util.ExcelUtils;
+import com.basicframework.framework.security.core.annotation.AuthenticatedOnly;
 import com.basicframework.module.system.controller.admin.dept.vo.post.PostPageReqVO;
 import com.basicframework.module.system.controller.admin.dept.vo.post.PostRespVO;
 import com.basicframework.module.system.controller.admin.dept.vo.post.PostSaveReqVO;
@@ -18,12 +19,14 @@ import com.basicframework.module.system.service.dept.PostService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -32,10 +35,10 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/system/post")
 @Validated
+@RequiredArgsConstructor
 public class PostController {
 
-    @Resource
-    private PostService postService;
+    private final PostService postService;
 
     @PostMapping("/create")
     @Operation(summary = "创建岗位")
@@ -56,15 +59,16 @@ public class PostController {
     @DeleteMapping("/delete")
     @Operation(summary = "删除岗位")
     @PreAuthorize("@ss.hasPermission('system:post:delete')")
-    public CommonResult<Boolean> deletePost(@RequestParam("id") Long id) {
+    public CommonResult<Boolean> deletePost(@RequestParam("id") @Positive Long id) {
         postService.deletePost(id);
         return success(true);
     }
 
-    @DeleteMapping("delete-list")
+    @DeleteMapping("/delete-list")
     @Operation(summary = "批量删除岗位")
     @PreAuthorize("@ss.hasPermission('system:post:delete')")
-    public CommonResult<Boolean> deletePostList(@RequestParam("ids") List<Long> ids) {
+    public CommonResult<Boolean> deletePostList(
+            @RequestParam("ids") @Size(min = 1, max = 100) List<@Positive Long> ids) {
         postService.deletePostList(ids);
         return success(true);
     }
@@ -73,17 +77,16 @@ public class PostController {
     @Operation(summary = "获得岗位信息")
     @Parameter(name = "id", description = "岗位编号", required = true, example = "1024")
     @PreAuthorize("@ss.hasPermission('system:post:query')")
-    public CommonResult<PostRespVO> getPost(@RequestParam("id") Long id) {
+    public CommonResult<PostRespVO> getPost(@RequestParam("id") @Positive Long id) {
         PostDO post = postService.getPost(id);
         return success(BeanUtils.toBean(post, PostRespVO.class));
     }
 
-    @GetMapping(value = {"/list-all-simple", "simple-list"})
+    @GetMapping("/simple-list")
     @Operation(summary = "获取岗位全列表", description = "包含所有状态的岗位，主要用于前端的下拉选项")
+    @AuthenticatedOnly
     public CommonResult<List<PostSimpleRespVO>> getSimplePostList() {
-        // 获得岗位列表，包含所有状态
         List<PostDO> list = postService.getPostList(null, null);
-        // 排序后，返回给前端
         list.sort(Comparator.comparing(PostDO::getSort));
         return success(BeanUtils.toBean(list, PostSimpleRespVO.class));
     }
@@ -98,7 +101,7 @@ public class PostController {
     }
 
     @GetMapping("/export-excel")
-    @Operation(summary = "岗位管理")
+    @Operation(summary = "导出岗位")
     @PreAuthorize("@ss.hasPermission('system:post:export')")
     @ApiAccessLog(operateType = EXPORT)
     public void export(HttpServletResponse response, @Validated PostPageReqVO reqVO) throws IOException {
@@ -106,7 +109,6 @@ public class PostController {
         List<PostDO> list = postService
                 .getPostPage(reqVO, reqVO.getCode(), reqVO.getName(), reqVO.getStatus())
                 .getList();
-        // 输出
         ExcelUtils.write(response, "岗位数据.xls", "岗位列表", PostRespVO.class, BeanUtils.toBean(list, PostRespVO.class));
     }
 }

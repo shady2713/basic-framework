@@ -4,6 +4,7 @@ import com.basicframework.framework.common.core.KeyValue;
 import jakarta.validation.constraints.NotNull;
 import java.util.List;
 import lombok.Data;
+import lombok.ToString;
 
 /**
  * 短信发送消息
@@ -21,6 +22,7 @@ public class SmsSendMessage {
      * 手机号
      */
     @NotNull(message = "手机号不能为空")
+    @ToString.Exclude
     private String mobile;
     /**
      * 短信渠道编号

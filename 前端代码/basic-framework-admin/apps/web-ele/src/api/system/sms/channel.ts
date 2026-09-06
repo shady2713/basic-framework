@@ -10,7 +10,8 @@ export namespace SystemSmsChannelApi {
     status: number;
     signature: string;
     remark: string;
-    apiKey: string;
+    apiKey?: string;
+    apiKeyConfigured?: boolean;
     apiSecret?: string;
     apiSecretConfigured?: boolean;
     callbackUrl: string;
@@ -52,7 +53,7 @@ export function deleteSmsChannel(id: number) {
 export function sendTestSms(data: {
   mobile: string;
   templateCode: string;
-  templateParams: Record<string, object>;
+  templateParams: Record<string, unknown>;
 }) {
   return requestClient.post('/system/sms-channel/test-sms', data);
 }

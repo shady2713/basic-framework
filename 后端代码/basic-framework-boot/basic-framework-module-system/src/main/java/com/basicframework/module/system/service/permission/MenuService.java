@@ -47,16 +47,6 @@ public interface MenuService {
     List<MenuDO> getMenuList();
 
     /**
-     * 基于租户，筛选菜单列表
-     * 注意，如果是系统租户，返回的还是全菜单
-     *
-     * @param name   菜单名称，模糊匹配
-     * @param status 展示状态
-     * @return 菜单列表
-     */
-    List<MenuDO> getMenuListFiltered(String name, Integer status);
-
-    /**
      * 过滤掉关闭的菜单及其子菜单
      *
      * @param list 菜单列表

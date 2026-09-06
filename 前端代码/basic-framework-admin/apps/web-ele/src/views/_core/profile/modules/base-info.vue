@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import type { Recordable } from '@vben/types';
-
 import type { SystemUserProfileApi } from '#/api/system/user/profile';
 
 import { watch } from 'vue';
@@ -77,10 +75,10 @@ const [Form, formApi] = useVbenForm({
   handleSubmit,
 });
 
-async function handleSubmit(values: Recordable<any>) {
+async function handleSubmit(values: SystemUserProfileApi.UpdateProfileReqVO) {
   try {
     formApi.setLoading(true);
-    await updateUserProfile(values as SystemUserProfileApi.UpdateProfileReqVO);
+    await updateUserProfile(values);
     emit('success');
     showSuccessMessage($t('ui.actionMessage.operationSuccess'));
   } catch (error) {

@@ -31,16 +31,16 @@ public interface SmsClient {
      */
     SmsSendRespDTO sendSms(
             Long logId, String mobile, String apiTemplateId, List<KeyValue<String, Object>> templateParams)
-            throws Throwable;
+            throws Exception;
 
     /**
      * 解析接收短信的接收结果
      *
      * @param text 结果
      * @return 结果内容
-     * @throws Throwable 当解析 text 发生异常时，则会抛出异常
+     * @throws Exception 当解析 text 发生异常时，则会抛出异常
      */
-    List<SmsReceiveRespDTO> parseSmsReceiveStatus(String text) throws Throwable;
+    List<SmsReceiveRespDTO> parseSmsReceiveStatus(String text) throws Exception;
 
     /**
      * 查询指定的短信模板
@@ -50,5 +50,5 @@ public interface SmsClient {
      * @param apiTemplateId 短信 API 的模板编号
      * @return 短信模板
      */
-    SmsTemplateRespDTO getSmsTemplate(String apiTemplateId) throws Throwable;
+    SmsTemplateRespDTO getSmsTemplate(String apiTemplateId) throws Exception;
 }

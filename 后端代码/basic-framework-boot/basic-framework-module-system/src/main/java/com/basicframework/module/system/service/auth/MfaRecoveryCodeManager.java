@@ -3,7 +3,6 @@ package com.basicframework.module.system.service.auth;
 import cn.hutool.core.codec.Base32;
 import com.basicframework.module.system.dal.dataobject.auth.MfaRecoveryCodeDO;
 import com.basicframework.module.system.dal.mysql.auth.MfaRecoveryCodeMapper;
-import jakarta.annotation.Resource;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -20,12 +19,13 @@ public class MfaRecoveryCodeManager {
     private static final int RECOVERY_CODE_COUNT = 10;
 
     private final SecureRandom secureRandom = new SecureRandom();
+    private final MfaRecoveryCodeMapper recoveryCodeMapper;
+    private final MfaSecretCrypto secretCrypto;
 
-    @Resource
-    private MfaRecoveryCodeMapper recoveryCodeMapper;
-
-    @Resource
-    private MfaSecretCrypto secretCrypto;
+    public MfaRecoveryCodeManager(MfaRecoveryCodeMapper recoveryCodeMapper, MfaSecretCrypto secretCrypto) {
+        this.recoveryCodeMapper = recoveryCodeMapper;
+        this.secretCrypto = secretCrypto;
+    }
 
     /**
      * 删除旧恢复码并生成一组仅返回一次的新恢复码。

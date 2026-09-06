@@ -3,7 +3,6 @@ package com.basicframework.module.system.service.sms;
 import static com.basicframework.framework.common.exception.util.ServiceExceptionUtil.exception;
 import static com.basicframework.module.system.enums.ErrorCodeConstants.*;
 
-import cn.hutool.core.exceptions.ExceptionUtil;
 import cn.hutool.core.util.StrUtil;
 import com.basicframework.framework.common.enums.CommonStatusEnum;
 import com.basicframework.framework.common.pojo.PageParam;
@@ -19,11 +18,9 @@ import com.basicframework.module.system.framework.sms.core.client.dto.SmsTemplat
 import com.basicframework.module.system.framework.sms.core.enums.SmsTemplateAuditStatusEnum;
 import com.basicframework.module.system.util.TemplateUtils;
 import com.google.common.annotations.VisibleForTesting;
-import jakarta.annotation.Resource;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
@@ -36,20 +33,26 @@ import org.springframework.transaction.support.TransactionTemplate;
  * @since 2021/1/25 9:25
  */
 @Service
-@Slf4j
 public class SmsTemplateServiceImpl implements SmsTemplateService {
 
-    @Resource
-    private SmsTemplateMapper smsTemplateMapper;
+    private final SmsTemplateMapper smsTemplateMapper;
 
-    @Resource
-    private SmsChannelMapper smsChannelMapper;
+    private final SmsChannelMapper smsChannelMapper;
 
-    @Resource
-    private SmsChannelService smsChannelService;
+    private final SmsChannelService smsChannelService;
 
-    @Resource
-    private TransactionTemplate transactionTemplate;
+    private final TransactionTemplate transactionTemplate;
+
+    public SmsTemplateServiceImpl(
+            SmsTemplateMapper smsTemplateMapper,
+            SmsChannelMapper smsChannelMapper,
+            SmsChannelService smsChannelService,
+            TransactionTemplate transactionTemplate) {
+        this.smsTemplateMapper = smsTemplateMapper;
+        this.smsChannelMapper = smsChannelMapper;
+        this.smsChannelService = smsChannelService;
+        this.transactionTemplate = transactionTemplate;
+    }
 
     @Override
     public Long createSmsTemplate(SmsTemplateDO template) {
@@ -169,8 +172,8 @@ public class SmsTemplateServiceImpl implements SmsTemplateService {
     private static boolean hasSameRemoteConfiguration(SmsChannelDO expected, SmsChannelDO actual) {
         return Objects.equals(expected.getCode(), actual.getCode())
                 && Objects.equals(expected.getSignature(), actual.getSignature())
-                && Objects.equals(expected.getApiKey(), actual.getApiKey())
-                && Objects.equals(expected.getApiSecret(), actual.getApiSecret())
+                && Objects.equals(expected.getApiKeyCiphertext(), actual.getApiKeyCiphertext())
+                && Objects.equals(expected.getApiSecretCiphertext(), actual.getApiSecretCiphertext())
                 && Objects.equals(expected.getCallbackUrl(), actual.getCallbackUrl());
     }
 
@@ -202,8 +205,8 @@ public class SmsTemplateServiceImpl implements SmsTemplateService {
         SmsTemplateRespDTO template;
         try {
             template = smsClient.getSmsTemplate(apiTemplateId);
-        } catch (Throwable ex) {
-            throw exception(SMS_TEMPLATE_API_ERROR, ExceptionUtil.getRootCauseMessage(ex));
+        } catch (Exception ex) {
+            throw exception(SMS_TEMPLATE_API_ERROR);
         }
         // 校验短信模版
         if (template == null) {

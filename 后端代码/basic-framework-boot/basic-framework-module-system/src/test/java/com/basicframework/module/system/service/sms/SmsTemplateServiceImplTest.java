@@ -137,6 +137,30 @@ class SmsTemplateServiceImplTest {
         inOrder.verify(smsTemplateMapper).deleteByIds(List.of(1L, 2L));
     }
 
+    @Test
+    void validateApiTemplate_neverConvertsJvmErrorsIntoBusinessFailures() throws Exception {
+        SmsChannelDO channel = channel("api-key");
+        AssertionError fatalError = new AssertionError("jvm invariant broken");
+        when(smsChannelService.createTransientSmsClient(channel)).thenReturn(smsClient);
+        when(smsClient.getSmsTemplate("api-template")).thenThrow(fatalError);
+
+        assertThatThrownBy(() -> service.validateApiTemplate(channel, "api-template"))
+                .isSameAs(fatalError);
+    }
+
+    @Test
+    void validateApiTemplate_doesNotExposeProviderFailureMessage() throws Exception {
+        SmsChannelDO channel = channel("api-key");
+        String providerSecret = "provider-secret-token";
+        when(smsChannelService.createTransientSmsClient(channel)).thenReturn(smsClient);
+        when(smsClient.getSmsTemplate("api-template")).thenThrow(new IllegalStateException(providerSecret));
+
+        assertThatThrownBy(() -> service.validateApiTemplate(channel, "api-template"))
+                .isInstanceOf(ServiceException.class)
+                .hasMessage(ErrorCodeConstants.SMS_TEMPLATE_API_ERROR.getMsg())
+                .hasMessageNotContaining(providerSecret);
+    }
+
     private void stubSuccessfulRemoteValidation(SmsChannelDO channel) throws Throwable {
         when(smsChannelService.getSmsChannel(1L)).thenReturn(channel);
         when(smsChannelService.createTransientSmsClient(channel)).thenReturn(smsClient);
@@ -144,13 +168,13 @@ class SmsTemplateServiceImplTest {
                 .thenReturn(new SmsTemplateRespDTO().setAuditStatus(SmsTemplateAuditStatusEnum.SUCCESS.getStatus()));
     }
 
-    private static SmsChannelDO channel(String apiKey) {
+    private static SmsChannelDO channel(String apiKeyCiphertext) {
         return new SmsChannelDO()
                 .setId(1L)
                 .setCode("aliyun")
                 .setStatus(CommonStatusEnum.ENABLE.getStatus())
-                .setApiKey(apiKey)
-                .setApiSecret("api-secret");
+                .setApiKeyCiphertext(apiKeyCiphertext)
+                .setApiSecretCiphertext("encrypted-secret");
     }
 
     private static SmsTemplateDO template(Long id) {

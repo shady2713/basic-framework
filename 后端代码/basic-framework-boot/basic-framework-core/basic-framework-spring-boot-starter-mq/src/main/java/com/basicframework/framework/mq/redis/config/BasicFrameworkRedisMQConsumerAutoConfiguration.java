@@ -11,9 +11,12 @@ import com.basicframework.framework.mq.redis.core.stream.AbstractRedisStreamMess
 import com.basicframework.framework.mq.redis.core.stream.RedisStreamDeadLetterService;
 import com.basicframework.framework.redis.config.BasicFrameworkRedisAutoConfiguration;
 import java.util.List;
+import java.util.Objects;
 import java.util.Properties;
+import java.util.function.BooleanSupplier;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RedissonClient;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -23,6 +26,7 @@ import org.springframework.data.redis.connection.RedisServerCommands;
 import org.springframework.data.redis.connection.stream.Consumer;
 import org.springframework.data.redis.connection.stream.ObjectRecord;
 import org.springframework.data.redis.connection.stream.ReadOffset;
+import org.springframework.data.redis.connection.stream.StreamInfo;
 import org.springframework.data.redis.connection.stream.StreamOffset;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -77,7 +81,9 @@ public class BasicFrameworkRedisMQConsumerAutoConfiguration {
             RedisMQTemplate redisTemplate,
             RedissonClient redissonClient,
             RedisMQProperties properties,
-            RedisStreamDeadLetterService deadLetterService) {
+            RedisStreamDeadLetterService deadLetterService,
+            @Value("${spring.application.name}") String applicationName) {
+        configureDefaultStreamGroups(listeners, applicationName);
         return new RedisPendingMessageResendJob(
                 listeners, redisTemplate, redissonClient, properties, buildConsumerName(), deadLetterService);
     }
@@ -99,7 +105,9 @@ public class BasicFrameworkRedisMQConsumerAutoConfiguration {
             List<AbstractRedisStreamMessageListener<?>> listeners,
             RedisMQTemplate redisTemplate,
             RedissonClient redissonClient,
-            RedisMQProperties properties) {
+            RedisMQProperties properties,
+            @Value("${spring.application.name}") String applicationName) {
+        configureDefaultStreamGroups(listeners, applicationName);
         return new RedisStreamMessageCleanupJob(listeners, redisTemplate, redissonClient, properties);
     }
 
@@ -114,14 +122,17 @@ public class BasicFrameworkRedisMQConsumerAutoConfiguration {
     public StreamMessageListenerContainer<String, ObjectRecord<String, String>> redisStreamMessageListenerContainer(
             RedisMQTemplate redisMQTemplate,
             List<AbstractRedisStreamMessageListener<?>> listeners,
-            RedisStreamDeadLetterService deadLetterService) {
+            RedisStreamDeadLetterService deadLetterService,
+            RedisMQProperties properties,
+            @Value("${spring.application.name}") String applicationName) {
+        configureDefaultStreamGroups(listeners, applicationName);
         StringRedisTemplate redisTemplate = redisMQTemplate.getRedisTemplate();
         checkRedisVersion(redisTemplate);
         // 第一步，创建 StreamMessageListenerContainer 容器
         // 创建 options 配置
         StreamMessageListenerContainer.StreamMessageListenerContainerOptions<String, ObjectRecord<String, String>>
                 containerOptions = StreamMessageListenerContainer.StreamMessageListenerContainerOptions.builder()
-                        .batchSize(10) // 一次性最多拉取多少条消息
+                        .batchSize(properties.getStreamReadBatchSize())
                         .targetType(String.class) // 目标类型。统一使用 String，通过自己封装的 AbstractStreamMessageListener 去反序列化
                         .build();
         // 创建 container 对象
@@ -138,9 +149,11 @@ public class BasicFrameworkRedisMQConsumerAutoConfiguration {
                     listener.getStreamKey(),
                     deadLetterKey,
                     listener.getClass().getName());
-            createConsumerGroup(listener.getStreamKey(), listener.getGroup(), () -> redisTemplate
-                    .opsForStream()
-                    .createGroup(listener.getStreamKey(), listener.getGroup()));
+            createConsumerGroup(
+                    listener.getStreamKey(),
+                    listener.getGroup(),
+                    () -> redisTemplate.opsForStream().createGroup(listener.getStreamKey(), listener.getGroup()),
+                    () -> groupExists(redisTemplate, listener.getStreamKey(), listener.getGroup()));
             // 设置 listener 对应的 redisTemplate
             listener.setRedisMQTemplate(redisMQTemplate);
             listener.setDeadLetterService(deadLetterService);
@@ -163,28 +176,33 @@ public class BasicFrameworkRedisMQConsumerAutoConfiguration {
         return container;
     }
 
-    static void createConsumerGroup(String streamKey, String group, Runnable groupCreator) {
+    static void configureDefaultStreamGroups(
+            List<AbstractRedisStreamMessageListener<?>> listeners, String applicationName) {
+        listeners.forEach(listener -> listener.configureDefaultGroup(applicationName));
+    }
+
+    static void createConsumerGroup(
+            String streamKey, String group, Runnable groupCreator, BooleanSupplier groupExistsVerifier) {
         try {
             groupCreator.run();
         } catch (RuntimeException exception) {
-            if (containsRedisErrorCode(exception, "BUSYGROUP")) {
-                log.debug("[createConsumerGroup][StreamKey({}) 的消费者组({}) 已存在]", streamKey, group);
-                return;
+            try {
+                if (groupExistsVerifier.getAsBoolean()) {
+                    log.debug("[createConsumerGroup][StreamKey({}) 的消费者组({}) 已存在]", streamKey, group);
+                    return;
+                }
+            } catch (RuntimeException verificationException) {
+                exception.addSuppressed(verificationException);
             }
             throw new IllegalStateException(
                     StrUtil.format("创建 Redis Stream({}) 消费者组({}) 失败", streamKey, group), exception);
         }
     }
 
-    private static boolean containsRedisErrorCode(Throwable throwable, String errorCode) {
-        Throwable current = throwable;
-        while (current != null) {
-            if (StrUtil.contains(current.getMessage(), errorCode)) {
-                return true;
-            }
-            current = current.getCause();
-        }
-        return false;
+    static boolean groupExists(StringRedisTemplate redisTemplate, String streamKey, String group) {
+        StreamInfo.XInfoGroups groups =
+                Objects.requireNonNull(redisTemplate.opsForStream().groups(streamKey), "Redis 未返回消费者组元数据");
+        return groups.stream().anyMatch(candidate -> Objects.equals(candidate.groupName(), group));
     }
 
     /**
@@ -202,10 +220,22 @@ public class BasicFrameworkRedisMQConsumerAutoConfiguration {
      */
     public static void checkRedisVersion(RedisTemplate<String, ?> redisTemplate) {
         // 获得 Redis 版本
-        Properties info = redisTemplate.execute((RedisCallback<Properties>) RedisServerCommands::info);
+        Properties info = Objects.requireNonNull(redisTemplate, "redisTemplate must not be null")
+                .execute((RedisCallback<Properties>) RedisServerCommands::info);
+        if (info == null) {
+            throw new IllegalStateException("Redis INFO 未返回版本信息");
+        }
         String version = MapUtil.getStr(info, "redis_version");
+        if (StrUtil.isBlank(version)) {
+            throw new IllegalStateException("Redis INFO 缺少 redis_version");
+        }
         // 校验最低版本必须大于等于 5.0.0
-        int majorVersion = Integer.parseInt(StrUtil.subBefore(version, '.', false));
+        int majorVersion;
+        try {
+            majorVersion = Integer.parseInt(StrUtil.subBefore(version, '.', false));
+        } catch (NumberFormatException exception) {
+            throw new IllegalStateException(StrUtil.format("无法解析 Redis 版本: {}", version), exception);
+        }
         if (majorVersion < 5) {
             throw new IllegalStateException(StrUtil.format("当前 Redis 版本为 {}，低于最低要求的 5.0.0，请升级 Redis", version));
         }

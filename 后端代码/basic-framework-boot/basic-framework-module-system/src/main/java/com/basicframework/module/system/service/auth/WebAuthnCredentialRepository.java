@@ -9,7 +9,6 @@ import com.yubico.webauthn.RegisteredCredential;
 import com.yubico.webauthn.data.AuthenticatorTransport;
 import com.yubico.webauthn.data.ByteArray;
 import com.yubico.webauthn.data.PublicKeyCredentialDescriptor;
-import jakarta.annotation.Resource;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -22,8 +21,11 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class WebAuthnCredentialRepository implements CredentialRepository {
 
-    @Resource
-    private MfaFactorMapper factorMapper;
+    private final MfaFactorMapper factorMapper;
+
+    public WebAuthnCredentialRepository(MfaFactorMapper factorMapper) {
+        this.factorMapper = factorMapper;
+    }
 
     @Override
     public Set<PublicKeyCredentialDescriptor> getCredentialIdsForUsername(String username) {

@@ -5,7 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-@Schema(description = "用户 App - 字典数据信息 Response VO")
+@Schema(description = "应用端 - 字典数据信息 Response VO")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

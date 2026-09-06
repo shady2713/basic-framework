@@ -1,6 +1,12 @@
+import type { FormActions, FormSchema } from '../src/types';
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FormApi } from '../src/form-api';
+
+function formActions(value: Record<string, unknown>): FormActions {
+  return value as unknown as FormActions;
+}
 
 describe('formApi', () => {
   let formApi: FormApi;
@@ -31,7 +37,7 @@ describe('formApi', () => {
   });
 
   it('should mount form actions', async () => {
-    const formActions: any = {
+    const actions = formActions({
       meta: {},
       resetForm: vi.fn(),
       setFieldValue: vi.fn(),
@@ -39,33 +45,117 @@ describe('formApi', () => {
       submitForm: vi.fn(),
       validate: vi.fn(),
       values: { name: 'test' },
-    };
+    });
 
-    await formApi.mount(formActions);
+    await formApi.mount(actions, new Map());
     expect(formApi.isMounted).toBe(true);
-    expect(formApi.form).toEqual(formActions);
+    expect(formApi.form).toEqual(actions);
   });
 
   it('should get values from form', async () => {
-    const formActions: any = {
+    const actions = formActions({
       meta: {},
       values: { name: 'test' },
-    };
+    });
 
-    await formApi.mount(formActions);
+    await formApi.mount(actions, new Map());
     const values = await formApi.getValues();
     expect(values).toEqual({ name: 'test' });
   });
 
+  it('should convert configured array fields to delimited strings', async () => {
+    formApi = new FormApi({ arrayToStringFields: ['roles', ';'] });
+    await formApi.mount(
+      formActions({ meta: {}, values: { roles: ['admin', 'auditor'] } }),
+      new Map(),
+    );
+
+    await expect(formApi.getValues()).resolves.toEqual({
+      roles: 'admin;auditor',
+    });
+  });
+
+  it('should convert configured delimited strings to arrays', async () => {
+    formApi = new FormApi({ arrayToStringFields: ['roles', '|'] });
+    await formApi.mount(
+      formActions({ meta: {}, values: { roles: 'admin|auditor' } }),
+      new Map(),
+    );
+
+    await expect(formApi.getValues()).resolves.toEqual({
+      roles: ['admin', 'auditor'],
+    });
+  });
+
+  it('should map range values to API fields', async () => {
+    formApi = new FormApi({
+      fieldMappingTime: [
+        ['createdAt', ['createdAtStart', 'createdAtEnd'], null],
+      ],
+    });
+    await formApi.mount(
+      formActions({
+        meta: {},
+        values: { createdAt: ['2026-08-01', '2026-08-31'] },
+      }),
+      new Map(),
+    );
+
+    await expect(formApi.getValues()).resolves.toEqual({
+      createdAtEnd: '2026-08-31',
+      createdAtStart: '2026-08-01',
+    });
+  });
+
+  it('should reject malformed range values with the field name', () => {
+    formApi = new FormApi({
+      fieldMappingTime: [
+        ['createdAt', ['createdAtStart', 'createdAtEnd'], null],
+      ],
+    });
+
+    expect(() =>
+      formApi.mount(
+        formActions({ meta: {}, values: { createdAt: '2026-08-01' } }),
+        new Map(),
+      ),
+    ).toThrowError(
+      'Range field "createdAt" must contain a start and end value',
+    );
+  });
+
+  it('should reject unsupported date values before formatting', () => {
+    formApi = new FormApi({
+      fieldMappingTime: [
+        ['createdAt', ['createdAtStart', 'createdAtEnd'], 'YYYY-MM-DD'],
+      ],
+    });
+
+    expect(() =>
+      formApi.mount(
+        formActions({ meta: {}, values: { createdAt: [{}, new Date()] } }),
+        new Map(),
+      ),
+    ).toThrowError('Range field "createdAt" contains an invalid date value');
+  });
+
+  it('should preserve null as no latest submission', () => {
+    formApi.setLatestSubmissionValues({ name: 'test' });
+    expect(formApi.getLatestSubmissionValues()).toEqual({ name: 'test' });
+
+    formApi.setLatestSubmissionValues(null);
+    expect(formApi.getLatestSubmissionValues()).toEqual({});
+  });
+
   it('should set field value', async () => {
     const setFieldValueMock = vi.fn();
-    const formActions: any = {
+    const actions = formActions({
       meta: {},
       setFieldValue: setFieldValueMock,
       values: { name: 'test' },
-    };
+    });
 
-    await formApi.mount(formActions);
+    await formApi.mount(actions, new Map());
     await formApi.setFieldValue('name', 'new value');
     expect(setFieldValueMock).toHaveBeenCalledWith(
       'name',
@@ -76,34 +166,53 @@ describe('formApi', () => {
 
   it('should reset form', async () => {
     const resetFormMock = vi.fn();
-    const formActions: any = {
+    const actions = formActions({
       meta: {},
       resetForm: resetFormMock,
       values: { name: 'test' },
-    };
+    });
 
-    await formApi.mount(formActions);
+    await formApi.mount(actions, new Map());
     await formApi.resetForm();
     expect(resetFormMock).toHaveBeenCalled();
   });
 
+  it('should clear every field validation error', async () => {
+    const setFieldError = vi.fn();
+    await formApi.mount(
+      formActions({
+        errors: { value: { email: 'invalid', username: 'required' } },
+        meta: {},
+        setFieldError,
+        values: {},
+      }),
+      new Map(),
+    );
+
+    await formApi.resetValidate();
+
+    expect(setFieldError).toHaveBeenCalledTimes(2);
+    expect(setFieldError).toHaveBeenCalledWith('email', undefined);
+    expect(setFieldError).toHaveBeenCalledWith('username', undefined);
+  });
+
   it('should call handleSubmit on submit', async () => {
     const handleSubmitMock = vi.fn();
-    const formActions: any = {
+    const actions = formActions({
       meta: {},
       submitForm: vi.fn().mockResolvedValue(true),
       values: { name: 'test' },
-    };
+    });
 
     const state = {
       handleSubmit: handleSubmitMock,
     };
 
     formApi.setState(state);
-    await formApi.mount(formActions);
+    await formApi.mount(actions, new Map());
 
     const result = await formApi.submitForm();
-    expect(formActions.submitForm).toHaveBeenCalled();
+    expect(actions.submitForm).toHaveBeenCalled();
     expect(handleSubmitMock).toHaveBeenCalledWith({ name: 'test' });
     expect(result).toEqual({ name: 'test' });
   });
@@ -115,12 +224,12 @@ describe('formApi', () => {
 
   it('should validate form', async () => {
     const validateMock = vi.fn().mockResolvedValue(true);
-    const formActions: any = {
+    const actions = formActions({
       meta: {},
       validate: validateMock,
-    };
+    });
 
-    await formApi.mount(formActions);
+    await formApi.mount(actions, new Map());
     const isValid = await formApi.validate();
     expect(validateMock).toHaveBeenCalled();
     expect(isValid).toBe(true);
@@ -153,7 +262,7 @@ describe('updateSchema', () => {
   });
 
   it('should log an error if fieldName is missing in some items', () => {
-    const newSchema: any[] = [
+    const newSchema: Partial<FormSchema>[] = [
       { component: 'textarea', fieldName: 'name' },
       { component: 'number' },
     ];
@@ -179,7 +288,7 @@ describe('updateSchema', () => {
   });
 
   it('should not update schema if updatedMap is empty', () => {
-    const newSchema: any[] = [{ component: 'textarea' }];
+    const newSchema: Partial<FormSchema>[] = [{ component: 'textarea' }];
 
     instance.updateSchema(newSchema);
 

@@ -7,14 +7,19 @@ import com.basicframework.framework.common.enums.CommonStatusEnum;
 import com.basicframework.framework.common.enums.UserTypeEnum;
 import com.basicframework.framework.security.core.LoginUser;
 import com.basicframework.framework.security.core.util.SecurityFrameworkUtils;
+import com.basicframework.module.system.dal.dataobject.permission.RoleDO;
 import com.basicframework.module.system.dal.dataobject.session.UserSessionDO;
 import com.basicframework.module.system.enums.ErrorCodeConstants;
 import com.basicframework.module.system.enums.LogRecordConstants;
+import com.basicframework.module.system.enums.permission.RoleTypeEnum;
 import com.basicframework.module.system.service.permission.PermissionService;
+import com.basicframework.module.system.service.permission.RoleService;
 import com.basicframework.module.system.service.session.UserSessionService;
 import com.basicframework.module.system.service.user.AdminUserService;
 import java.time.Duration;
+import java.util.HashSet;
 import java.util.Set;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -36,6 +41,9 @@ class SessionPersistenceIT extends AbstractPersistenceIntegrationTest {
 
     @Autowired
     private PermissionService permissionService;
+
+    @Autowired
+    private RoleService roleService;
 
     @Test
     void sessionSchema_succeedsAgainstRealDatabase() {
@@ -107,6 +115,7 @@ class SessionPersistenceIT extends AbstractPersistenceIntegrationTest {
         String originalPassword =
                 jdbcTemplate.queryForObject("SELECT password FROM system_users WHERE id = ?", String.class, userId);
         Set<Long> originalRoleIds = permissionService.getUserRoleIdListByUserId(userId);
+        Long temporaryRoleId = null;
         try {
             UserSessionDO passwordToken = userSessionService.createSession(userId, UserTypeEnum.ADMIN.getValue());
             adminUserService.updateUserPassword(userId, "integration-password-123");
@@ -114,13 +123,24 @@ class SessionPersistenceIT extends AbstractPersistenceIntegrationTest {
             awaitAnonymousAuditPersisted(LogRecordConstants.SYSTEM_USER_UPDATE_PASSWORD_SUB_TYPE, userId);
 
             UserSessionDO roleToken = userSessionService.createSession(userId, UserTypeEnum.ADMIN.getValue());
-            Set<Long> changedRoleIds = originalRoleIds.isEmpty() ? Set.of(1L) : Set.of();
-            permissionService.assignUserRole(userId, changedRoleIds);
+            String uniqueSuffix = UUID.randomUUID().toString().substring(0, 8);
+            temporaryRoleId = roleService.createRole(
+                    new RoleDO()
+                            .setName("会话集成" + uniqueSuffix)
+                            .setCode("it_session_" + uniqueSuffix)
+                            .setSort(999),
+                    RoleTypeEnum.CUSTOM.getType());
+            Set<Long> changedRoleIds = new HashSet<>(originalRoleIds);
+            changedRoleIds.add(temporaryRoleId);
+            permissionService.assignUserRole(userId, userId, changedRoleIds);
             awaitTokenRevoked(roleToken);
             awaitAnonymousAuditPersisted(LogRecordConstants.SYSTEM_PERMISSION_ASSIGN_USER_ROLE_SUB_TYPE, userId);
         } finally {
             jdbcTemplate.update("UPDATE system_users SET password = ? WHERE id = ?", originalPassword, userId);
-            permissionService.assignUserRole(userId, originalRoleIds);
+            permissionService.assignUserRole(userId, userId, originalRoleIds);
+            if (temporaryRoleId != null) {
+                roleService.deleteRole(temporaryRoleId);
+            }
         }
     }
 

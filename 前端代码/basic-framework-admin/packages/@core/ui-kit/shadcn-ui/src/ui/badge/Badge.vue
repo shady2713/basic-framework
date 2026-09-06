@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { HTMLAttributes } from 'vue';
+
 import type { BadgeVariants } from './badge';
 
 import { cn } from '@vben-core/shared/utils';
@@ -6,7 +8,7 @@ import { cn } from '@vben-core/shared/utils';
 import { badgeVariants } from './badge';
 
 const props = defineProps<{
-  class?: any;
+  class?: HTMLAttributes['class'];
   variant?: BadgeVariants['variant'];
 }>();
 </script>

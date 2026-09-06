@@ -112,15 +112,14 @@ basic-framework:
       webauthn:
         enabled: true
         rp-id: ${MFA_WEBAUTHN_RP_ID:}
+        # 每项都必须是 RP ID 范围内的精确 HTTPS Origin；不允许通配符、路径或本机地址
         rp-name: ${MFA_WEBAUTHN_RP_NAME:basic-framework}
         allowed-origins:
           - ${MFA_WEBAUTHN_ALLOWED_ORIGIN:}
   access-log:
     enable: true # 生产环境开启访问日志
-  demo: false
-  tencent-lbs-key: ${TENCENT_LBS_KEY:}
   web:
-    cors-allowed-origins: # 生产环境务必替换为具体域名
+    cors-allowed-origins: # 生产环境必须配置精确 HTTPS Origin，不允许通配符、路径或本机地址
       - ${CORS_ALLOWED_ORIGIN:https://admin.example.com}
 
 --- #################### API 文档相关配置 ####################

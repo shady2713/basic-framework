@@ -4,8 +4,8 @@
 
 ## 环境要求
 
-- `Node.js >= 20`
-- `pnpm >= 10`
+- `Node.js >= 20.19`（与根 README 及 package.json engines 一致）
+- `pnpm >= 10`（锁文件由 `pnpm@10.28.2` 生成）
 
 ## 快速开始
 

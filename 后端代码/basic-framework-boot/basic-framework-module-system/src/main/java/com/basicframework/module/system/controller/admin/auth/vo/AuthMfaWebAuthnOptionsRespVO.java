@@ -2,9 +2,11 @@ package com.basicframework.module.system.controller.admin.auth.vo;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
+import lombok.ToString;
 
 @Schema(description = "管理后台 - WebAuthn ceremony Response VO")
 @Data
+@ToString(exclude = {"ceremonyToken"})
 public class AuthMfaWebAuthnOptionsRespVO {
 
     @Schema(description = "一次性 ceremony 令牌", requiredMode = Schema.RequiredMode.REQUIRED)

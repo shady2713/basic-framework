@@ -8,6 +8,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 
 /**
  * 用户 Excel 导入 VO
@@ -28,9 +29,11 @@ public class UserImportExcelVO {
     private String deptName;
 
     @ExcelProperty("用户邮箱")
+    @ToString.Exclude
     private String email;
 
     @ExcelProperty("手机号码")
+    @ToString.Exclude
     private String mobile;
 
     @ExcelProperty(value = "用户性别", converter = DictConvert.class)

@@ -13,10 +13,9 @@ import com.basicframework.module.system.dal.mysql.notify.NotifyTemplateQuery;
 import com.basicframework.module.system.dal.redis.RedisKeyConstants;
 import com.basicframework.module.system.util.TemplateUtils;
 import com.google.common.annotations.VisibleForTesting;
-import jakarta.annotation.Resource;
 import java.util.List;
 import java.util.Map;
-import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
@@ -28,11 +27,10 @@ import org.springframework.validation.annotation.Validated;
  */
 @Service
 @Validated
-@Slf4j
+@RequiredArgsConstructor
 public class NotifyTemplateServiceImpl implements NotifyTemplateService {
 
-    @Resource
-    private NotifyTemplateMapper notifyTemplateMapper;
+    private final NotifyTemplateMapper notifyTemplateMapper;
 
     @Override
     public Long createNotifyTemplate(NotifyTemplateDO notifyTemplate) {

@@ -15,6 +15,8 @@ interface PluginOptions {
 
 const GLOBAL_CONFIG_FILE_NAME = '_app.config.js';
 const VBEN_ADMIN_PRO_APP_CONF = '_VBEN_ADMIN_PRO_APP_CONF_';
+const PUBLIC_RUNTIME_PREFIX = 'VITE_GLOB_';
+const REQUIRED_RUNTIME_KEYS = ['VITE_GLOB_API_URL'] as const;
 
 /**
  * Extract runtime app config into a standalone asset and inject it into HTML.
@@ -38,19 +40,13 @@ async function viteExtraAppConfigPlugin({
       source = await getConfigSource(root, config.mode);
     },
     async generateBundle() {
-      try {
-        this.emitFile({
-          fileName: GLOBAL_CONFIG_FILE_NAME,
-          source,
-          type: 'asset',
-        });
+      this.emitFile({
+        fileName: GLOBAL_CONFIG_FILE_NAME,
+        source,
+        type: 'asset',
+      });
 
-        console.log(colors.cyan('configuration file is build successfully!'));
-      } catch (error) {
-        console.log(
-          colors.red(`configuration file failed to package:\n${String(error)}`),
-        );
-      }
+      console.log(colors.cyan('configuration file is build successfully!'));
     },
     name: 'vite:extra-app-config',
     async transformIndexHtml(html) {
@@ -66,7 +62,7 @@ async function viteExtraAppConfigPlugin({
 }
 
 async function getConfigSource(root: string, mode: string | undefined) {
-  const config = await loadEnv(root, mode);
+  const config = selectPublicRuntimeConfig(await loadEnv(root, mode));
   const windowVariable = `window.${VBEN_ADMIN_PRO_APP_CONF}`;
   let source = `${windowVariable}=${JSON.stringify(config)};`;
   source += `
@@ -79,8 +75,22 @@ async function getConfigSource(root: string, mode: string | undefined) {
   return source;
 }
 
+function selectPublicRuntimeConfig(env: Record<string, string>) {
+  const config = Object.fromEntries(
+    Object.entries(env).filter(([key]) =>
+      key.startsWith(PUBLIC_RUNTIME_PREFIX),
+    ),
+  );
+  for (const key of REQUIRED_RUNTIME_KEYS) {
+    if (!config[key]?.trim()) {
+      throw new TypeError(`Missing public runtime config: ${key}`);
+    }
+  }
+  return config;
+}
+
 function ensureTrailingSlash(path: string) {
   return path.endsWith('/') ? path : `${path}/`;
 }
 
-export { viteExtraAppConfigPlugin };
+export { selectPublicRuntimeConfig, viteExtraAppConfigPlugin };

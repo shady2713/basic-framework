@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-@Tag(name = "用户 App - 地区")
+@Tag(name = "应用端 - 地区")
 @RestController
 @RequestMapping("/system/area")
 @Validated

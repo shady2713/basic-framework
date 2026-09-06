@@ -35,14 +35,14 @@ import com.google.common.annotations.VisibleForTesting;
 import com.mzt.logapi.context.LogRecordContext;
 import com.mzt.logapi.service.impl.DiffParseFunction;
 import com.mzt.logapi.starter.annotation.LogRecord;
-import jakarta.annotation.Resource;
+import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validator;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
-import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -50,7 +50,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /** 后台用户生命周期服务，统一维护账号约束、部门岗位关系及影响认证状态时的会话撤销。 */
 @Service("adminUserService")
-@Slf4j
+@RequiredArgsConstructor
 public class AdminUserServiceImpl implements AdminUserService {
 
     /**
@@ -62,29 +62,23 @@ public class AdminUserServiceImpl implements AdminUserService {
      */
     private static final int IMPORT_PASSWORD_BYTES = 16;
 
-    @Resource
-    private AdminUserMapper userMapper;
+    private final AdminUserMapper userMapper;
 
-    @Resource
-    private DeptService deptService;
+    private final DeptService deptService;
 
-    @Resource
-    private PostService postService;
+    private final PostService postService;
 
-    @Resource
-    private ObjectProvider<PermissionService> permissionServiceProvider;
+    private final ObjectProvider<PermissionService> permissionServiceProvider;
 
-    @Resource
-    private PasswordEncoder passwordEncoder;
+    private final PasswordEncoder passwordEncoder;
 
-    @Resource
-    private UserSessionRevocationPublisher sessionRevocationPublisher;
+    private final PasswordPolicy passwordPolicy;
 
-    @Resource
-    private UserPostMapper userPostMapper;
+    private final UserSessionRevocationPublisher sessionRevocationPublisher;
 
-    @Resource
-    private Validator validator;
+    private final UserPostMapper userPostMapper;
+
+    private final Validator validator;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -95,9 +89,11 @@ public class AdminUserServiceImpl implements AdminUserService {
             success = SYSTEM_USER_CREATE_SUCCESS)
     public Long createUser(AdminUserDO user) {
         user.setUsername(ValidationUtils.normalizeUsername(user.getUsername()));
+        normalizeWritableContactFields(user);
         validateUserForCreateOrUpdate(
                 null, user.getUsername(), user.getMobile(), user.getEmail(), user.getDeptId(), user.getPostIds());
         user.setStatus(ObjUtil.defaultIfNull(user.getStatus(), CommonStatusEnum.ENABLE.getStatus()));
+        passwordPolicy.validate(user.getPassword(), user.getUsername());
         user.setPassword(encodePassword(user.getPassword()));
         userMapper.insert(user);
         if (CollectionUtil.isNotEmpty(user.getPostIds())) {
@@ -120,6 +116,7 @@ public class AdminUserServiceImpl implements AdminUserService {
     public void updateUser(AdminUserDO updateObj) {
         updateObj.setPassword(null); // 特殊：此处不更新密码
         updateObj.setUsername(ValidationUtils.normalizeUsername(updateObj.getUsername()));
+        normalizeWritableContactFields(updateObj);
         AdminUserDO oldUser = validateUserForCreateOrUpdate(
                 updateObj.getId(),
                 updateObj.getUsername(),
@@ -166,6 +163,7 @@ public class AdminUserServiceImpl implements AdminUserService {
     @Transactional(rollbackFor = Exception.class)
     public void updateUserProfile(Long id, AdminUserDO user) {
         AdminUserDO oldUser = validateUserExists(id);
+        normalizeWritableContactFields(user);
         validateEmailUnique(id, user.getEmail());
         validateMobileUnique(id, user.getMobile());
         userMapper.updateById(user.setId(id));
@@ -191,6 +189,7 @@ public class AdminUserServiceImpl implements AdminUserService {
             success = SYSTEM_USER_UPDATE_OWN_PASSWORD_SUCCESS)
     public void updateUserPassword(Long id, String oldPassword, String newPassword) {
         AdminUserDO user = validateOldPassword(id, oldPassword);
+        passwordPolicy.validate(newPassword, user.getUsername());
         AdminUserDO updateObj = new AdminUserDO().setId(id);
         updateObj.setPassword(encodePassword(newPassword)); // 加密密码
         userMapper.updateById(updateObj);
@@ -207,6 +206,7 @@ public class AdminUserServiceImpl implements AdminUserService {
             success = SYSTEM_USER_UPDATE_PASSWORD_SUCCESS)
     public void updateUserPassword(Long id, String password) {
         AdminUserDO user = validateUserExists(id);
+        passwordPolicy.validate(password, user.getUsername());
 
         AdminUserDO updateObj = new AdminUserDO();
         updateObj.setId(id);
@@ -282,7 +282,7 @@ public class AdminUserServiceImpl implements AdminUserService {
 
     @Override
     public AdminUserDO getUserByMobile(String mobile) {
-        return userMapper.selectByMobile(mobile);
+        return userMapper.selectByMobile(ValidationUtils.normalizeMobile(mobile));
     }
 
     @Override
@@ -359,11 +359,14 @@ public class AdminUserServiceImpl implements AdminUserService {
 
     @Override
     public List<AdminUserDO> getUserListByNickname(String nickname) {
-        return userMapper.selectListByNickname(nickname);
+        return userMapper.selectListByNickname(ValidationUtils.normalizeNickname(nickname));
     }
 
     /**
      * 获得部门条件：查询指定部门的子部门编号们，包括自身
+     *
+     * 走缓存版子部门查询（{@link DeptService#getChildDeptIdListFromCache(Long)}），
+     * 避免用户分页等高频入口逐层递归查库；部门写操作会清空该缓存。
      *
      * @param deptId 部门编号
      * @return 部门编号集合
@@ -372,7 +375,8 @@ public class AdminUserServiceImpl implements AdminUserService {
         if (deptId == null) {
             return Collections.emptySet();
         }
-        Set<Long> deptIds = convertSet(deptService.getChildDeptList(deptId), DeptDO::getId);
+        // 复制一份再并入自身，避免改动缓存返回的集合实例
+        Set<Long> deptIds = new HashSet<>(deptService.getChildDeptIdListFromCache(deptId));
         deptIds.add(deptId); // 包括自身
         return deptIds;
     }
@@ -423,10 +427,11 @@ public class AdminUserServiceImpl implements AdminUserService {
 
     @VisibleForTesting
     void validateEmailUnique(Long id, String email) {
-        if (StrUtil.isBlank(email)) {
+        String normalizedEmail = ValidationUtils.normalizeEmail(email);
+        if (StrUtil.isBlank(normalizedEmail)) {
             return;
         }
-        AdminUserDO user = userMapper.selectByEmail(email);
+        AdminUserDO user = userMapper.selectByEmail(normalizedEmail);
         if (user == null) {
             return;
         }
@@ -440,10 +445,11 @@ public class AdminUserServiceImpl implements AdminUserService {
 
     @VisibleForTesting
     void validateMobileUnique(Long id, String mobile) {
-        if (StrUtil.isBlank(mobile)) {
+        String normalizedMobile = ValidationUtils.normalizeMobile(mobile);
+        if (StrUtil.isBlank(normalizedMobile)) {
             return;
         }
-        AdminUserDO user = userMapper.selectByMobile(mobile);
+        AdminUserDO user = userMapper.selectByMobile(normalizedMobile);
         if (user == null) {
             return;
         }
@@ -488,13 +494,16 @@ public class AdminUserServiceImpl implements AdminUserService {
         importUsers.forEach(importUser -> {
             int currentIndex = index.getAndIncrement();
             importUser.setUsername(ValidationUtils.normalizeUsername(importUser.getUsername()));
+            importUser.setNickname(ValidationUtils.normalizeNickname(importUser.getNickname()));
+            importUser.setMobile(ValidationUtils.normalizeMobile(importUser.getMobile()));
+            importUser.setEmail(ValidationUtils.normalizeEmail(importUser.getEmail()));
             // 每个新用户独立的随机初始密码：明文不落库，仅用于通过新增校验后加密入库
             String randomPassword = generateImportPassword();
             try {
                 ValidationUtils.validate(validator, importUser);
             } catch (ConstraintViolationException ex) {
                 String key = StrUtil.blankToDefault(importUser.getUsername(), "第 " + currentIndex + " 行");
-                failureUsernames.put(key, ex.getMessage());
+                failureUsernames.put(key, firstConstraintViolationMessage(ex));
                 return;
             }
             Long deptId = null;
@@ -510,7 +519,7 @@ public class AdminUserServiceImpl implements AdminUserService {
             try {
                 validateUserForCreateOrUpdate(null, null, importUser.getMobile(), importUser.getEmail(), deptId, null);
             } catch (ServiceException ex) {
-                failureUsernames.put(importUser.getUsername(), ex.getMessage());
+                failureUsernames.put(importUser.getUsername(), ex.getPublicMessage());
                 return;
             }
 
@@ -539,6 +548,15 @@ public class AdminUserServiceImpl implements AdminUserService {
         return new UserImportResultDTO(createUsernames, updateUsernames, failureUsernames);
     }
 
+    @VisibleForTesting
+    static String firstConstraintViolationMessage(ConstraintViolationException exception) {
+        return exception.getConstraintViolations().stream()
+                .map(ConstraintViolation::getMessage)
+                .filter(StrUtil::isNotBlank)
+                .findFirst()
+                .orElse("用户信息校验失败");
+    }
+
     @Override
     public List<AdminUserDO> getUserListByStatus(Integer status) {
         return userMapper.selectListByStatus(status);
@@ -549,8 +567,23 @@ public class AdminUserServiceImpl implements AdminUserService {
         return passwordEncoder.matches(rawPassword, encodedPassword);
     }
 
+    @Override
+    public void upgradePasswordEncodingIfNeeded(Long id, String rawPassword, String expectedEncodedPassword) {
+        if (!passwordEncoder.upgradeEncoding(expectedEncodedPassword)) {
+            return;
+        }
+        String upgradedPassword = encodePassword(rawPassword);
+        userMapper.updatePasswordIfUnchanged(id, expectedEncodedPassword, upgradedPassword);
+    }
+
     private PermissionService getPermissionService() {
         return permissionServiceProvider.getObject();
+    }
+
+    private static void normalizeWritableContactFields(AdminUserDO user) {
+        user.setNickname(ValidationUtils.normalizeNickname(user.getNickname()));
+        user.setMobile(ValidationUtils.normalizeMobile(user.getMobile()));
+        user.setEmail(ValidationUtils.normalizeEmail(user.getEmail()));
     }
 
     /**

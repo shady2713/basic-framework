@@ -23,6 +23,4 @@ public interface WebFilterOrderEnum {
     // Spring Security Filter 默认为 -100，可见 org.springframework.boot.autoconfigure.security.SecurityProperties 配置属性类
 
     int FLOWABLE_FILTER = -98; // 需要保证在 Spring Security 过滤后面
-
-    int DEMO_FILTER = Integer.MAX_VALUE;
 }

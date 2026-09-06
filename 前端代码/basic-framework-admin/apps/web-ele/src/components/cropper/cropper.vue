@@ -1,13 +1,14 @@
 <script lang="ts" setup>
 import type { CSSProperties } from 'vue';
 
-import type { CropperProps } from './typing';
+import type { CropendResult, CropperProps } from './typing';
 
-import { computed, onMounted, onUnmounted, ref, unref, useAttrs } from 'vue';
+import { computed, onMounted, onUnmounted, ref, useAttrs } from 'vue';
 
 import { useDebounceFn } from '@vueuse/core';
 import Cropper from 'cropperjs';
 
+import { toCssDimension } from './cropper-utils';
 import { defaultOptions } from './typing';
 
 import 'cropperjs/dist/cropper.css';
@@ -25,12 +26,15 @@ const props = withDefaults(defineProps<CropperProps>(), {
   options: () => ({}),
 });
 
-const emit = defineEmits(['cropend', 'ready', 'cropendError']);
+const emit = defineEmits<{
+  cropend: [result: CropendResult];
+  cropendError: [error?: unknown];
+  ready: [cropper: Cropper];
+}>();
 const attrs = useAttrs();
 
-type ElRef<T extends HTMLElement = HTMLDivElement> = null | T;
-const imgElRef = ref<ElRef<HTMLImageElement>>();
-const cropper = ref<Cropper | null>();
+const imgElRef = ref<HTMLImageElement | null>(null);
+const cropper = ref<Cropper | null>(null);
 const isReady = ref(false);
 
 const debounceRealTimeCropped = useDebounceFn(realTimeCropped, 80);
@@ -53,78 +57,97 @@ const getClass = computed(() => {
 });
 
 const getWrapperStyle = computed((): CSSProperties => {
-  return { height: `${`${props.height}`.replace(/px/, '')}px` };
+  return { height: toCssDimension(props.height) };
 });
 
 onMounted(init);
 
 onUnmounted(() => {
   cropper.value?.destroy();
+  cropper.value = null;
 });
 
-async function init() {
-  const imgEl = unref(imgElRef);
-  if (!imgEl) {
-    return;
-  }
+function init() {
+  const imgEl = imgElRef.value;
+  if (!imgEl) return;
+
+  const {
+    crop: onCrop,
+    cropmove: onCropMove,
+    ready: onReady,
+    zoom: onZoom,
+    ...options
+  } = props.options;
   cropper.value = new Cropper(imgEl, {
     ...defaultOptions,
-    ready: () => {
+    ...options,
+    ready: (event) => {
       isReady.value = true;
       realTimeCropped();
-      emit('ready', cropper.value);
+      if (cropper.value) emit('ready', cropper.value);
+      onReady?.(event);
     },
-    crop() {
+    crop(event) {
       debounceRealTimeCropped();
+      onCrop?.(event);
     },
-    zoom() {
+    zoom(event) {
       debounceRealTimeCropped();
+      onZoom?.(event);
     },
-    cropmove() {
+    cropmove(event) {
       debounceRealTimeCropped();
+      onCropMove?.(event);
     },
-    ...props.options,
   });
 }
 
-// Real-time display preview
 function realTimeCropped() {
-  props.realTimePreview && cropped();
+  if (props.realTimePreview) cropped();
 }
 
-// event: return base64 and width and height information after cropping
 function cropped() {
-  if (!cropper.value) {
-    return;
-  }
-  const imgInfo = cropper.value.getData();
-  const canvas = props.circled
-    ? getRoundedCanvas()
-    : cropper.value.getCroppedCanvas();
-  canvas.toBlob((blob) => {
-    if (!blob) {
+  const instance = cropper.value;
+  if (!instance) return;
+
+  try {
+    const imgInfo = instance.getData();
+    const canvas = props.circled
+      ? getRoundedCanvas(instance)
+      : instance.getCroppedCanvas();
+    if (!canvas) {
+      emit('cropendError', new Error('Cropper canvas is unavailable'));
       return;
     }
-    const fileReader: FileReader = new FileReader();
-    fileReader.readAsDataURL(blob);
-    fileReader.onloadend = (e) => {
-      emit('cropend', {
-        imgBase64: e.target?.result ?? '',
-        imgInfo,
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        emit('cropendError', new Error('Cropped image is empty'));
+        return;
+      }
+      const fileReader = new FileReader();
+      fileReader.addEventListener('loadend', (event) => {
+        const result = event.target?.result;
+        if (typeof result !== 'string') {
+          emit('cropendError', new Error('Cropped image could not be read'));
+          return;
+        }
+        emit('cropend', { imgBase64: result, imgInfo });
       });
-    };
-    // eslint-disable-next-line unicorn/prefer-add-event-listener
-    fileReader.onerror = () => {
-      emit('cropendError');
-    };
-  }, 'image/png');
+      fileReader.addEventListener('error', () => {
+        emit('cropendError', fileReader.error ?? undefined);
+      });
+      fileReader.readAsDataURL(blob);
+    }, 'image/png');
+  } catch (error) {
+    emit('cropendError', error);
+  }
 }
 
-// Get a circular picture canvas
-function getRoundedCanvas() {
-  const sourceCanvas = cropper.value!.getCroppedCanvas();
+function getRoundedCanvas(instance: Cropper) {
+  const sourceCanvas = instance.getCroppedCanvas();
   const canvas = document.createElement('canvas');
-  const context = canvas.getContext('2d')!;
+  const context = canvas.getContext('2d');
+  if (!context) return undefined;
   const width = sourceCanvas.width;
   const height = sourceCanvas.height;
   canvas.width = width;

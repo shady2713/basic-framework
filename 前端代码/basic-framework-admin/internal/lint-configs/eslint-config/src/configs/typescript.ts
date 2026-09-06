@@ -1,6 +1,6 @@
 import type { Linter } from 'eslint';
 
-import { interopDefault } from '../util';
+import { interopDefault, toEslintPlugin } from '../util';
 
 export async function typescript(): Promise<Linter.Config[]> {
   const [pluginTs, parserTs] = await Promise.all([
@@ -26,7 +26,7 @@ export async function typescript(): Promise<Linter.Config[]> {
         },
       },
       plugins: {
-        '@typescript-eslint': pluginTs as any,
+        '@typescript-eslint': toEslintPlugin(pluginTs),
       },
       rules: {
         ...pluginTs.configs['eslint-recommended']?.overrides?.[0]?.rules,

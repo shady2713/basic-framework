@@ -12,23 +12,26 @@ import com.basicframework.module.system.dal.dataobject.dict.DictDataDO;
 import com.basicframework.module.system.dal.dataobject.dict.DictTypeDO;
 import com.basicframework.module.system.dal.mysql.dict.DictDataMapper;
 import com.basicframework.module.system.dal.mysql.dict.DictTypeMapper;
+import com.basicframework.module.system.dal.redis.RedisKeyConstants;
 import com.google.common.annotations.VisibleForTesting;
-import jakarta.annotation.Resource;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 字典数据 Service 实现类
  *
+ * 读路径缓存：两个全量列表查询走 Redis 缓存（键见 {@link RedisKeyConstants}），
+ * 写操作整体失效对应缓存区域。
  */
 @Service
-@Slf4j
 public class DictDataServiceImpl implements DictDataService {
 
     /**
@@ -37,13 +40,17 @@ public class DictDataServiceImpl implements DictDataService {
     private static final Comparator<DictDataDO> COMPARATOR_TYPE_AND_SORT =
             Comparator.comparing(DictDataDO::getDictType).thenComparingInt(DictDataDO::getSort);
 
-    @Resource
-    private DictTypeMapper dictTypeMapper;
+    private final DictTypeMapper dictTypeMapper;
 
-    @Resource
-    private DictDataMapper dictDataMapper;
+    private final DictDataMapper dictDataMapper;
+
+    public DictDataServiceImpl(DictTypeMapper dictTypeMapper, DictDataMapper dictDataMapper) {
+        this.dictTypeMapper = dictTypeMapper;
+        this.dictDataMapper = dictDataMapper;
+    }
 
     @Override
+    @Cacheable(cacheNames = RedisKeyConstants.DICT_DATA_LIST, key = "#status + ':' + #dictType")
     public List<DictDataDO> getDictDataList(Integer status, String dictType) {
         List<DictDataDO> list = dictDataMapper.selectListByStatusAndDictType(status, dictType);
         list.sort(COMPARATOR_TYPE_AND_SORT);
@@ -62,6 +69,12 @@ public class DictDataServiceImpl implements DictDataService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    // 状态与类型的组合不可枚举，写操作直接清空两个列表缓存区域
+    @Caching(
+            evict = {
+                @CacheEvict(value = RedisKeyConstants.DICT_DATA_LIST, allEntries = true),
+                @CacheEvict(value = RedisKeyConstants.DICT_DATA_LIST_BY_TYPE, allEntries = true)
+            })
     public Long createDictData(DictDataDO dictData) {
         // 校验字典类型有效
         validateAndLockDictType(dictData.getDictType());
@@ -75,6 +88,12 @@ public class DictDataServiceImpl implements DictDataService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    // 状态与类型的组合不可枚举，写操作直接清空两个列表缓存区域
+    @Caching(
+            evict = {
+                @CacheEvict(value = RedisKeyConstants.DICT_DATA_LIST, allEntries = true),
+                @CacheEvict(value = RedisKeyConstants.DICT_DATA_LIST_BY_TYPE, allEntries = true)
+            })
     public void updateDictData(DictDataDO updateObj) {
         // 校验自己存在
         validateAndLockDictData(updateObj.getId());
@@ -89,6 +108,12 @@ public class DictDataServiceImpl implements DictDataService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    // 状态与类型的组合不可枚举，写操作直接清空两个列表缓存区域
+    @Caching(
+            evict = {
+                @CacheEvict(value = RedisKeyConstants.DICT_DATA_LIST, allEntries = true),
+                @CacheEvict(value = RedisKeyConstants.DICT_DATA_LIST_BY_TYPE, allEntries = true)
+            })
     public void deleteDictData(Long id) {
         // 校验是否存在
         validateAndLockDictData(id);
@@ -99,6 +124,12 @@ public class DictDataServiceImpl implements DictDataService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    // 状态与类型的组合不可枚举，写操作直接清空两个列表缓存区域
+    @Caching(
+            evict = {
+                @CacheEvict(value = RedisKeyConstants.DICT_DATA_LIST, allEntries = true),
+                @CacheEvict(value = RedisKeyConstants.DICT_DATA_LIST_BY_TYPE, allEntries = true)
+            })
     public void deleteDictDataList(List<Long> ids) {
         if (ids == null || ids.isEmpty()) {
             return;
@@ -198,6 +229,7 @@ public class DictDataServiceImpl implements DictDataService {
     }
 
     @Override
+    @Cacheable(cacheNames = RedisKeyConstants.DICT_DATA_LIST_BY_TYPE, key = "#dictType")
     public List<DictDataDO> getDictDataListByDictType(String dictType) {
         List<DictDataDO> list = dictDataMapper.selectList(DictDataDO::getDictType, dictType);
         list.sort(Comparator.comparing(DictDataDO::getSort));

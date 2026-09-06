@@ -4,7 +4,7 @@ import cn.hutool.core.collection.CollUtil;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validator;
-import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.text.Normalizer;
 import java.util.Locale;
 import java.util.Set;
@@ -13,15 +13,18 @@ import org.springframework.util.StringUtils;
 
 public class ValidationUtils {
 
+    public static final int PASSWORD_MIN_CODE_POINTS = 15;
+    public static final int PASSWORD_MAX_UTF8_BYTES = 72;
+    public static final int NICKNAME_MAX_CODE_POINTS = 30;
+
     private static final Pattern PATTERN_MOBILE = Pattern.compile("^1[3-9]\\d{9}$");
     private static final Pattern PATTERN_USERNAME = Pattern.compile("^[a-z][a-z0-9_]{3,29}$");
-    private static final Pattern PATTERN_PASSWORD =
-            Pattern.compile("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)[A-Za-z\\d]{6,16}$");
     private static final Pattern PATTERN_EMAIL = Pattern.compile("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
-    private static final Pattern PATTERN_PERCENT = Pattern.compile("^(100(?:\\.0{1,2})?|\\d{1,2}(?:\\.\\d{1,2})?)$");
 
     public static boolean isMobile(String mobile) {
-        return StringUtils.hasText(mobile) && PATTERN_MOBILE.matcher(mobile).matches();
+        String normalized = normalizeMobile(mobile);
+        return StringUtils.hasText(normalized)
+                && PATTERN_MOBILE.matcher(normalized).matches();
     }
 
     public static boolean isUsername(String username) {
@@ -38,32 +41,69 @@ public class ValidationUtils {
     }
 
     public static boolean isPassword(String password) {
-        return StringUtils.hasText(password)
-                && PATTERN_PASSWORD.matcher(password).matches();
+        return password != null
+                && !password.isEmpty()
+                && codePointLength(password) >= PASSWORD_MIN_CODE_POINTS
+                && password.getBytes(StandardCharsets.UTF_8).length <= PASSWORD_MAX_UTF8_BYTES
+                && password.codePoints().noneMatch(codePoint -> Character.getType(codePoint) == Character.SURROGATE);
     }
 
     public static boolean isEmail(String email) {
-        return StringUtils.hasText(email) && PATTERN_EMAIL.matcher(email).matches();
+        String normalized = normalizeEmail(email);
+        return StringUtils.hasText(normalized)
+                && PATTERN_EMAIL.matcher(normalized).matches();
     }
 
-    public static boolean isPercent(String percent) {
-        return StringUtils.hasText(percent) && PATTERN_PERCENT.matcher(percent).matches();
+    public static String normalizeNickname(String nickname) {
+        if (nickname == null) {
+            return null;
+        }
+        return Normalizer.normalize(nickname.strip(), Normalizer.Form.NFC);
     }
 
-    public static boolean isPercent(Number percent) {
-        if (percent == null) {
+    public static boolean isNickname(String nickname) {
+        String normalized = normalizeNickname(nickname);
+        return nickname != null
+                && nickname.codePoints().noneMatch(ValidationUtils::isUnsafeNicknameCodePoint)
+                && StringUtils.hasText(normalized)
+                && codePointLength(normalized) <= NICKNAME_MAX_CODE_POINTS
+                && normalized.codePoints().noneMatch(ValidationUtils::isUnsafeNicknameCodePoint);
+    }
+
+    public static String normalizeMobile(String mobile) {
+        if (mobile == null) {
+            return null;
+        }
+        String normalized = mobile.trim();
+        return normalized.isEmpty() ? null : normalized;
+    }
+
+    public static String normalizeEmail(String email) {
+        if (email == null) {
+            return null;
+        }
+        String normalized = email.trim();
+        if (normalized.isEmpty()) {
+            return null;
+        }
+        int atIndex = normalized.lastIndexOf('@');
+        if (atIndex < 0) {
+            return normalized;
+        }
+        return normalized.substring(0, atIndex + 1)
+                + normalized.substring(atIndex + 1).toLowerCase(Locale.ROOT);
+    }
+
+    public static boolean isCodePointLengthBetween(String value, int min, int max) {
+        if (value == null) {
             return false;
         }
-        return isPercent(stripTrailingZeros(new BigDecimal(percent.toString())));
+        int length = codePointLength(value);
+        return length >= min && length <= max;
     }
 
-    public static boolean isQuantity(Number quantity) {
-        if (quantity == null) {
-            return false;
-        }
-        BigDecimal value = new BigDecimal(quantity.toString());
-        return value.compareTo(BigDecimal.ZERO) >= 0
-                && value.stripTrailingZeros().scale() <= 0;
+    public static int codePointLength(String value) {
+        return value.codePointCount(0, value.length());
     }
 
     public static void validate(Validator validator, Object object, Class<?>... groups) {
@@ -73,7 +113,12 @@ public class ValidationUtils {
         }
     }
 
-    private static String stripTrailingZeros(BigDecimal value) {
-        return value.stripTrailingZeros().toPlainString();
+    private static boolean isUnsafeNicknameCodePoint(int codePoint) {
+        int type = Character.getType(codePoint);
+        return Character.isISOControl(codePoint)
+                || type == Character.FORMAT
+                || type == Character.SURROGATE
+                || type == Character.LINE_SEPARATOR
+                || type == Character.PARAGRAPH_SEPARATOR;
     }
 }

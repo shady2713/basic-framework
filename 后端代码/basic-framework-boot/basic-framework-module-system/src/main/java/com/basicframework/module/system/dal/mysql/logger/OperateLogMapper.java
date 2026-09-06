@@ -4,7 +4,6 @@ import com.basicframework.framework.common.pojo.PageParam;
 import com.basicframework.framework.common.pojo.PageResult;
 import com.basicframework.framework.mybatis.core.mapper.BaseMapperX;
 import com.basicframework.framework.mybatis.core.query.LambdaQueryWrapperX;
-import com.basicframework.module.system.api.logger.dto.OperateLogPageReqDTO;
 import com.basicframework.module.system.dal.dataobject.logger.OperateLogDO;
 import java.time.LocalDateTime;
 import org.apache.ibatis.annotations.Delete;
@@ -27,16 +26,6 @@ public interface OperateLogMapper extends BaseMapperX<OperateLogDO> {
                         .likeIfPresent(OperateLogDO::getSubType, query.getSubType())
                         .likeIfPresent(OperateLogDO::getAction, query.getAction())
                         .betweenIfPresent(OperateLogDO::getCreateTime, query.getCreateTime())
-                        .orderByDesc(OperateLogDO::getId));
-    }
-
-    default PageResult<OperateLogDO> selectPage(OperateLogPageReqDTO pageReqDTO) {
-        return selectPage(
-                pageReqDTO,
-                new LambdaQueryWrapperX<OperateLogDO>()
-                        .eqIfPresent(OperateLogDO::getType, pageReqDTO.getType())
-                        .eqIfPresent(OperateLogDO::getBizId, pageReqDTO.getBizId())
-                        .eqIfPresent(OperateLogDO::getUserId, pageReqDTO.getUserId())
                         .orderByDesc(OperateLogDO::getId));
     }
 }

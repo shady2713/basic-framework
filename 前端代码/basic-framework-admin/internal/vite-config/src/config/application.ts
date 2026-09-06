@@ -14,20 +14,17 @@ function defineApplicationConfig(userConfigPromise?: DefineApplicationOptions) {
   return defineConfig(async (config) => {
     const options = await userConfigPromise?.(config);
     const envConfig = await loadAndConvertEnv(process.cwd(), config.mode);
-    const { base, port, ...appEnv } = envConfig;
+    const { base, port } = envConfig;
     const { command, mode } = config;
     const { application = {}, vite = {} } = options || {};
     const isBuild = command === 'build';
 
     const plugins = await loadApplicationPlugins({
-      devtools: false,
-      env: appEnv,
-      i18n: false,
       injectGlobalScss: true,
       isBuild,
       mode,
-      pwa: false,
       root: process.cwd(),
+      visualizer: envConfig.VITE_VISUALIZER,
       ...application,
     });
 
@@ -40,6 +37,7 @@ function defineApplicationConfig(userConfigPromise?: DefineApplicationOptions) {
             assetFileNames: '[ext]/[name]-[hash].[ext]',
             chunkFileNames: 'js/[name]-[hash].js',
             entryFileNames: 'js/[name]-[hash].js',
+            manualChunks: splitVendorChunks,
           },
         },
         target: 'es2015',
@@ -72,6 +70,26 @@ function defineApplicationConfig(userConfigPromise?: DefineApplicationOptions) {
 
 function findMonorepoRoot() {
   return path.resolve(__dirnameSafe(), '../../..');
+}
+
+const VENDOR_CHUNK_RULES: [chunkName: string, pattern: RegExp][] = [
+  ['vue', /[\\/]node_modules[\\/](@vue|pinia|vue|vue-router)[\\/]/],
+  ['element-plus', /[\\/]node_modules[\\/](@element-plus|element-plus)[\\/]/],
+  ['vxe-table', /[\\/]node_modules[\\/]vxe-table[\\/]/],
+  ['vxe-pc-ui', /[\\/]node_modules[\\/]vxe-pc-ui[\\/]/],
+  ['echarts', /[\\/]node_modules[\\/](echarts|zrender)[\\/]/],
+];
+
+// Split heavy node_modules vendors into long-term cacheable chunks
+function splitVendorChunks(id: string) {
+  if (!id.includes('node_modules')) {
+    return;
+  }
+  for (const [chunkName, pattern] of VENDOR_CHUNK_RULES) {
+    if (pattern.test(id)) {
+      return chunkName;
+    }
+  }
 }
 
 function __dirnameSafe() {

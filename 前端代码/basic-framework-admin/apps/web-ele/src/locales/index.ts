@@ -12,7 +12,6 @@ import {
   loadLocalesMapFromDir,
 } from '@vben/locales';
 import { preferences } from '@vben/preferences';
-import { logWarn } from '@vben/utils';
 
 import dayjs from 'dayjs';
 import enLocale from 'element-plus/es/locale/lang/en';
@@ -67,11 +66,7 @@ async function loadDayjsLocale(lang: SupportedLanguagesType) {
       locale = await import('dayjs/locale/en');
     }
   }
-  if (locale) {
-    dayjs.locale(locale);
-  } else {
-    logWarn('i18n:dayjs-locale', `Failed to load dayjs locale for ${lang}`);
-  }
+  dayjs.locale(locale);
 }
 
 /**

@@ -12,11 +12,7 @@
     <packaging>jar</packaging>
 
     <name>${project.artifactId}</name>
-    <description>
-        infra 模块，主要提供两块能力：
-            1. 我们放基础设施的运维与管理，支撑上层的通用与核心业务。 例如说：定时任务的管理、服务器的信息等等
-            2. 研发工具，提升研发效率与质量。 例如说：代码生成器、接口文档等等
-    </description>
+    <description>infra 模块，提供定时任务、文件、配置和基础设施日志等运维管理能力。</description>
 
     <dependencies>
         <!-- 对外契约薄模块：本模块 api 包的 CommonApi 接口与 DTO -->
@@ -41,11 +37,6 @@
             <artifactId>basic-framework-spring-boot-starter-mybatis</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.baomidou</groupId>
-            <artifactId>mybatis-plus-generator</artifactId> <!-- 代码生成器，使用它解析表结构 -->
-        </dependency>
-
-        <dependency>
             <groupId>com.basicframework</groupId>
             <artifactId>basic-framework-spring-boot-starter-redis</artifactId>
         </dependency>
@@ -56,6 +47,17 @@
         <dependency>
             <groupId>com.basicframework</groupId>
             <artifactId>basic-framework-spring-boot-starter-job</artifactId>
+        </dependency>
+
+        <!-- 服务保障相关：启动注册器通过 @Lock4j 分布式锁防止多节点并发注册 -->
+        <dependency>
+            <groupId>com.basicframework</groupId>
+            <artifactId>basic-framework-spring-boot-starter-protection</artifactId>
+        </dependency>
+        <dependency>
+            <!-- starter-protection 中为 optional，按需显式引入；Redisson 复用 starter-redis -->
+            <groupId>com.baomidou</groupId>
+            <artifactId>lock4j-redisson-spring-boot-starter</artifactId>
         </dependency>
 
         <!-- 消息队列相关 -->
@@ -74,11 +76,6 @@
         <dependency>
             <groupId>com.basicframework</groupId>
             <artifactId>basic-framework-spring-boot-starter-excel</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.apache.velocity</groupId>
-            <artifactId>velocity-engine-core</artifactId> <!-- 实现代码生成 -->
         </dependency>
 
         <!-- 三方云服务相关 -->
@@ -103,7 +100,7 @@
 
     <build>
         <plugins>
-            <!-- 覆盖率棘轮门禁：2026-08-25 JaCoCo bundle line 实测 28.808%，取整 28%，只升不降 -->
+            <!-- 覆盖率棘轮门禁：补齐两端文件所有权、读权限、数据库文件客户端契约后行覆盖率 74.25%，取 74.0%，只升不降 -->
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
@@ -122,7 +119,7 @@
                                         <limit>
                                             <counter>LINE</counter>
                                             <value>COVEREDRATIO</value>
-                                            <minimum>0.288</minimum>
+                                            <minimum>0.740</minimum>
                                         </limit>
                                     </limits>
                                 </rule>

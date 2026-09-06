@@ -15,7 +15,6 @@ import com.basicframework.module.system.service.session.UserSessionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
@@ -34,11 +33,13 @@ import org.springframework.web.bind.annotation.RestController;
 @Validated
 public class UserSessionController {
 
-    @Resource
-    private UserSessionService userSessionService;
+    private final UserSessionService userSessionService;
+    private final AdminAuthService authService;
 
-    @Resource
-    private AdminAuthService authService;
+    public UserSessionController(UserSessionService userSessionService, AdminAuthService authService) {
+        this.userSessionService = userSessionService;
+        this.authService = authService;
+    }
 
     @GetMapping("/page")
     @Operation(summary = "获得有效用户会话分页")

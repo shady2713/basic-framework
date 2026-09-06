@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Recordable } from '@vben/types';
+import type { SystemUserProfileApi } from '#/api/system/user/profile';
 
 import { $t } from '@vben/locales';
 import { logError } from '@vben/utils';
@@ -11,6 +11,11 @@ import {
 } from '#/adapter/form';
 import { updateUserPassword } from '#/api/system/user/profile';
 import { showSuccessMessage } from '#/utils/feedback';
+
+type ResetPasswordFormValues = Record<string, unknown> &
+  SystemUserProfileApi.UpdatePasswordReqVO & {
+    confirmPassword: string;
+  };
 
 const [Form, formApi] = useVbenForm({
   commonConfig: {
@@ -74,9 +79,12 @@ const [Form, formApi] = useVbenForm({
   handleSubmit,
 });
 
-async function handleSubmit(values: Recordable<any>) {
+async function handleSubmit(values: Record<string, unknown>) {
   try {
     formApi.setLoading(true);
+    if (!isResetPasswordFormValues(values)) {
+      throw new TypeError('密码表单字段类型无效');
+    }
     await updateUserPassword({
       oldPassword: values.oldPassword,
       newPassword: values.newPassword,
@@ -87,6 +95,16 @@ async function handleSubmit(values: Recordable<any>) {
   } finally {
     formApi.setLoading(false);
   }
+}
+
+function isResetPasswordFormValues(
+  values: Record<string, unknown>,
+): values is ResetPasswordFormValues {
+  return (
+    typeof values.oldPassword === 'string' &&
+    typeof values.newPassword === 'string' &&
+    typeof values.confirmPassword === 'string'
+  );
 }
 </script>
 

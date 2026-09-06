@@ -30,6 +30,7 @@ public class MfaFactorDO {
     @ToString.Exclude
     private String secretCiphertext;
 
+    @ToString.Exclude
     private byte[] credentialId;
 
     private byte[] userHandle;

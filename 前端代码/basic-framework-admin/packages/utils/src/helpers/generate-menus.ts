@@ -1,4 +1,8 @@
-import type { Router, RouteRecordRaw } from 'vue-router';
+import type {
+  Router,
+  RouteRecordRaw,
+  RouteRecordRedirectOption,
+} from 'vue-router';
 
 import type {
   AppRouteRecordRaw,
@@ -34,12 +38,8 @@ function generateMenus(
     // 获取最终的路由路径
     const path = finalRoutesMap[route.name as string] ?? route.path ?? '';
 
-    const {
-      meta = {} as RouteMeta,
-      name: routeName,
-      redirect,
-      children = [],
-    } = route;
+    const { name: routeName, redirect, children = [] } = route;
+    const meta = (route.meta ?? {}) as unknown as Partial<RouteMeta>;
     const {
       activeIcon,
       badge,
@@ -69,7 +69,9 @@ function generateMenus(
     }
 
     // 确定最终路径
-    const resultPath = hideChildrenInMenu ? redirect || path : link || path;
+    const resultPath = hideChildrenInMenu
+      ? resolveRedirectPath(redirect, path, router)
+      : link || path;
 
     return {
       activeIcon,
@@ -92,6 +94,19 @@ function generateMenus(
 
   // 过滤掉隐藏的菜单项
   return filterTree(menus, (menu) => !!menu.show);
+}
+
+function resolveRedirectPath(
+  redirect: RouteRecordRedirectOption | undefined,
+  fallback: string,
+  router: Router,
+): string {
+  if (redirect === undefined || typeof redirect === 'function') {
+    return fallback;
+  }
+  return typeof redirect === 'string'
+    ? redirect
+    : router.resolve(redirect).path;
 }
 
 /**
@@ -137,27 +152,20 @@ function convertServerMenuToRouteRecordStringComponent(
       };
       menus.push(urlMenu);
       return;
-    } else if (menu.children && menu.parentId === 0) {
-      menu.component = 'BasicLayout';
-    } else if (!menu.children) {
-      menu.component = menu.component as string;
-    }
-    if (menu.component === 'Layout') {
-      menu.component = 'BasicLayout';
     }
 
-    if (menu.children && menu.parentId !== 0) {
-      menu.component = '';
+    let component = menu.component as string | undefined;
+    if (menu.children && menu.parentId === 0) {
+      component = 'BasicLayout';
+    } else if (menu.children && menu.parentId !== 0) {
+      component = '';
+    } else if (component === 'Layout') {
+      component = 'BasicLayout';
     }
+    component ??= '';
 
-    // path
-    if (parent) {
-      menu.path = `${parent}/${menu.path}`;
-    }
-
-    if (!menu.path.startsWith('/')) {
-      menu.path = `/${menu.path}`;
-    }
+    const joinedPath = parent ? `${parent}/${menu.path}` : menu.path;
+    const path = joinedPath.startsWith('/') ? joinedPath : `/${joinedPath}`;
 
     // 防止 name 重复，只有在 name 重复时才自动添加 id
     let finalName = menu.componentName || menu.name;
@@ -169,21 +177,17 @@ function convertServerMenuToRouteRecordStringComponent(
 
     // 处理 menu.component 中的 query 参数
     let query: Record<string, string> | undefined;
-    // 防止 component 为 null 时调用 indexOf 报错；关联
-    if (!menu.component) {
-      menu.component = '';
-    }
-    const queryIndex = menu.component.indexOf('?');
+    const queryIndex = component.indexOf('?');
     if (queryIndex !== -1) {
       // 提取 query 字符串并解析为对象
-      const queryString = menu.component.slice(queryIndex + 1);
+      const queryString = component.slice(queryIndex + 1);
       query = Object.fromEntries(new URLSearchParams(queryString).entries());
       // 移除 component 中的 query 部分
-      menu.component = menu.component.slice(0, queryIndex);
+      component = component.slice(0, queryIndex);
     }
 
     const buildMenu: RouteRecordStringComponent = {
-      component: menu.component,
+      component,
       meta: {
         hideInMenu: !menu.visible,
         icon: menu.icon,
@@ -193,13 +197,13 @@ function convertServerMenuToRouteRecordStringComponent(
         ...(query && { query }),
       },
       name: finalName,
-      path: menu.path,
+      path,
     };
 
     if (menu.children && menu.children.length > 0) {
       buildMenu.children = convertServerMenuToRouteRecordStringComponent(
         menu.children,
-        menu.path,
+        path,
         nameSet,
       );
     }

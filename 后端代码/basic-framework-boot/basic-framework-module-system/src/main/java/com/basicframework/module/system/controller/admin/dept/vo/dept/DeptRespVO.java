@@ -3,6 +3,7 @@ package com.basicframework.module.system.controller.admin.dept.vo.dept;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDateTime;
 import lombok.Data;
+import lombok.ToString;
 
 @Schema(description = "管理后台 - 部门信息 Response VO")
 @Data
@@ -24,9 +25,11 @@ public class DeptRespVO {
     private Long leaderUserId;
 
     @Schema(description = "联系电话", example = "15601691000")
+    @ToString.Exclude
     private String phone;
 
     @Schema(description = "邮箱", example = "dept@example.com")
+    @ToString.Exclude
     private String email;
 
     @Schema(description = "状态,见 CommonStatusEnum 枚举", requiredMode = Schema.RequiredMode.REQUIRED, example = "1")

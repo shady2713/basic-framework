@@ -13,7 +13,7 @@ import org.springframework.context.annotation.Configuration;
  *
  */
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties(FileArchiveSecurityProperties.class)
+@EnableConfigurationProperties({FileArchiveSecurityProperties.class, FilePresignedUploadProperties.class})
 public class BasicFrameworkFileAutoConfiguration {
 
     @Bean

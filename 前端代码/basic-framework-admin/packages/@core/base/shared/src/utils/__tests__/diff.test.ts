@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import { diff } from '../diff';
+import { arraysEqual, diff } from '../diff';
+
+describe('arraysEqual', () => {
+  it('compares arrays as multisets, including duplicate counts', () => {
+    expect(arraysEqual([1, 2, 1], [2, 1, 1])).toBe(true);
+    expect(arraysEqual([1, 1], [1, 2])).toBe(false);
+    expect(arraysEqual([1], [1, 1])).toBe(false);
+  });
+});
 
 describe('diff function', () => {
   it('should return an empty object when comparing identical objects', () => {
@@ -47,7 +55,7 @@ describe('diff function', () => {
 
   it('should handle null and undefined values', () => {
     const obj1 = { a: null, b: undefined };
-    const obj2: any = { a: 1, b: undefined };
+    const obj2 = { a: 1, b: undefined };
     expect(diff(obj1, obj2)).toEqual({ a: 1 });
   });
 });

@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import type { HTMLAttributes } from 'vue';
+
 import type { BreadcrumbProps } from './types';
 
 import { useForwardPropsEmits } from 'reka-ui';
@@ -7,7 +9,7 @@ import BreadcrumbBackground from './breadcrumb-background.vue';
 import Breadcrumb from './breadcrumb.vue';
 
 interface Props extends BreadcrumbProps {
-  class?: any;
+  class?: HTMLAttributes['class'];
 }
 
 const props = withDefaults(defineProps<Props>(), {});

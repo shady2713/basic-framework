@@ -10,16 +10,13 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjUtil;
 import cn.hutool.core.util.StrUtil;
 import com.basicframework.framework.common.enums.CommonStatusEnum;
-import com.basicframework.module.infra.api.codegen.CodegenReferenceCommonApi;
 import com.basicframework.module.system.dal.dataobject.permission.MenuDO;
 import com.basicframework.module.system.dal.mysql.permission.MenuMapper;
 import com.basicframework.module.system.dal.redis.RedisKeyConstants;
 import com.basicframework.module.system.enums.permission.MenuTypeEnum;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
-import jakarta.annotation.Resource;
 import java.util.*;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -31,17 +28,15 @@ import org.springframework.transaction.annotation.Transactional;
  *
  */
 @Service
-@Slf4j
 public class MenuServiceImpl implements MenuService {
 
-    @Resource
-    private MenuMapper menuMapper;
+    private final MenuMapper menuMapper;
+    private final ObjectProvider<PermissionService> permissionServiceProvider;
 
-    @Resource
-    private ObjectProvider<PermissionService> permissionServiceProvider;
-
-    @Resource
-    private CodegenReferenceCommonApi codegenReferenceApi;
+    public MenuServiceImpl(MenuMapper menuMapper, ObjectProvider<PermissionService> permissionServiceProvider) {
+        this.menuMapper = menuMapper;
+        this.permissionServiceProvider = permissionServiceProvider;
+    }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -95,7 +90,6 @@ public class MenuServiceImpl implements MenuService {
         if (menuMapper.selectCountByParentId(id) > 0) {
             throw exception(MENU_EXISTS_CHILDREN);
         }
-        validateMenuNotReferencedByCodegen(id);
         // 标记删除
         menuMapper.deleteById(id);
         // 删除授予给角色的权限
@@ -121,7 +115,6 @@ public class MenuServiceImpl implements MenuService {
             if (menuMapper.selectCountByParentId(id) > 0) {
                 throw exception(MENU_EXISTS_CHILDREN);
             }
-            validateMenuNotReferencedByCodegen(id);
         });
 
         // 标记删除
@@ -133,11 +126,6 @@ public class MenuServiceImpl implements MenuService {
     @Override
     public List<MenuDO> getMenuList() {
         return menuMapper.selectList();
-    }
-
-    @Override
-    public List<MenuDO> getMenuListFiltered(String name, Integer status) {
-        return getMenuList(name, status);
     }
 
     @Override
@@ -273,13 +261,6 @@ public class MenuServiceImpl implements MenuService {
         }
         if (menuMapper.selectCountByParentId(menu.getId()) > 0) {
             throw exception(MENU_BUTTON_EXISTS_CHILDREN);
-        }
-        validateMenuNotReferencedByCodegen(menu.getId());
-    }
-
-    private void validateMenuNotReferencedByCodegen(Long menuId) {
-        if (codegenReferenceApi.isParentMenuReferenced(menuId)) {
-            throw exception(MENU_USED_BY_CODEGEN);
         }
     }
 

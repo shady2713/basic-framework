@@ -7,6 +7,7 @@ import com.basicframework.framework.common.pojo.CommonResult;
 import com.basicframework.framework.web.config.WebProperties;
 import jakarta.servlet.ServletRequest;
 import jakarta.servlet.http.HttpServletRequest;
+import java.util.Arrays;
 import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -80,13 +81,22 @@ public class WebFrameworkUtils {
             return userType;
         }
         // 2. 其次，基于 URL 前缀的约定
-        if (request.getServletPath().startsWith(properties.getAdminApi().getPrefix())) {
+        if (matchesApiPrefix(request.getServletPath(), properties.getAdminApi().getPrefix())) {
             return UserTypeEnum.ADMIN.getValue();
         }
-        if (request.getServletPath().startsWith(properties.getAppApi().getPrefix())) {
+        if (matchesApiPrefix(request.getServletPath(), properties.getAppApi().getPrefix())) {
             return UserTypeEnum.MEMBER.getValue();
         }
         return null;
+    }
+
+    private static boolean matchesApiPrefix(String servletPath, String prefix) {
+        String normalizedPrefix =
+                prefix.endsWith("/") && prefix.length() > 1 ? prefix.substring(0, prefix.length() - 1) : prefix;
+        return servletPath.equals(normalizedPrefix)
+                || ("/".equals(normalizedPrefix)
+                        ? servletPath.startsWith("/")
+                        : servletPath.startsWith(normalizedPrefix + "/"));
     }
 
     public static Integer getLoginUserType() {
@@ -105,7 +115,8 @@ public class WebFrameworkUtils {
             return TerminalEnum.UNKNOWN.getTerminal();
         }
         String terminalValue = request.getHeader(HEADER_TERMINAL);
-        return NumberUtil.parseInt(terminalValue, TerminalEnum.UNKNOWN.getTerminal());
+        Integer terminal = NumberUtil.parseInt(terminalValue, TerminalEnum.UNKNOWN.getTerminal());
+        return Arrays.asList(TerminalEnum.ARRAYS).contains(terminal) ? terminal : TerminalEnum.UNKNOWN.getTerminal();
     }
 
     public static void setCommonResult(ServletRequest request, CommonResult<?> result) {

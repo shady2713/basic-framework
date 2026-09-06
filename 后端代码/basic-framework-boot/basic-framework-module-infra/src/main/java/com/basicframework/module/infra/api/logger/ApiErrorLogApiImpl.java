@@ -2,7 +2,7 @@ package com.basicframework.module.infra.api.logger;
 
 import com.basicframework.module.infra.api.logger.dto.ApiErrorLogCreateReqDTO;
 import com.basicframework.module.infra.service.logger.ApiErrorLogService;
-import jakarta.annotation.Resource;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.validation.annotation.Validated;
 
@@ -12,10 +12,10 @@ import org.springframework.validation.annotation.Validated;
  */
 @Service
 @Validated
+@RequiredArgsConstructor
 public class ApiErrorLogApiImpl implements ApiErrorLogCommonApi {
 
-    @Resource
-    private ApiErrorLogService apiErrorLogService;
+    private final ApiErrorLogService apiErrorLogService;
 
     @Override
     public void createApiErrorLog(ApiErrorLogCreateReqDTO createDTO) {

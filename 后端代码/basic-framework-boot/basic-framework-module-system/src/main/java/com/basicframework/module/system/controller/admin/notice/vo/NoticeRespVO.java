@@ -23,9 +23,6 @@ public class NoticeRespVO {
     @Schema(description = "状态", requiredMode = Schema.RequiredMode.REQUIRED, example = "0")
     private Integer status;
 
-    @Schema(description = "备注")
-    private String remark;
-
     @Schema(description = "创建者", example = "admin")
     private String creator;
 

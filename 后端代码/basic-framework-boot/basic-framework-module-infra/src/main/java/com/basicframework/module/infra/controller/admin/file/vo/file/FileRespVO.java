@@ -32,6 +32,9 @@ public class FileRespVO {
     @Schema(description = "文件大小", example = "2048", requiredMode = Schema.RequiredMode.REQUIRED)
     private Long size;
 
+    @Schema(description = "读取策略：1 公开读取，2 私有读取", example = "2")
+    private Integer accessType;
+
     @Schema(description = "创建时间", requiredMode = Schema.RequiredMode.REQUIRED)
     private LocalDateTime createTime;
 }

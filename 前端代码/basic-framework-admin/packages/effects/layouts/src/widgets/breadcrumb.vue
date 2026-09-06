@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import type { RouteRecordNormalized } from 'vue-router';
+
 import type { BreadcrumbStyleType } from '@vben/types';
 
 import type { IBreadcrumb } from '@vben-core/shadcn-ui';
@@ -9,6 +11,8 @@ import { useRoute, useRouter } from 'vue-router';
 import { $t } from '@vben/locales';
 
 import { VbenBreadcrumbView } from '@vben-core/shadcn-ui';
+
+import { resolveNavigationDestination } from '../navigation-destination';
 
 interface Props {
   hideWhenOnlyOne?: boolean;
@@ -26,23 +30,35 @@ const props = withDefaults(defineProps<Props>(), {
 const route = useRoute();
 const router = useRouter();
 
-const breadcrumbs = computed((): IBreadcrumb[] => {
-  const matched = route.matched;
+function resolveBreadcrumbPath(match: RouteRecordNormalized) {
+  if (!match.path.includes(':')) {
+    return match.path;
+  }
+  if (!match.name) {
+    return undefined;
+  }
 
+  try {
+    return router.resolve({ name: match.name, params: route.params }).path;
+  } catch {
+    return undefined;
+  }
+}
+
+const breadcrumbs = computed((): IBreadcrumb[] => {
   const resultBreadcrumb: IBreadcrumb[] = [];
 
-  for (const match of matched) {
-    const { meta, path } = match;
-    const { hideChildrenInMenu, hideInBreadcrumb, icon, name, title } =
-      meta || {};
-    if (hideInBreadcrumb || hideChildrenInMenu || !path) {
+  for (const match of route.matched) {
+    const { hideChildrenInMenu, hideInBreadcrumb, icon, title } = match.meta;
+    const titleKey = title?.trim();
+    if (hideInBreadcrumb || hideChildrenInMenu || !match.path || !titleKey) {
       continue;
     }
 
     resultBreadcrumb.push({
       icon,
-      path: path || route.path,
-      title: title ? $t((title || name) as string) : '',
+      path: resolveBreadcrumbPath(match),
+      title: $t(titleKey),
     });
   }
   if (props.showHome) {
@@ -60,7 +76,10 @@ const breadcrumbs = computed((): IBreadcrumb[] => {
 });
 
 function handleSelect(path: string) {
-  router.push(path);
+  const destination = resolveNavigationDestination(path);
+  if (destination?.kind === 'internal') {
+    void router.push(destination.path);
+  }
 }
 </script>
 <template>

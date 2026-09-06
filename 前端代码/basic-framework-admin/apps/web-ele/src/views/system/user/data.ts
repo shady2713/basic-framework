@@ -1,13 +1,23 @@
 import type { VbenFormSchema } from '#/adapter/form';
 import type { VxeTableGridOptions } from '#/adapter/vxe-table';
+import type { SystemPostApi } from '#/api/system/post';
+import type { SystemRoleApi } from '#/api/system/role';
 import type { SystemUserApi } from '#/api/system/user';
 
 import { CommonStatusEnum, DICT_TYPE } from '@vben/constants';
 import { getDictOptions } from '@vben/hooks';
 import { $t } from '@vben/locales';
-import { handleTree, MOBILE_REGEX } from '@vben/utils';
+import { handleTree } from '@vben/utils';
 
-import { buildRequiredUsernameSchema, z } from '#/adapter/form';
+import {
+  buildOptionalEmailSchema,
+  buildOptionalMobileSchema,
+  buildOptionalRemarkSchema,
+  buildRequiredNicknameSchema,
+  buildRequiredPasswordSchema,
+  buildRequiredUsernameSchema,
+  z,
+} from '#/adapter/form';
 import { getDeptList } from '#/api/system/dept';
 import { getSimplePostList } from '#/api/system/post';
 import { getSimpleRoleList } from '#/api/system/role';
@@ -42,7 +52,7 @@ export function useFormSchema(): VbenFormSchema[] {
         passwordStrength: true,
         placeholder: '请输入用户密码',
       },
-      rules: 'passwordRequired',
+      rules: buildRequiredPasswordSchema('用户密码'),
       dependencies: {
         triggerFields: ['id'],
         show: (values) => !values.id,
@@ -55,7 +65,7 @@ export function useFormSchema(): VbenFormSchema[] {
       componentProps: {
         placeholder: '请输入用户昵称',
       },
-      rules: 'required',
+      rules: buildRequiredNicknameSchema('用户昵称'),
     },
     {
       fieldName: 'deptId',
@@ -84,7 +94,7 @@ export function useFormSchema(): VbenFormSchema[] {
         valueField: 'id',
         multiple: true,
         placeholder: '请选择岗位',
-        afterFetch: async (res: any[]) =>
+        afterFetch: async (res: SystemPostApi.Post[]) =>
           res.map((item) => ({
             ...item,
             disabled: item.status === CommonStatusEnum.DISABLE,
@@ -95,7 +105,7 @@ export function useFormSchema(): VbenFormSchema[] {
       fieldName: 'email',
       label: '邮箱',
       component: 'Input',
-      rules: z.string().email('邮箱格式不正确').or(z.literal('')).optional(),
+      rules: buildOptionalEmailSchema('邮箱'),
       componentProps: {
         placeholder: '请输入邮箱',
       },
@@ -104,11 +114,7 @@ export function useFormSchema(): VbenFormSchema[] {
       fieldName: 'mobile',
       label: '手机号码',
       component: 'Input',
-      rules: z
-        .string()
-        .regex(MOBILE_REGEX, '手机号码格式不正确')
-        .or(z.literal(''))
-        .optional(),
+      rules: buildOptionalMobileSchema('手机号码'),
       componentProps: {
         placeholder: '请输入手机号码',
       },
@@ -138,6 +144,7 @@ export function useFormSchema(): VbenFormSchema[] {
       componentProps: {
         placeholder: '请输入备注',
       },
+      rules: buildOptionalRemarkSchema('备注'),
     },
   ];
 }
@@ -159,22 +166,9 @@ export function useResetPasswordFormSchema(): VbenFormSchema[] {
         passwordStrength: true,
         placeholder: '请输入新密码',
       },
-      dependencies: {
-        rules(values) {
-          return z
-            .string({ message: '请输入新密码' })
-            .min(5, '密码长度不能少于 5 个字符')
-            .max(20, '密码长度不能超过 20 个字符')
-            .refine(
-              (value) => value !== values.oldPassword,
-              '新旧密码不能相同',
-            );
-        },
-        triggerFields: ['newPassword', 'oldPassword'],
-      },
       fieldName: 'newPassword',
       label: '新密码',
-      rules: 'required',
+      rules: buildRequiredPasswordSchema('新密码'),
     },
     {
       component: 'VbenInputPassword',
@@ -184,20 +178,15 @@ export function useResetPasswordFormSchema(): VbenFormSchema[] {
       },
       dependencies: {
         rules(values) {
-          return z
-            .string({ message: '请输入确认密码' })
-            .min(5, '密码长度不能少于 5 个字符')
-            .max(20, '密码长度不能超过 20 个字符')
-            .refine(
-              (value) => value === values.newPassword,
-              '新密码和确认密码不一致',
-            );
+          return buildRequiredPasswordSchema('确认密码').refine(
+            (value) => value === values.newPassword,
+            '新密码和确认密码不一致',
+          );
         },
         triggerFields: ['newPassword', 'confirmPassword'],
       },
       fieldName: 'confirmPassword',
       label: '确认密码',
-      rules: 'required',
     },
   ];
 }
@@ -239,7 +228,7 @@ export function useAssignRoleFormSchema(): VbenFormSchema[] {
         valueField: 'id',
         multiple: true,
         placeholder: '请选择角色',
-        afterFetch: async (res: any[]) =>
+        afterFetch: async (res: SystemRoleApi.Role[]) =>
           res.map((item) => ({
             ...item,
             disabled: item.status === CommonStatusEnum.DISABLE,

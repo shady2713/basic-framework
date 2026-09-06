@@ -9,6 +9,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 import org.springframework.format.annotation.DateTimeFormat;
 
 @Schema(description = "管理后台 - 用户分页 Request VO")
@@ -22,6 +23,7 @@ public class UserPageReqVO extends PageParam {
     private String username;
 
     @Schema(description = "手机号码，模糊匹配", example = "13800138000")
+    @ToString.Exclude
     private String mobile;
 
     @Schema(description = "展示状态，参见 CommonStatusEnum 枚举类", example = "1")

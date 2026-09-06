@@ -1,14 +1,13 @@
 <script setup lang="ts">
 import type { PropType } from 'vue';
 
-import type { ActionItem, ButtonType, PopConfirm } from './typing';
+import type { ActionItem } from './typing';
 
 import { computed, toRaw } from 'vue';
 
 import { useAccess } from '@vben/access';
 import { IconifyIcon } from '@vben/icons';
 import { $t } from '@vben/locales';
-import { isFunction } from '@vben/utils';
 
 import {
   ElButton,
@@ -19,6 +18,15 @@ import {
   ElSpace,
   ElTooltip,
 } from 'element-plus';
+
+import {
+  getButtonProps,
+  getPopConfirmProps,
+  getTooltipProps,
+  invokeDropdownAction,
+  resolveActions,
+  resolveDropdownActions,
+} from './actions';
 
 const props = defineProps({
   actions: {
@@ -41,117 +49,20 @@ const props = defineProps({
 
 const { hasAccessByCodes } = useAccess();
 
-type ResolvedAction = ActionItem & {
-  enable: boolean;
-  label: string;
-  onCancel?: () => void;
-  onConfirm?: () => void;
-  type: ButtonType;
-};
+const getActions = computed(() =>
+  resolveActions(toRaw(props.actions), hasAccessByCodes),
+);
 
-type DropdownAction = Omit<ActionItem, 'text'> & {
-  divider: boolean;
-  label: string;
-  onCancel?: () => void;
-  onConfirm?: () => void;
-  text: string;
-};
-
-/** 是否显示 */
-function isIfShow(action: ActionItem): boolean {
-  const ifShow = action.ifShow;
-  let visible = true;
-  if (typeof ifShow === 'boolean') {
-    visible = ifShow;
-  }
-  if (isFunction(ifShow)) {
-    visible = ifShow(action);
-  }
-  if (visible) {
-    visible =
-      hasAccessByCodes(action.auth || []) || (action.auth || []).length === 0;
-  }
-  return visible;
-}
-
-/** 处理按钮 actions */
-const getActions = computed<ResolvedAction[]>(() => {
-  return (toRaw(props.actions) || [])
-    .filter((action) => {
-      return (
-        (hasAccessByCodes(action.auth || []) ||
-          (action.auth || []).length === 0) &&
-        isIfShow(action)
-      );
-    })
-    .map((action) => {
-      const { popConfirm } = action;
-      return {
-        ...action,
-        label: action.label || '',
-        type: (action.type || 'primary') as ButtonType,
-        onConfirm: popConfirm?.confirm,
-        onCancel: popConfirm?.cancel,
-        enable: !!popConfirm,
-      };
-    });
-});
-
-const getDropdownList = computed<DropdownAction[]>(() => {
-  return (toRaw(props.dropDownActions) || [])
-    .filter((action) => {
-      return (
-        (hasAccessByCodes(action.auth || []) ||
-          (action.auth || []).length === 0) &&
-        isIfShow(action)
-      );
-    })
-    .map((action, index) => {
-      const { label, popConfirm } = action;
-      return {
-        ...action,
-        onConfirm: popConfirm?.confirm,
-        onCancel: popConfirm?.cancel,
-        label: label || '',
-        text: label || '',
-        divider:
-          index < props.dropDownActions.length - 1 ? props.divider : false,
-      };
-    });
-});
-
-function getPopConfirmProps(attrs?: PopConfirm) {
-  if (!attrs) {
-    return {};
-  }
-  const originAttrs = { ...attrs } as Record<string, unknown>;
-  delete originAttrs.icon;
-  if (attrs.confirm && isFunction(attrs.confirm)) {
-    originAttrs.onConfirm = attrs.confirm;
-    delete originAttrs.confirm;
-  }
-  if (attrs.cancel && isFunction(attrs.cancel)) {
-    originAttrs.onCancel = attrs.cancel;
-    delete originAttrs.cancel;
-  }
-  return originAttrs;
-}
-
-function getButtonProps(action: ResolvedAction) {
-  const res = {
-    ...action,
-    label: action.label || '',
-    type: (action.type || 'primary') as ButtonType,
-  };
-  delete res.icon;
-  return res;
-}
+const getDropdownList = computed(() =>
+  resolveDropdownActions(
+    toRaw(props.dropDownActions),
+    props.divider,
+    hasAccessByCodes,
+  ),
+);
 
 function handleMenuClick(command: number | string) {
-  const action = getDropdownList.value[Number(command)];
-  if (action?.onClick && isFunction(action.onClick)) {
-    action.onClick();
-  }
+  invokeDropdownAction(getDropdownList.value[Number(command)]);
 }
 </script>
 
@@ -172,17 +83,8 @@ function handleMenuClick(command: number | string) {
           </template>
           <template #reference>
             <ElTooltip
-              v-if="
-                action.tooltip &&
-                ((typeof action.tooltip === 'string' && action.tooltip) ||
-                  (typeof action.tooltip === 'object' &&
-                    action.tooltip.content))
-              "
-              v-bind="
-                typeof action.tooltip === 'string'
-                  ? { content: action.tooltip }
-                  : { ...action.tooltip }
-              "
+              v-if="getTooltipProps(action.tooltip)"
+              v-bind="getTooltipProps(action.tooltip)"
             >
               <ElButton v-bind="getButtonProps(action)">
                 <template v-if="action.icon">
@@ -200,16 +102,8 @@ function handleMenuClick(command: number | string) {
           </template>
         </ElPopconfirm>
         <ElTooltip
-          v-else-if="
-            action.tooltip &&
-            ((typeof action.tooltip === 'string' && action.tooltip) ||
-              (typeof action.tooltip === 'object' && action.tooltip.content))
-          "
-          v-bind="
-            typeof action.tooltip === 'string'
-              ? { content: action.tooltip }
-              : { ...action.tooltip }
-          "
+          v-else-if="getTooltipProps(action.tooltip)"
+          v-bind="getTooltipProps(action.tooltip)"
         >
           <ElButton v-bind="getButtonProps(action)" @click="action.onClick">
             <template v-if="action.icon">

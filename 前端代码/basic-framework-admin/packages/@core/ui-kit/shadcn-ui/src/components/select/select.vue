@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import type { HTMLAttributes } from 'vue';
+
 import { CircleX } from '@vben-core/icons';
 
 import {
@@ -11,7 +13,7 @@ import {
 
 interface Props {
   allowClear?: boolean;
-  class?: any;
+  class?: HTMLAttributes['class'];
   options?: Array<{ label: string; value: string }>;
   placeholder?: string;
 }

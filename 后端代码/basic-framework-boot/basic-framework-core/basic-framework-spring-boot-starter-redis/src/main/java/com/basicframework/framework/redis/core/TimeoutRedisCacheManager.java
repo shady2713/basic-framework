@@ -1,8 +1,8 @@
 package com.basicframework.framework.redis.core;
 
-import cn.hutool.core.util.NumberUtil;
 import cn.hutool.core.util.StrUtil;
 import java.time.Duration;
+import java.util.regex.Pattern;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.redis.cache.RedisCache;
 import org.springframework.data.redis.cache.RedisCacheConfiguration;
@@ -19,6 +19,7 @@ import org.springframework.data.redis.cache.RedisCacheWriter;
 public class TimeoutRedisCacheManager extends RedisCacheManager {
 
     private static final String SPLIT = "#";
+    private static final Pattern POSITIVE_TTL_PATTERN = Pattern.compile("^[1-9]\\d*[dhms]?$");
 
     public TimeoutRedisCacheManager(RedisCacheWriter cacheWriter, RedisCacheConfiguration defaultCacheConfiguration) {
         super(cacheWriter, defaultCacheConfiguration);
@@ -55,29 +56,34 @@ public class TimeoutRedisCacheManager extends RedisCacheManager {
      * @param ttlStr 过期时间字符串
      * @return 过期时间 Duration
      */
-    private Duration parseDuration(String ttlStr) {
-        String timeUnit = StrUtil.subSuf(ttlStr, -1);
-        switch (timeUnit) {
-            case "d":
-                return Duration.ofDays(removeDurationSuffix(ttlStr));
-            case "h":
-                return Duration.ofHours(removeDurationSuffix(ttlStr));
-            case "m":
-                return Duration.ofMinutes(removeDurationSuffix(ttlStr));
-            case "s":
-                return Duration.ofSeconds(removeDurationSuffix(ttlStr));
-            default:
-                return Duration.ofSeconds(Long.parseLong(ttlStr));
+    static Duration parseDuration(String ttlStr) {
+        if (ttlStr == null || !POSITIVE_TTL_PATTERN.matcher(ttlStr).matches()) {
+            throw new IllegalArgumentException("缓存 TTL 必须为正整数并使用可选单位 d/h/m/s: " + ttlStr);
         }
+        String timeUnit = StrUtil.subSuf(ttlStr, -1);
+        if (Character.isDigit(timeUnit.charAt(0))) {
+            return Duration.ofSeconds(parsePositiveLong(ttlStr));
+        }
+        long amount = parsePositiveLong(ttlStr.substring(0, ttlStr.length() - 1));
+        return switch (timeUnit) {
+            case "d":
+                yield Duration.ofDays(amount);
+            case "h":
+                yield Duration.ofHours(amount);
+            case "m":
+                yield Duration.ofMinutes(amount);
+            case "s":
+                yield Duration.ofSeconds(amount);
+            default:
+                throw new IllegalArgumentException("不支持的缓存 TTL 单位: " + timeUnit);
+        };
     }
 
-    /**
-     * 移除多余的后缀，返回具体的时间
-     *
-     * @param ttlStr 过期时间字符串
-     * @return 时间
-     */
-    private Long removeDurationSuffix(String ttlStr) {
-        return NumberUtil.parseLong(StrUtil.sub(ttlStr, 0, ttlStr.length() - 1));
+    private static long parsePositiveLong(String value) {
+        try {
+            return Long.parseLong(value);
+        } catch (NumberFormatException exception) {
+            throw new IllegalArgumentException("缓存 TTL 超出 Long 范围: " + value, exception);
+        }
     }
 }

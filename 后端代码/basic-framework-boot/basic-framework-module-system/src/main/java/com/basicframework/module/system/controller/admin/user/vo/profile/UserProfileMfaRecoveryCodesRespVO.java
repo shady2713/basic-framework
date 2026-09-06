@@ -4,9 +4,11 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.ToString;
 
 @Schema(description = "管理后台 - 当前用户 MFA 恢复码 Response VO")
 @Data
+@ToString(exclude = {"recoveryCodes"})
 @AllArgsConstructor
 public class UserProfileMfaRecoveryCodesRespVO {
 

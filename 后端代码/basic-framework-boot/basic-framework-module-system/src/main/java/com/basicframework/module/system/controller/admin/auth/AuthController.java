@@ -13,6 +13,7 @@ import com.basicframework.framework.common.util.object.BeanUtils;
 import com.basicframework.framework.ratelimiter.core.annotation.RateLimiter;
 import com.basicframework.framework.ratelimiter.core.keyresolver.impl.ClientIpRateLimiterKeyResolver;
 import com.basicframework.framework.security.config.SecurityProperties;
+import com.basicframework.framework.security.core.annotation.AuthenticatedOnly;
 import com.basicframework.framework.security.core.util.SecurityFrameworkUtils;
 import com.basicframework.module.system.controller.admin.auth.vo.*;
 import com.basicframework.module.system.convert.auth.AuthConvert;
@@ -33,7 +34,6 @@ import com.basicframework.module.system.service.permission.RoleService;
 import com.basicframework.module.system.service.user.AdminUserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.annotation.Resource;
 import jakarta.annotation.security.PermitAll;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -41,39 +41,31 @@ import jakarta.validation.Valid;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 /** 管理后台的认证 Controller，提供登录、登出、获取用户信息等能力 */
 @Tag(name = "管理后台 - 认证")
 @RestController
 @RequestMapping("/system/auth")
-@Slf4j
+@RequiredArgsConstructor
 public class AuthController {
 
-    @Resource
-    private AdminAuthService authService;
+    private final AdminAuthService authService;
 
-    @Resource
-    private AdminUserService userService;
+    private final AdminUserService userService;
 
-    @Resource
-    private RoleService roleService;
+    private final RoleService roleService;
 
-    @Resource
-    private MenuService menuService;
+    private final MenuService menuService;
 
-    @Resource
-    private PermissionService permissionService;
+    private final PermissionService permissionService;
 
-    @Resource
-    private SecurityProperties securityProperties;
+    private final SecurityProperties securityProperties;
 
-    @Resource
-    private MfaService mfaService;
+    private final MfaService mfaService;
 
-    @Resource
-    private AuthRefreshTokenCookieManager refreshTokenCookieManager;
+    private final AuthRefreshTokenCookieManager refreshTokenCookieManager;
 
     @PostMapping("/login")
     @PermitAll
@@ -190,6 +182,7 @@ public class AuthController {
 
     @PostMapping("/mfa/step-up/start")
     @Operation(summary = "开始当前会话的 MFA 二次验证")
+    @AuthenticatedOnly
     @RateLimiter(time = 60, count = 10, message = "操作过于频繁，请稍后重试", keyResolver = ClientIpRateLimiterKeyResolver.class)
     @ApiAccessLog(sanitizeKeys = "mfaToken")
     public CommonResult<AuthLoginRespVO> startStepUp(HttpServletRequest request, HttpServletResponse response) {
@@ -200,6 +193,7 @@ public class AuthController {
 
     @PostMapping("/mfa/step-up/totp/finish")
     @Operation(summary = "使用 TOTP 完成当前会话的 MFA 二次验证")
+    @AuthenticatedOnly
     @RateLimiter(time = 60, count = 10, message = "操作过于频繁，请稍后重试", keyResolver = ClientIpRateLimiterKeyResolver.class)
     @ApiAccessLog(sanitizeKeys = {"mfaToken", "code"})
     public CommonResult<Boolean> finishStepUpTotp(
@@ -211,6 +205,7 @@ public class AuthController {
 
     @PostMapping("/mfa/step-up/recovery/finish")
     @Operation(summary = "使用恢复码完成当前会话的 MFA 二次验证")
+    @AuthenticatedOnly
     @RateLimiter(time = 60, count = 10, message = "操作过于频繁，请稍后重试", keyResolver = ClientIpRateLimiterKeyResolver.class)
     @ApiAccessLog(sanitizeKeys = {"mfaToken", "recoveryCode"})
     public CommonResult<Boolean> finishStepUpRecoveryCode(
@@ -222,6 +217,7 @@ public class AuthController {
 
     @PostMapping("/mfa/step-up/webauthn/start")
     @Operation(summary = "开始当前会话的 WebAuthn 二次验证")
+    @AuthenticatedOnly
     @RateLimiter(time = 60, count = 10, message = "操作过于频繁，请稍后重试", keyResolver = ClientIpRateLimiterKeyResolver.class)
     @ApiAccessLog(sanitizeKeys = {"mfaToken", "ceremonyToken", "optionsJson"})
     public CommonResult<AuthMfaWebAuthnOptionsRespVO> startStepUpWebAuthn(
@@ -233,6 +229,7 @@ public class AuthController {
 
     @PostMapping("/mfa/step-up/webauthn/finish")
     @Operation(summary = "完成当前会话的 WebAuthn 二次验证")
+    @AuthenticatedOnly
     @RateLimiter(time = 60, count = 10, message = "操作过于频繁，请稍后重试", keyResolver = ClientIpRateLimiterKeyResolver.class)
     @ApiAccessLog(sanitizeKeys = {"ceremonyToken", "credentialJson"})
     public CommonResult<Boolean> finishStepUpWebAuthn(
@@ -246,13 +243,13 @@ public class AuthController {
     @PermitAll
     @Operation(summary = "登出系统")
     public CommonResult<Boolean> logout(HttpServletRequest request, HttpServletResponse response) {
-        String token = SecurityFrameworkUtils.obtainAuthorization(
-                request, securityProperties.getTokenHeader(), securityProperties.getTokenParameter());
+        String token = SecurityFrameworkUtils.obtainAuthorization(request, securityProperties.getTokenHeader());
         if (StrUtil.isNotBlank(token)) {
             authService.logout(token, LoginLogTypeEnum.LOGOUT_SELF.getType());
         }
         String refreshToken = refreshTokenCookieManager.read(request);
         if (StrUtil.isNotBlank(refreshToken)) {
+            refreshTokenCookieManager.validateBrowserOrigin(request);
             authService.logoutByRefreshToken(refreshToken, LoginLogTypeEnum.LOGOUT_SELF.getType());
         }
         refreshTokenCookieManager.clear(response);
@@ -266,11 +263,13 @@ public class AuthController {
     public CommonResult<AuthLoginRespVO> refreshToken(HttpServletRequest request, HttpServletResponse response) {
         disableAuthenticationResponseCaching(response);
         String refreshToken = refreshTokenCookieManager.require(request);
+        refreshTokenCookieManager.validateBrowserOrigin(request);
         return authenticationSuccess(AuthLoginResultDTO.token(authService.refreshToken(refreshToken)), response);
     }
 
     @GetMapping("/get-permission-info")
     @Operation(summary = "获取登录用户的权限信息")
+    @AuthenticatedOnly
     public CommonResult<AuthPermissionInfoRespVO> getPermissionInfo() {
         // 1.1 获得用户信息
         AdminUserDO user = userService.getUser(getLoginUserId());
@@ -311,7 +310,7 @@ public class AuthController {
 
     @PostMapping("/send-sms-code")
     @PermitAll
-    @Operation(summary = "发送手机验证码")
+    @Operation(summary = "发送手机验证码", description = "未知手机号同样返回受理成功，但不会发送短信")
     @RateLimiter(time = 60, count = 5, message = "操作过于频繁，请稍后重试", keyResolver = ClientIpRateLimiterKeyResolver.class)
     public CommonResult<Boolean> sendLoginSmsCode(@RequestBody @Valid AuthSmsSendReqVO reqVO) {
         authService.sendSmsCode(BeanUtils.toBean(reqVO, AuthSmsSendDTO.class));
@@ -320,7 +319,7 @@ public class AuthController {
 
     @PostMapping("/reset-password")
     @PermitAll
-    @Operation(summary = "重置密码")
+    @Operation(summary = "重置密码", description = "短信码校验通过但账号已不存在时返回通用成功结果")
     @RateLimiter(time = 60, count = 5, message = "操作过于频繁，请稍后重试", keyResolver = ClientIpRateLimiterKeyResolver.class)
     @ApiAccessLog(sanitizeKeys = "code")
     public CommonResult<Boolean> resetPassword(@RequestBody @Valid AuthResetPasswordReqVO reqVO) {
@@ -342,7 +341,6 @@ public class AuthController {
     }
 
     private String obtainCurrentAccessToken(HttpServletRequest request) {
-        return SecurityFrameworkUtils.obtainAuthorization(
-                request, securityProperties.getTokenHeader(), securityProperties.getTokenParameter());
+        return SecurityFrameworkUtils.obtainAuthorization(request, securityProperties.getTokenHeader());
     }
 }

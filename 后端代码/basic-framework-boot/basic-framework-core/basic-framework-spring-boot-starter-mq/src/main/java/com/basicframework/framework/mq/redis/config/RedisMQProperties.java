@@ -3,6 +3,7 @@ package com.basicframework.framework.mq.redis.config;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import java.time.Duration;
@@ -15,6 +16,11 @@ import org.springframework.validation.annotation.Validated;
 @Validated
 @Data
 public class RedisMQProperties {
+
+    /** Stream 消费者单次最多拉取的消息数量。 */
+    @Min(1)
+    @Max(1000)
+    private int streamReadBatchSize = 10;
 
     /** pending 消息转移给当前消费者前必须达到的最小空闲时间。 */
     @NotNull

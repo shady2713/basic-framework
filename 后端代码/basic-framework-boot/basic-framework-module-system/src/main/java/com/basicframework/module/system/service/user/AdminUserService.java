@@ -206,4 +206,13 @@ public interface AdminUserService {
      * @return 是否匹配
      */
     boolean isPasswordMatch(String rawPassword, String encodedPassword);
+
+    /**
+     * 在密码已经验证成功后，按需将旧工作因子的哈希升级为部署当前强度。数据库中的哈希已变化时不覆盖。
+     *
+     * @param id 用户编号
+     * @param rawPassword 已验证成功的原始密码
+     * @param expectedEncodedPassword 认证时读取的密码哈希
+     */
+    void upgradePasswordEncodingIfNeeded(Long id, String rawPassword, String expectedEncodedPassword);
 }

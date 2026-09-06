@@ -36,6 +36,9 @@ const {
 
 const menus = computed(() => {
   const tab = tabbarStore.getTabByKey(currentActive.value);
+  if (!tab) {
+    return [];
+  }
   const menus = createContextMenus(tab);
   return menus.map((item) => {
     return {
@@ -77,7 +80,6 @@ if (!preferences.tabbar.persist) {
     <TabsToolScreen
       v-if="preferences.tabbar.showMaximize"
       :screen="contentIsMaximize"
-      @change="toggleMaximize"
       @update:screen="toggleMaximize"
     />
   </div>

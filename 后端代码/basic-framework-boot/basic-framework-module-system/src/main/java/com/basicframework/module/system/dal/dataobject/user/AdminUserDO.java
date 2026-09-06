@@ -9,6 +9,8 @@ import com.basicframework.framework.common.enums.CommonStatusEnum;
 import com.basicframework.framework.mybatis.core.dataobject.SoftDeletableDO;
 import com.basicframework.module.system.enums.common.SexEnum;
 import com.basicframework.module.system.framework.operatelog.core.DeptParseFunction;
+import com.basicframework.module.system.framework.operatelog.core.EmailDesensitizeParseFunction;
+import com.basicframework.module.system.framework.operatelog.core.MobileDesensitizeParseFunction;
 import com.basicframework.module.system.framework.operatelog.core.PostParseFunction;
 import com.basicframework.module.system.framework.operatelog.core.SexParseFunction;
 import com.mzt.logapi.starter.annotation.DiffLogField;
@@ -71,12 +73,14 @@ public class AdminUserDO extends SoftDeletableDO {
     /**
      * 用户邮箱
      */
-    @DiffLogField(name = "用户邮箱")
+    @DiffLogField(name = "用户邮箱", function = EmailDesensitizeParseFunction.NAME)
+    @ToString.Exclude
     private String email;
     /**
      * 手机号码
      */
-    @DiffLogField(name = "手机号")
+    @DiffLogField(name = "手机号", function = MobileDesensitizeParseFunction.NAME)
+    @ToString.Exclude
     private String mobile;
     /**
      * 用户性别

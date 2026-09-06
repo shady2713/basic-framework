@@ -70,6 +70,15 @@ public final class CredentialCipher {
         }
     }
 
+    /** 判断值是否采用当前支持的版本化密文格式，不执行解密。 */
+    public boolean isEncryptedValue(String value) {
+        if (!StringUtils.hasText(value)) {
+            return false;
+        }
+        String[] parts = value.split("\\.", -1);
+        return parts.length == 3 && VERSION.equals(parts[0]) && !parts[1].isEmpty() && !parts[2].isEmpty();
+    }
+
     /** 生成不可恢复且稳定的带密钥摘要，用于恢复码等一次性凭据。 */
     public String keyedDigest(String value, String context) {
         requireConfigured();

@@ -36,11 +36,23 @@ async function loadCommonPlugins(
           },
         }),
         viteVueJsx(),
-        viteExtraAppConfigPlugin({
-          isBuild: options.isBuild ?? false,
-          root: options.root ?? process.cwd(),
-        }),
       ],
+    },
+    {
+      condition:
+        (options.isBuild ?? false) &&
+        (options.visualizer ?? process.env.ANALYZE === 'true'),
+      plugins: async () => {
+        const { visualizer } = await import('rollup-plugin-visualizer');
+        return [
+          visualizer({
+            brotliSize: true,
+            filename: './node_modules/.cache/visualizer/stats.html',
+            gzipSize: true,
+            open: true,
+          }) as PluginOption,
+        ];
+      },
     },
   ];
 }
@@ -48,7 +60,15 @@ async function loadCommonPlugins(
 async function loadApplicationPlugins(
   options: ApplicationPluginOptions,
 ): Promise<PluginOption[]> {
-  return await loadConditionPlugins(await loadCommonPlugins(options));
+  const plugins = await loadConditionPlugins(await loadCommonPlugins(options));
+  const extraAppConfigPlugin = await viteExtraAppConfigPlugin({
+    isBuild: options.isBuild ?? false,
+    root: options.root ?? process.cwd(),
+  });
+  if (extraAppConfigPlugin) {
+    plugins.push(extraAppConfigPlugin);
+  }
+  return plugins;
 }
 
 async function loadLibraryPlugins(

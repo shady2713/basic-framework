@@ -1,5 +1,7 @@
 package com.basicframework.framework.mybatis.core.query;
 
+import static com.basicframework.framework.common.util.collection.ArrayUtils.get;
+
 import com.baomidou.mybatisplus.annotation.DbType;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.ArrayUtils;
@@ -94,16 +96,7 @@ public class QueryWrapperX<T> extends QueryWrapper<T> {
     }
 
     public QueryWrapperX<T> betweenIfPresent(String column, Object[] values) {
-        if (values != null && values.length != 0 && values[0] != null && values[1] != null) {
-            return (QueryWrapperX<T>) super.between(column, values[0], values[1]);
-        }
-        if (values != null && values.length != 0 && values[0] != null) {
-            return (QueryWrapperX<T>) ge(column, values[0]);
-        }
-        if (values != null && values.length != 0 && values[1] != null) {
-            return (QueryWrapperX<T>) le(column, values[1]);
-        }
-        return this;
+        return betweenIfPresent(column, get(values, 0), get(values, 1));
     }
 
     // ========== 重写父类方法，方便链式调用 ==========

@@ -60,6 +60,7 @@ public class S3FileClientConfig implements FileClientConfig {
      * 6. 火山云：https://console.volcengine.com/iam/keymanage/
      */
     @NotNull(message = "accessKey 不能为空")
+    @ToString.Exclude
     private String accessKey;
     /**
      * 访问 Secret

@@ -1,4 +1,5 @@
 import type {
+  FormRuleHandler,
   VbenFormSchema as FormSchema,
   VbenFormProps,
 } from '@vben/common-ui';
@@ -13,41 +14,37 @@ import {
   buildOptionalEmailSchema,
   buildOptionalMobileSchema,
   buildOptionalPercentSchema,
+  buildOptionalRemarkSchema,
   buildRequiredEmailSchema,
   buildRequiredMobileSchema,
+  buildRequiredNicknameSchema,
   buildRequiredPasswordSchema,
   buildRequiredPercentSchema,
   buildRequiredQuantitySchema,
   buildRequiredUsernameSchema,
   isEmailValue,
   isMobileValue,
+  isNicknameValue,
   isPasswordValue,
   isPercentValue,
   isQuantityValue,
   isUsernameValue,
 } from './field-rules';
 
-type RuleContext = Record<string, any>;
-type RuleHandler = (
-  value: unknown,
-  params: unknown,
-  ctx: RuleContext,
-) => boolean | string;
-
 function isEmpty(value: unknown) {
   return value === undefined || value === null || String(value).length === 0;
 }
 
-const defineRules: Record<string, RuleHandler> = {
+const defineRules: Record<string, FormRuleHandler> = {
   required: (value, _params, ctx) => {
     if (isEmpty(value)) {
-      return $t('ui.formRules.required', [ctx.label]);
+      return $t('ui.formRules.required', [ctx.label ?? '']);
     }
     return true;
   },
   selectRequired: (value, _params, ctx) => {
     if (value === undefined || value === null) {
-      return $t('ui.formRules.selectRequired', [ctx.label]);
+      return $t('ui.formRules.selectRequired', [ctx.label ?? '']);
     }
     return true;
   },
@@ -56,15 +53,17 @@ const defineRules: Record<string, RuleHandler> = {
       return true;
     }
     return (
-      isUsernameValue(String(value)) || `${ctx.label}必须为 4-30 位字母或数字`
+      isUsernameValue(String(value)) ||
+      `${ctx.label ?? ''}必须为 4-30 位字母或数字`
     );
   },
   usernameRequired: (value, _params, ctx) => {
     if (isEmpty(value)) {
-      return $t('ui.formRules.required', [ctx.label]);
+      return $t('ui.formRules.required', [ctx.label ?? '']);
     }
     return (
-      isUsernameValue(String(value)) || `${ctx.label}必须为 4-30 位字母或数字`
+      isUsernameValue(String(value)) ||
+      `${ctx.label ?? ''}必须为 4-30 位字母或数字`
     );
   },
   password: (value, _params, ctx) => {
@@ -73,16 +72,16 @@ const defineRules: Record<string, RuleHandler> = {
     }
     return (
       isPasswordValue(String(value)) ||
-      `${ctx.label}必须为 6-16 位，且同时包含大写字母、小写字母和数字`
+      `${ctx.label ?? ''}至少 15 个字符，且 UTF-8 编码不能超过 72 字节`
     );
   },
   passwordRequired: (value, _params, ctx) => {
     if (isEmpty(value)) {
-      return $t('ui.formRules.required', [ctx.label]);
+      return $t('ui.formRules.required', [ctx.label ?? '']);
     }
     return (
       isPasswordValue(String(value)) ||
-      `${ctx.label}必须为 6-16 位，且同时包含大写字母、小写字母和数字`
+      `${ctx.label ?? ''}至少 15 个字符，且 UTF-8 编码不能超过 72 字节`
     );
   },
   mobile: (value, _params, ctx) => {
@@ -90,28 +89,30 @@ const defineRules: Record<string, RuleHandler> = {
       return true;
     }
     return (
-      isMobileValue(String(value)) || $t('ui.formRules.mobile', [ctx.label])
+      isMobileValue(String(value)) ||
+      $t('ui.formRules.mobile', [ctx.label ?? ''])
     );
   },
   mobileRequired: (value, _params, ctx) => {
     if (isEmpty(value)) {
-      return $t('ui.formRules.required', [ctx.label]);
+      return $t('ui.formRules.required', [ctx.label ?? '']);
     }
     return (
-      isMobileValue(String(value)) || $t('ui.formRules.mobile', [ctx.label])
+      isMobileValue(String(value)) ||
+      $t('ui.formRules.mobile', [ctx.label ?? ''])
     );
   },
   email: (value, _params, ctx) => {
     if (isEmpty(value)) {
       return true;
     }
-    return isEmailValue(String(value)) || `${ctx.label}格式不正确`;
+    return isEmailValue(String(value)) || `${ctx.label ?? ''}格式不正确`;
   },
   emailRequired: (value, _params, ctx) => {
     if (isEmpty(value)) {
-      return $t('ui.formRules.required', [ctx.label]);
+      return $t('ui.formRules.required', [ctx.label ?? '']);
     }
-    return isEmailValue(String(value)) || `${ctx.label}格式不正确`;
+    return isEmailValue(String(value)) || `${ctx.label ?? ''}格式不正确`;
   },
   percent: (value, _params, ctx) => {
     if (isEmpty(value)) {
@@ -119,14 +120,14 @@ const defineRules: Record<string, RuleHandler> = {
     }
     return (
       isPercentValue(String(value)) ||
-      `${ctx.label}必须在 0-100 之间，最多保留两位小数`
+      `${ctx.label ?? ''}必须在 0-100 之间，最多保留两位小数`
     );
   },
   quantity: (value, _params, ctx) => {
     if (isEmpty(value)) {
       return true;
     }
-    return isQuantityValue(Number(value)) || `${ctx.label}必须为非负整数`;
+    return isQuantityValue(Number(value)) || `${ctx.label ?? ''}必须为非负整数`;
   },
 };
 
@@ -138,7 +139,7 @@ async function initSetupVbenForm() {
         CheckboxGroup: 'model-value',
       },
     },
-    defineRules: defineRules as any,
+    defineRules,
   });
 }
 
@@ -149,8 +150,10 @@ export {
   buildOptionalEmailSchema,
   buildOptionalMobileSchema,
   buildOptionalPercentSchema,
+  buildOptionalRemarkSchema,
   buildRequiredEmailSchema,
   buildRequiredMobileSchema,
+  buildRequiredNicknameSchema,
   buildRequiredPasswordSchema,
   buildRequiredPercentSchema,
   buildRequiredQuantitySchema,
@@ -158,6 +161,7 @@ export {
   initSetupVbenForm,
   isEmailValue,
   isMobileValue,
+  isNicknameValue,
   isPasswordValue,
   isPercentValue,
   isQuantityValue,

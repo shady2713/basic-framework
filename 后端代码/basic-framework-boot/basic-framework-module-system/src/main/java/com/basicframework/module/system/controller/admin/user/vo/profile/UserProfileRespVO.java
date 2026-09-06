@@ -7,6 +7,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDateTime;
 import java.util.List;
 import lombok.Data;
+import lombok.ToString;
 
 @Data
 @Schema(description = "管理后台 - 用户个人中心信息 Response VO")
@@ -22,9 +23,11 @@ public class UserProfileRespVO {
     private String nickname;
 
     @Schema(description = "用户邮箱", example = "admin@example.com")
+    @ToString.Exclude
     private String email;
 
     @Schema(description = "手机号码", example = "")
+    @ToString.Exclude
     private String mobile;
 
     @Schema(description = "用户性别，参见 SexEnum 枚举类", example = "1")

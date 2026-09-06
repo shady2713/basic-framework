@@ -1,13 +1,12 @@
 package com.basicframework.framework.quartz.core.handler;
 
-import static cn.hutool.core.exceptions.ExceptionUtil.getRootCauseMessage;
+import static com.basicframework.framework.common.util.exception.SafeExceptionLogUtils.format;
 
 import cn.hutool.core.date.LocalDateTimeUtil;
 import cn.hutool.core.lang.Assert;
 import cn.hutool.core.thread.ThreadUtil;
 import com.basicframework.framework.quartz.core.enums.JobDataKeyEnum;
 import com.basicframework.framework.quartz.core.service.JobLogFrameworkService;
-import jakarta.annotation.Resource;
 import java.time.LocalDateTime;
 import lombok.extern.slf4j.Slf4j;
 import org.quartz.DisallowConcurrentExecution;
@@ -26,11 +25,14 @@ import org.springframework.scheduling.quartz.QuartzJobBean;
 @Slf4j
 public class JobHandlerInvoker extends QuartzJobBean {
 
-    @Resource
-    private ApplicationContext applicationContext;
+    private final ApplicationContext applicationContext;
 
-    @Resource
-    private JobLogFrameworkService jobLogFrameworkService;
+    private final JobLogFrameworkService jobLogFrameworkService;
+
+    public JobHandlerInvoker(ApplicationContext applicationContext, JobLogFrameworkService jobLogFrameworkService) {
+        this.applicationContext = applicationContext;
+        this.jobLogFrameworkService = jobLogFrameworkService;
+    }
 
     @Override
     protected void executeInternal(JobExecutionContext executionContext) throws JobExecutionException {
@@ -50,14 +52,14 @@ public class JobHandlerInvoker extends QuartzJobBean {
         Long jobLogId = null;
         LocalDateTime startTime = LocalDateTime.now();
         String data = null;
-        Throwable exception = null;
+        Exception exception = null;
         try {
             // 记录 Job 日志（初始）
             jobLogId = jobLogFrameworkService.createJobLog(
                     jobId, startTime, jobHandlerName, jobHandlerParam, refireCount + 1);
             // 执行任务
             data = this.executeInternal(jobHandlerName, jobHandlerParam);
-        } catch (Throwable ex) {
+        } catch (Exception ex) {
             exception = ex;
         }
 
@@ -80,13 +82,13 @@ public class JobHandlerInvoker extends QuartzJobBean {
             Long jobLogId,
             LocalDateTime startTime,
             String data,
-            Throwable exception,
+            Exception exception,
             JobExecutionContext executionContext) {
         LocalDateTime endTime = LocalDateTime.now();
         // 处理是否成功
         boolean success = exception == null;
         if (!success) {
-            data = getRootCauseMessage(exception);
+            data = exception.getClass().getName();
         }
         // 更新日志
         try {
@@ -98,15 +100,15 @@ public class JobHandlerInvoker extends QuartzJobBean {
                     data);
         } catch (Exception ex) {
             log.error(
-                    "[executeInternal][Job({}) logId({}) 记录执行日志失败({}/{})]",
+                    "[executeInternal][Job({}) logId({}) 记录执行日志失败，任务状态({}) stackTrace({})]",
                     executionContext.getJobDetail().getKey(),
                     jobLogId,
                     success,
-                    data);
+                    format(ex));
         }
     }
 
-    private void handleException(Throwable exception, int refireCount, int retryCount, int retryInterval)
+    private void handleException(Exception exception, int refireCount, int retryCount, int retryInterval)
             throws JobExecutionException {
         // 如果有异常，则进行重试
         if (exception == null) {

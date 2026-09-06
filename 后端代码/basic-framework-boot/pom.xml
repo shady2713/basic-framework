@@ -15,7 +15,6 @@
         <!-- 各 module 拓展；xxx-api 薄模块为对外契约，排在对应业务模块之前 -->
         <module>basic-framework-module-system-api</module>
         <module>basic-framework-module-system</module>
-        <module>basic-framework-module-crm</module>
         <module>basic-framework-module-infra-api</module>
         <module>basic-framework-module-infra</module>
     </modules>
@@ -37,7 +36,7 @@
         <flatten-maven-plugin.version>1.7.2</flatten-maven-plugin.version>
         <!-- maven-surefire-plugin 暂时无法通过 bom 的依赖查找（兼容老版本 IDEA 2024 及以前版本） -->
         <lombok.version>1.18.42</lombok.version>
-        <spring.boot.version>3.5.9</spring.boot.version>
+        <spring.boot.version>3.5.16</spring.boot.version>
         <mapstruct.version>1.6.3</mapstruct.version>
         <mockito.version>5.17.0</mockito.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

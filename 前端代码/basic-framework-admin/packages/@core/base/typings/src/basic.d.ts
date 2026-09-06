@@ -30,6 +30,23 @@ interface BasicUserInfo {
   username: string;
 }
 
+/** 管理后台权限接口返回的登录用户信息。 */
+interface AdminUserInfo {
+  avatar: string;
+  deptId: number;
+  email?: string;
+  id: number;
+  nickname: string;
+  username: string;
+}
+
 type ClassType = Array<object | string> | object | string;
 
-export type { BasicOption, BasicUserInfo, ClassType, SelectOption, TabOption };
+export type {
+  AdminUserInfo,
+  BasicOption,
+  BasicUserInfo,
+  ClassType,
+  SelectOption,
+  TabOption,
+};

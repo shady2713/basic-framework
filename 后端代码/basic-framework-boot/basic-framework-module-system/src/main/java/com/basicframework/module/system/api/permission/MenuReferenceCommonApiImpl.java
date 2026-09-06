@@ -3,19 +3,19 @@ package com.basicframework.module.system.api.permission;
 import com.basicframework.module.system.dal.dataobject.permission.MenuDO;
 import com.basicframework.module.system.dal.mysql.permission.MenuMapper;
 import com.basicframework.module.system.enums.permission.MenuTypeEnum;
-import jakarta.annotation.Resource;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 /** 菜单逻辑引用 API 实现。 */
 @Service
+@RequiredArgsConstructor
 public class MenuReferenceCommonApiImpl implements MenuReferenceCommonApi {
 
-    @Resource
-    private MenuMapper menuMapper;
+    private final MenuMapper menuMapper;
 
     @Override
     public boolean isParentMenuAvailable(Long menuId) {

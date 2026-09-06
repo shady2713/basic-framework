@@ -36,9 +36,9 @@ const [Modal, modalApi] = useVbenModal({
     }
     modalApi.lock();
     // 提交表单
-    const data = await formApi.getValues();
+    const data = await formApi.getValues<{ file: File }>();
     try {
-      await useUpload().httpRequest(data.file);
+      await useUpload(undefined, 'global', true).httpRequest(data.file);
       // 关闭并提示
       await modalApi.close();
       emit('success');

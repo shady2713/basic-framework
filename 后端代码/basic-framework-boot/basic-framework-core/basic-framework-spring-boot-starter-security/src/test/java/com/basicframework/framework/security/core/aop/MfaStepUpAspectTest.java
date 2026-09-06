@@ -39,4 +39,18 @@ class MfaStepUpAspectTest {
 
         verify(mfaApi).requireStepUp("access-token", 42L);
     }
+
+    @Test
+    void requireStepUp_withoutRequest_passesAnonymousContextToCommonApi() {
+        SecurityProperties properties = new SecurityProperties();
+        MfaCommonApi mfaApi = mock(MfaCommonApi.class);
+
+        try (var webFramework = mockStatic(WebFrameworkUtils.class)) {
+            webFramework.when(WebFrameworkUtils::getRequest).thenReturn(null);
+
+            new MfaStepUpAspect(properties, mfaApi).requireStepUp(mock(MfaStepUp.class));
+        }
+
+        verify(mfaApi).requireStepUp(null, null);
+    }
 }

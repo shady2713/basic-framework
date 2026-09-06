@@ -1,9 +1,9 @@
 package com.basicframework.module.system.service.sms;
 
 import com.basicframework.framework.common.exception.ServiceException;
-import com.basicframework.module.system.api.sms.dto.code.SmsCodeSendReqDTO;
-import com.basicframework.module.system.api.sms.dto.code.SmsCodeUseReqDTO;
-import com.basicframework.module.system.api.sms.dto.code.SmsCodeValidateReqDTO;
+import com.basicframework.module.system.service.sms.dto.SmsCodeSendReqDTO;
+import com.basicframework.module.system.service.sms.dto.SmsCodeUseReqDTO;
+import com.basicframework.module.system.service.sms.dto.SmsCodeValidateReqDTO;
 import jakarta.validation.Valid;
 
 /**

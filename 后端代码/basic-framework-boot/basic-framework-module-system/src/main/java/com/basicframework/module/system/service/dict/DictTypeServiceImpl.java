@@ -6,15 +6,14 @@ import static com.basicframework.module.system.enums.ErrorCodeConstants.*;
 import cn.hutool.core.util.StrUtil;
 import com.basicframework.framework.common.pojo.PageParam;
 import com.basicframework.framework.common.pojo.PageResult;
-import com.basicframework.framework.common.util.date.LocalDateTimeUtils;
 import com.basicframework.module.system.dal.dataobject.dict.DictTypeDO;
 import com.basicframework.module.system.dal.mysql.dict.DictDataMapper;
 import com.basicframework.module.system.dal.mysql.dict.DictTypeMapper;
 import com.google.common.annotations.VisibleForTesting;
-import jakarta.annotation.Resource;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,13 +22,13 @@ import org.springframework.transaction.annotation.Transactional;
  *
  */
 @Service
+@RequiredArgsConstructor
 public class DictTypeServiceImpl implements DictTypeService {
 
-    @Resource
-    private DictDataMapper dictDataMapper;
+    private static final LocalDateTime NOT_DELETED_TIME = LocalDateTime.of(1970, 1, 1, 0, 0);
 
-    @Resource
-    private DictTypeMapper dictTypeMapper;
+    private final DictDataMapper dictDataMapper;
+    private final DictTypeMapper dictTypeMapper;
 
     @Override
     public PageResult<DictTypeDO> getDictTypePage(
@@ -55,7 +54,7 @@ public class DictTypeServiceImpl implements DictTypeService {
         validateDictTypeUnique(null, dictType.getType());
 
         // 插入字典类型
-        dictType.setDeletedTime(LocalDateTimeUtils.EMPTY); // 唯一索引，避免 null 值
+        dictType.setDeletedTime(NOT_DELETED_TIME); // 唯一索引要求未删除记录使用固定时间而非 null
         dictTypeMapper.insert(dictType);
         return dictType.getId();
     }

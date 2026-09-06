@@ -2,6 +2,7 @@ package com.basicframework.framework.desensitize.core.handler;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.basicframework.framework.desensitize.core.base.handler.DesensitizationHandler;
 import com.basicframework.framework.desensitize.core.regex.annotation.EmailDesensitize;
 import com.basicframework.framework.desensitize.core.regex.annotation.RegexDesensitize;
 import com.basicframework.framework.desensitize.core.regex.handler.DefaultRegexDesensitizationHandler;
@@ -15,8 +16,9 @@ import org.junit.jupiter.api.Test;
  * 脱敏处理器测试（regex 与 slider 两类）
  *
  * 脱敏是安全契约（sensitiveClass/masking 的落地方式），用动态代理构造
- * 注解实例覆盖默认与自定义路径；空 disable 表达式等价于启用。依赖
- * Spring BeanFactory 的非空 disable 表达式由 DesensitizationExpressionIT 覆盖。
+ * 注解实例覆盖默认与自定义路径；空 disable 表达式等价于启用，disable 表达式
+ * 取值分支由 DesensitizationDisablePathTest 覆盖（mock 表达式结果），真实
+ * Spring BeanFactory 下的表达式赋值由 DesensitizationExpressionIT 覆盖。
  */
 class DesensitizationHandlerTest {
 
@@ -68,6 +70,14 @@ class DesensitizationHandlerTest {
         assertThat(sliderHandler.desensitize("13812345678", annotation)).isEqualTo("138####5678");
     }
 
+    @Test
+    void missingDisableAttribute_defaultsToEnabled() {
+        Deprecated annotation = DeprecatedTarget.class.getAnnotation(Deprecated.class);
+        DesensitizationHandler<Deprecated> handler = (origin, ignored) -> origin;
+
+        assertThat(handler.getDisable(annotation)).isEmpty();
+    }
+
     // ---------- 注解动态代理构造（保留默认值，仅覆写被测参数） ----------
 
     private EmailDesensitize emailAnnotation(String regex, String replacer, String disable) {
@@ -109,4 +119,7 @@ class DesensitizationHandlerTest {
                     default -> method.getDefaultValue();
                 });
     }
+
+    @Deprecated
+    private static final class DeprecatedTarget {}
 }

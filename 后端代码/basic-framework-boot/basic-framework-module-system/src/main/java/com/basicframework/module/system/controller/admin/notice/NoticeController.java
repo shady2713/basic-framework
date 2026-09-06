@@ -5,6 +5,7 @@ import static com.basicframework.framework.common.pojo.CommonResult.success;
 import com.basicframework.framework.common.pojo.CommonResult;
 import com.basicframework.framework.common.pojo.PageResult;
 import com.basicframework.framework.common.util.object.BeanUtils;
+import com.basicframework.framework.security.core.annotation.MfaStepUp;
 import com.basicframework.module.system.controller.admin.notice.vo.NoticePageReqVO;
 import com.basicframework.module.system.controller.admin.notice.vo.NoticeRespVO;
 import com.basicframework.module.system.controller.admin.notice.vo.NoticeSaveReqVO;
@@ -13,9 +14,11 @@ import com.basicframework.module.system.service.notice.NoticeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -31,10 +34,10 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/system/notice")
 @Validated
+@RequiredArgsConstructor
 public class NoticeController {
 
-    @Resource
-    private NoticeService noticeService;
+    private final NoticeService noticeService;
 
     @PostMapping("/create")
     @Operation(summary = "创建通知公告")
@@ -55,7 +58,7 @@ public class NoticeController {
     @Operation(summary = "删除通知公告")
     @Parameter(name = "id", description = "编号", required = true)
     @PreAuthorize("@ss.hasPermission('system:notice:delete')")
-    public CommonResult<Boolean> deleteNotice(@RequestParam("id") Long id) {
+    public CommonResult<Boolean> deleteNotice(@RequestParam("id") @Positive Long id) {
         noticeService.deleteNotice(id);
         return success(true);
     }
@@ -64,7 +67,8 @@ public class NoticeController {
     @Operation(summary = "批量删除通知公告")
     @Parameter(name = "ids", description = "编号列表", required = true)
     @PreAuthorize("@ss.hasPermission('system:notice:delete')")
-    public CommonResult<Boolean> deleteNoticeList(@RequestParam("ids") List<Long> ids) {
+    public CommonResult<Boolean> deleteNoticeList(
+            @RequestParam("ids") @Size(min = 1, max = 100) List<@Positive Long> ids) {
         noticeService.deleteNoticeList(ids);
         return success(true);
     }
@@ -73,7 +77,7 @@ public class NoticeController {
     @Operation(summary = "获得通知公告")
     @Parameter(name = "id", description = "编号", required = true, example = "1024")
     @PreAuthorize("@ss.hasPermission('system:notice:query')")
-    public CommonResult<NoticeRespVO> getNotice(@RequestParam("id") Long id) {
+    public CommonResult<NoticeRespVO> getNotice(@RequestParam("id") @Positive Long id) {
         NoticeDO notice = noticeService.getNotice(id);
         return success(BeanUtils.toBean(notice, NoticeRespVO.class));
     }
@@ -91,7 +95,8 @@ public class NoticeController {
     @Operation(summary = "推送通知公告")
     @Parameter(name = "id", description = "编号", required = true, example = "1024")
     @PreAuthorize("@ss.hasPermission('system:notice:update')")
-    public CommonResult<Boolean> pushNotice(@RequestParam("id") Long id) {
+    @MfaStepUp
+    public CommonResult<Boolean> pushNotice(@RequestParam("id") @Positive Long id) {
         noticeService.pushNotice(id);
         return success(true);
     }

@@ -3,9 +3,20 @@ interface TreeConfigOptions {
   childProps: string;
 }
 
-interface TreeNode {
-  [key: string]: any;
-  children?: TreeNode[];
+function readProperty(node: object, property: string): unknown {
+  return (node as Record<string, unknown>)[property];
+}
+
+function setProperty(node: object, property: string, value: unknown): void {
+  (node as Record<string, unknown>)[property] = value;
+}
+
+function readChildren<T extends object>(
+  node: T,
+  childProps: string,
+): T[] | undefined {
+  const children = readProperty(node, childProps);
+  return Array.isArray(children) ? (children as T[]) : undefined;
 }
 
 /**
@@ -15,7 +26,7 @@ interface TreeNode {
  * @param options 作为子节点数组的可选属性名称。
  * @returns 所有节点中指定的值的数组
  */
-function traverseTreeValues<T, V>(
+function traverseTreeValues<T extends object, V>(
   tree: T[],
   getValue: (node: T) => V,
   options?: TreeConfigOptions,
@@ -28,21 +39,19 @@ function traverseTreeValues<T, V>(
   const dfs = (treeNode: T) => {
     const value = getValue(treeNode);
     result.push(value);
-    const children = (treeNode as Record<string, any>)?.[childProps];
+    const children = readChildren(treeNode, childProps);
     if (!children) {
       return;
     }
-    if (children.length > 0) {
-      for (const child of children) {
-        dfs(child);
-      }
+    for (const child of children) {
+      dfs(child);
     }
   };
 
   for (const treeNode of tree) {
     dfs(treeNode);
   }
-  return result.filter(Boolean);
+  return result;
 }
 
 /**
@@ -52,7 +61,7 @@ function traverseTreeValues<T, V>(
  * @param options 作为子节点数组的可选属性名称。
  * @returns 包含所有匹配节点的数组。
  */
-function filterTree<T extends Record<string, any>>(
+function filterTree<T extends object>(
   tree: T[],
   filter: (node: T) => boolean,
   options?: TreeConfigOptions,
@@ -61,19 +70,21 @@ function filterTree<T extends Record<string, any>>(
     childProps: 'children',
   };
 
-  const _filterTree = (nodes: T[]): T[] => {
-    return nodes.filter((node: Record<string, any>) => {
-      if (filter(node as T)) {
-        if (node[childProps]) {
-          node[childProps] = _filterTree(node[childProps]);
-        }
-        return true;
+  const filterNodes = (nodes: T[]): T[] => {
+    return nodes.flatMap((node) => {
+      if (!filter(node)) {
+        return [];
       }
-      return false;
+      const children = readChildren(node, childProps);
+      return [
+        children
+          ? ({ ...node, [childProps]: filterNodes(children) } as T)
+          : ({ ...node } as T),
+      ];
     });
   };
 
-  return _filterTree(tree);
+  return filterNodes(tree);
 }
 
 /**
@@ -82,7 +93,7 @@ function filterTree<T extends Record<string, any>>(
  * @param mapper 用于map每个节点的条件。
  * @param options 作为子节点数组的可选属性名称。
  */
-function mapTree<T, V extends Record<string, any>>(
+function mapTree<T extends object, V extends object>(
   tree: T[],
   mapper: (node: T) => V,
   options?: TreeConfigOptions,
@@ -91,11 +102,16 @@ function mapTree<T, V extends Record<string, any>>(
     childProps: 'children',
   };
   return tree.map((node) => {
-    const mapperNode: Record<string, any> = mapper(node);
-    if (mapperNode[childProps]) {
-      mapperNode[childProps] = mapTree(mapperNode[childProps], mapper, options);
-    }
-    return mapperNode as V;
+    const mappedNode = mapper(node);
+    // 映射器可以通过返回空 children 剪枝；递归前其子节点仍须保持源节点结构。
+    const children = readProperty(mappedNode, childProps);
+    const sourceChildren = Array.isArray(children) ? (children as T[]) : null;
+    return sourceChildren
+      ? ({
+          ...mappedNode,
+          [childProps]: mapTree(sourceChildren, mapper, options),
+        } as V)
+      : mappedNode;
   });
 }
 
@@ -107,12 +123,12 @@ function mapTree<T, V extends Record<string, any>>(
  * @param {*} parentId 父节点字段 默认 'parentId'
  * @param {*} children 孩子节点字段 默认 'children'
  */
-function handleTree(
-  data: TreeNode[],
+function handleTree<T extends object>(
+  data: T[],
   id: string = 'id',
   parentId: string = 'parentId',
   children: string = 'children',
-): TreeNode[] {
+): T[] {
   if (!Array.isArray(data)) {
     console.warn('data must be an array');
     return [];
@@ -122,37 +138,45 @@ function handleTree(
     parentId,
     childrenList: children,
   };
-  const childrenListMap: Record<number | string, TreeNode[]> = {};
-  const nodeIds: Record<number | string, TreeNode> = {};
-  const tree: TreeNode[] = [];
+  const childrenListMap = new Map<unknown, T[]>();
+  const nodeIds = new Set<unknown>();
+  const tree: T[] = [];
+  const nodes = data.map((node) => ({ ...node }) as T);
 
   // 1. 数据预处理
   // 1.1 第一次遍历，生成 childrenListMap 和 nodeIds 映射
-  for (const d of data) {
-    const pId = d[config.parentId];
-    if (childrenListMap[pId] === undefined) {
-      childrenListMap[pId] = [];
-    }
-    nodeIds[d[config.id]] = d;
-    childrenListMap[pId].push(d);
+  for (const node of nodes) {
+    const parentNodeId = readProperty(node, config.parentId);
+    const siblings = childrenListMap.get(parentNodeId) ?? [];
+    siblings.push(node);
+    childrenListMap.set(parentNodeId, siblings);
+    nodeIds.add(readProperty(node, config.id));
   }
   // 1.2 第二次遍历，找出根节点
-  for (const d of data) {
-    const pId = d[config.parentId];
-    if (nodeIds[pId] === undefined) {
-      tree.push(d);
+  for (const node of nodes) {
+    const parentNodeId = readProperty(node, config.parentId);
+    if (!nodeIds.has(parentNodeId)) {
+      tree.push(node);
     }
   }
 
   // 2. 构建树结：递归构建子节点
-  const adaptToChildrenList = (node: TreeNode): void => {
-    const nodeId = node[config.id];
-    if (childrenListMap[nodeId]) {
-      node[config.childrenList] = childrenListMap[nodeId];
-      // 递归处理子节点
-      for (const child of node[config.childrenList]) {
-        adaptToChildrenList(child);
-      }
+  const visited = new Set<T>();
+  const adaptToChildrenList = (node: T): void => {
+    visited.add(node);
+    const childrenNodes = childrenListMap.get(readProperty(node, config.id));
+    if (!childrenNodes || childrenNodes.length === 0) {
+      return;
+    }
+    const unvisitedChildren = childrenNodes.filter(
+      (child) => !visited.has(child),
+    );
+    if (unvisitedChildren.length === 0) {
+      return;
+    }
+    setProperty(node, config.childrenList, unvisitedChildren);
+    for (const child of unvisitedChildren) {
+      adaptToChildrenList(child);
     }
   };
 
@@ -165,57 +189,13 @@ function handleTree(
 }
 
 /**
- * 获取节点的完整结构
- * @param tree 树数据
- * @param nodeId 节点 id
- */
-function treeToString(tree: any[], nodeId: number | string) {
-  if (tree === undefined || !Array.isArray(tree) || tree.length === 0) {
-    console.warn('tree must be an array');
-    return '';
-  }
-  // 校验是否是一级节点
-  const node = tree.find((item) => item.id === nodeId);
-  if (node !== undefined) {
-    return node.name;
-  }
-  let str = '';
-
-  function performAThoroughValidation(arr: any[]) {
-    if (arr === undefined || !Array.isArray(arr) || arr.length === 0) {
-      return false;
-    }
-    for (const item of arr) {
-      if (item.id === nodeId) {
-        str += ` / ${item.name}`;
-        return true;
-      } else if (item.children !== undefined && item.children.length > 0) {
-        str += ` / ${item.name}`;
-        if (performAThoroughValidation(item.children)) {
-          return true;
-        }
-      }
-    }
-    return false;
-  }
-
-  for (const item of tree) {
-    str = `${item.name}`;
-    if (performAThoroughValidation(item.children)) {
-      break;
-    }
-  }
-  return str;
-}
-
-/**
  * 对树形结构数据进行递归排序
  * @param treeData - 树形数据数组
  * @param sortFunction - 排序函数，用于定义排序规则
  * @param options - 配置选项，包括子节点属性名
  * @returns 排序后的树形数据
  */
-function sortTree<T extends Record<string, any>>(
+function sortTree<T extends object>(
   treeData: T[],
   sortFunction: (a: T, b: T) => number,
   options?: TreeConfigOptions,
@@ -225,22 +205,15 @@ function sortTree<T extends Record<string, any>>(
   };
 
   return treeData.toSorted(sortFunction).map((item) => {
-    const children = item[childProps];
-    if (children && Array.isArray(children) && children.length > 0) {
+    const children = readChildren(item, childProps);
+    if (children && children.length > 0) {
       return {
         ...item,
         [childProps]: sortTree(children, sortFunction, options),
-      };
+      } as T;
     }
     return item;
   });
 }
 
-export {
-  filterTree,
-  handleTree,
-  mapTree,
-  sortTree,
-  traverseTreeValues,
-  treeToString,
-};
+export { filterTree, handleTree, mapTree, sortTree, traverseTreeValues };

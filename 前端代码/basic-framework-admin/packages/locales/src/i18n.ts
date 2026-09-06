@@ -4,6 +4,7 @@ import type { Locale } from 'vue-i18n';
 import type {
   ImportLocaleFn,
   LoadMessageFn,
+  LocaleMessageMap,
   LocaleSetupOptions,
   SupportedLanguagesType,
 } from './typing';
@@ -28,7 +29,8 @@ const localesMap = loadLocalesMapFromDir(
   /\.\/langs\/([^/]+)\/(.*)\.json$/,
   modules,
 );
-let loadMessages: LoadMessageFn;
+const loadEmptyMessages: LoadMessageFn = async () => ({});
+let loadMessages: LoadMessageFn = loadEmptyMessages;
 
 /**
  * Load locale modules
@@ -78,9 +80,14 @@ function loadLocalesMapFromDir(
   // Convert raw locale data into async import functions
   for (const [locale, files] of Object.entries(localesRaw)) {
     localesMap[locale] = async () => {
-      const messages: Record<string, any> = {};
+      const messages: LocaleMessageMap = {};
       for (const [fileName, importFn] of Object.entries(files)) {
-        messages[fileName] = ((await importFn()) as any)?.default;
+        const localeModule = (await importFn()) as {
+          default?: LocaleMessageMap;
+        };
+        if (localeModule.default) {
+          messages[fileName] = localeModule.default;
+        }
       }
       return { default: messages };
     };
@@ -96,17 +103,15 @@ function loadLocalesMapFromDir(
 function setI18nLanguage(locale: Locale) {
   i18n.global.locale.value = locale;
 
-  document?.querySelector('html')?.setAttribute('lang', locale);
+  globalThis.document?.documentElement.setAttribute('lang', locale);
 }
 
 async function setupI18n(app: App, options: LocaleSetupOptions = {}) {
   const { defaultLocale = 'zh-CN' } = options;
-  // app可以自行扩展一些第三方库和组件库的国际化
-  loadMessages = options.loadMessages || (async () => ({}));
+  loadMessages = options.loadMessages ?? loadEmptyMessages;
   app.use(i18n);
   await loadLocaleMessages(defaultLocale);
 
-  // 在控制台打印警告
   i18n.global.setMissingHandler((locale, key) => {
     if (options.missingWarn && key !== 'OAuth 2.0' && key.includes('.')) {
       console.warn(
@@ -133,7 +138,9 @@ async function loadLocaleMessages(lang: SupportedLanguagesType) {
   }
 
   const mergeMessage = await loadMessages(lang);
-  i18n.global.mergeLocaleMessage(lang, mergeMessage);
+  if (mergeMessage) {
+    i18n.global.mergeLocaleMessage(lang, mergeMessage);
+  }
 
   return setI18nLanguage(lang);
 }

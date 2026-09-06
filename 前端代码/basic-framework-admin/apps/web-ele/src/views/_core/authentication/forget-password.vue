@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import type { VbenFormSchema } from '@vben/common-ui';
-import type { Recordable } from '@vben/types';
+
+import type { AuthApi } from '#/api/core/auth';
 
 import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
@@ -13,10 +14,13 @@ import {
   buildRequiredMobileSchema,
   buildRequiredPasswordSchema,
 } from '#/adapter/form';
-import { sendSmsCode, smsResetPassword } from '#/api';
+import { sendSmsCode, smsResetPassword } from '#/api/core/auth';
 import { showSuccessMessage } from '#/utils/feedback';
 
 defineOptions({ name: 'ForgetPassword' });
+
+type ForgetPasswordFormValues = AuthApi.ResetPasswordParams &
+  Record<string, unknown>;
 
 const router = useRouter();
 
@@ -109,9 +113,12 @@ const formSchema = computed((): VbenFormSchema[] => {
   ];
 });
 
-async function handleSubmit(values: Recordable<any>) {
+async function handleSubmit(values: Record<string, unknown>) {
   loading.value = true;
   try {
+    if (!isForgetPasswordFormValues(values)) {
+      throw new TypeError('重置密码表单字段类型无效');
+    }
     const { mobile, code, password } = values;
     await smsResetPassword({ mobile, code, password });
     showSuccessMessage($t('authentication.resetPasswordSuccess'));
@@ -121,6 +128,16 @@ async function handleSubmit(values: Recordable<any>) {
   } finally {
     loading.value = false;
   }
+}
+
+function isForgetPasswordFormValues(
+  values: Record<string, unknown>,
+): values is ForgetPasswordFormValues {
+  return (
+    typeof values.mobile === 'string' &&
+    typeof values.code === 'string' &&
+    typeof values.password === 'string'
+  );
 }
 </script>
 

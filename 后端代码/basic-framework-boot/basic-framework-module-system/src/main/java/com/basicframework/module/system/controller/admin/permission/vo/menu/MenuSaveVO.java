@@ -1,5 +1,8 @@
 package com.basicframework.module.system.controller.admin.permission.vo.menu;
 
+import com.basicframework.framework.common.enums.CommonStatusEnum;
+import com.basicframework.framework.common.validation.InEnum;
+import com.basicframework.module.system.enums.permission.MenuTypeEnum;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -25,6 +28,7 @@ public class MenuSaveVO {
 
     @Schema(description = "类型，参见 MenuTypeEnum 枚举类", requiredMode = Schema.RequiredMode.REQUIRED, example = "1")
     @NotNull(message = "菜单类型不能为空")
+    @InEnum(value = MenuTypeEnum.class, message = "菜单类型必须是 {value}")
     private Integer type;
 
     @Schema(description = "显示顺序", requiredMode = Schema.RequiredMode.REQUIRED, example = "1024")
@@ -41,17 +45,20 @@ public class MenuSaveVO {
     private String path;
 
     @Schema(description = "菜单图标,仅菜单类型为菜单或者目录时，才需要传", example = "/menu/list")
+    @Size(max = 100, message = "菜单图标不能超过100个字符")
     private String icon;
 
     @Schema(description = "组件路径,仅菜单类型为菜单时，才需要传", example = "system/post/index")
-    @Size(max = 200, message = "组件路径不能超过255个字符")
+    @Size(max = 255, message = "组件路径不能超过255个字符")
     private String component;
 
     @Schema(description = "组件名", example = "SystemUser")
+    @Size(max = 255, message = "组件名不能超过255个字符")
     private String componentName;
 
     @Schema(description = "状态,见 CommonStatusEnum 枚举", requiredMode = Schema.RequiredMode.REQUIRED, example = "1")
     @NotNull(message = "状态不能为空")
+    @InEnum(value = CommonStatusEnum.class, message = "菜单状态必须是 {value}")
     private Integer status;
 
     @Schema(description = "是否可见", example = "false")

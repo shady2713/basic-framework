@@ -1,5 +1,6 @@
-import type { VxeTableGridOptions } from '@vben/plugins/vxe-table';
-import type { Recordable } from '@vben/types';
+import type { Component } from 'vue';
+
+import type { VxeGlobalGridOptions } from '@vben/plugins/vxe-table';
 
 import { h } from 'vue';
 
@@ -13,13 +14,12 @@ import {
   useVbenVxeGrid,
 } from '@vben/plugins/vxe-table';
 import {
-  erpCountInputFormatter,
-  erpNumberFormatter,
-  fenToYuan,
+  formatDecimal,
   formatFileSize,
   formatPast2,
   isFunction,
   isString,
+  minorUnitsToMajorUnits,
 } from '@vben/utils';
 
 import { ElButton, ElImage, ElPopconfirm, ElSwitch, ElTag } from 'element-plus';
@@ -28,6 +28,26 @@ import { DictTag } from '#/components/dict-tag';
 import { $t } from '#/locales';
 
 import { useVbenForm } from './form';
+
+type Operation = Record<string, unknown> & {
+  class?: string;
+  code?: string;
+  disabled?: boolean;
+  icon?: string;
+  loading?: boolean;
+  show?: boolean;
+  size?: '' | 'default' | 'large' | 'small';
+  text?: unknown;
+  type?:
+    | ''
+    | 'danger'
+    | 'default'
+    | 'info'
+    | 'primary'
+    | 'success'
+    | 'text'
+    | 'warning';
+};
 
 setupVbenVxeTable({
   configVxeTable: (vxeUI) => {
@@ -77,7 +97,7 @@ setupVbenVxeTable({
         round: true,
         showOverflow: true,
         size: 'small',
-      } as VxeTableGridOptions,
+      } as VxeGlobalGridOptions,
     });
 
     // 表格配置项可以用 cellRender: { name: 'CellImage' },
@@ -124,18 +144,16 @@ setupVbenVxeTable({
       renderTableDefault(renderOpts, params) {
         const { props } = renderOpts;
         const { column, row } = params;
-        if (!row[column.field] || row[column.field].length === 0) {
+        const values = row[column.field];
+        if (!Array.isArray(values) || values.length === 0) {
           return '';
         }
         return h(
           'div',
           { class: 'flex items-center justify-center' },
-          {
-            default: () =>
-              row[column.field].map((item: any) =>
-                h(ElTag, { color: props?.color }, { default: () => item }),
-              ),
-          },
+          values.map((item) =>
+            h(ElTag, { color: props?.color }, { default: () => item }),
+          ),
         );
       },
     });
@@ -173,7 +191,7 @@ setupVbenVxeTable({
           'onUpdate:modelValue': onChange,
         };
 
-        async function onChange(newVal: any) {
+        async function onChange(newVal: unknown) {
           row[loadingKey] = true;
           try {
             const result = await attrs?.beforeChange?.(newVal, row);
@@ -213,7 +231,7 @@ setupVbenVxeTable({
             break;
           }
         }
-        const presets: Recordable<Recordable<any>> = {
+        const presets: Record<string, Operation> = {
           delete: {
             type: 'danger',
             text: $t('common.delete'),
@@ -222,9 +240,7 @@ setupVbenVxeTable({
             text: $t('common.edit'),
           },
         };
-        const operations: Array<Recordable<any>> = (
-          options || ['edit', 'delete']
-        )
+        const operations: Operation[] = (options || ['edit', 'delete'])
           .map((opt) => {
             if (isString(opt)) {
               return presets[opt]
@@ -239,7 +255,7 @@ setupVbenVxeTable({
             }
           })
           .map((opt) => {
-            const optBtn: Recordable<any> = {};
+            const optBtn: Operation = {};
             Object.keys(opt).forEach((key) => {
               optBtn[key] = isFunction(opt[key]) ? opt[key](row) : opt[key];
             });
@@ -247,9 +263,9 @@ setupVbenVxeTable({
           })
           .filter((opt) => opt.show !== false);
 
-        function renderBtn(opt: Recordable<any>, listen = true) {
+        function renderBtn(opt: Operation, listen = true) {
           return h(
-            ElButton,
+            ElButton as Component,
             {
               ...props,
               ...opt,
@@ -271,14 +287,14 @@ setupVbenVxeTable({
                     h(IconifyIcon, { class: 'size-5', icon: opt.icon }),
                   );
                 }
-                content.push(opt.text);
+                content.push(String(opt.text ?? ''));
                 return content;
               },
             },
           );
         }
 
-        function renderConfirm(opt: Recordable<any>) {
+        function renderConfirm(opt: Operation) {
           return h(
             ElPopconfirm,
             {
@@ -329,25 +345,21 @@ setupVbenVxeTable({
       },
     });
 
-    // add by 星语：数量格式化，保留 3 位
+    // 保留名称以兼容已有列定义，内部使用通用数字格式化契约。
     vxeUI.formats.add('formatAmount3', {
       tableCellFormatMethod({ cellValue }) {
-        if (cellValue === null || cellValue === undefined) {
-          return '';
-        }
-        return erpCountInputFormatter(cellValue);
+        return formatDecimal(cellValue, 3);
       },
     });
-    // add by 星语：数量格式化，保留 2 位
     vxeUI.formats.add('formatAmount2', {
       tableCellFormatMethod({ cellValue }, digits = 2) {
-        return `${erpNumberFormatter(cellValue, digits)}`;
+        return formatDecimal(cellValue, digits);
       },
     });
 
     vxeUI.formats.add('formatFenToYuanAmount', {
       tableCellFormatMethod({ cellValue }, digits = 2) {
-        return `${erpNumberFormatter(fenToYuan(cellValue), digits)}`;
+        return formatDecimal(minorUnitsToMajorUnits(cellValue), digits);
       },
     });
 

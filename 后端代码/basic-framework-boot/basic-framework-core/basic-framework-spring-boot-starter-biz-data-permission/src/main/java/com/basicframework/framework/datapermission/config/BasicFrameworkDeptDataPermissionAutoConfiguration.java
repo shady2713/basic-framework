@@ -5,7 +5,6 @@ import com.basicframework.framework.datapermission.core.rule.dept.DeptDataPermis
 import com.basicframework.framework.datapermission.core.rule.dept.DeptDataPermissionRuleCustomizer;
 import com.basicframework.module.system.api.permission.PermissionCommonApi;
 import java.util.List;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.context.annotation.Bean;
@@ -13,19 +12,18 @@ import org.springframework.context.annotation.Bean;
 /**
  * 基于部门的数据权限 AutoConfiguration
  *
- * {@link ConditionalOnBean} 依赖 {@link CurrentUserProvider}：该实现 Bean 由
- * security starter 的自动配置注册（@AutoConfigureOrder(-1)，先于本配置解析），
- * security starter 缺席时本规则不挂载
+ * <p>只要存在受保护表的 {@link DeptDataPermissionRuleCustomizer}，就必须同时存在 {@link CurrentUserProvider}。
+ * 该实现由 security starter 的自动配置先行注册；缺失时启动失败，禁止静默移除行级权限规则。
  *
  */
 @AutoConfiguration
-@ConditionalOnBean(value = {DeptDataPermissionRuleCustomizer.class, CurrentUserProvider.class})
+@ConditionalOnBean(DeptDataPermissionRuleCustomizer.class)
 public class BasicFrameworkDeptDataPermissionAutoConfiguration {
 
     @Bean
     public DeptDataPermissionRule deptDataPermissionRule(
             PermissionCommonApi permissionApi,
-            ObjectProvider<CurrentUserProvider> currentUserProvider,
+            CurrentUserProvider currentUserProvider,
             List<DeptDataPermissionRuleCustomizer> customizers) {
         // 创建 DeptDataPermissionRule 对象
         DeptDataPermissionRule rule = new DeptDataPermissionRule(permissionApi, currentUserProvider);

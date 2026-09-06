@@ -4,12 +4,14 @@ import com.basicframework.framework.common.validation.Username;
 import jakarta.validation.constraints.NotEmpty;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import lombok.ToString;
 
 /**
  * 管理后台 - 账号密码登录参数 DTO
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
+@ToString(exclude = {"password"})
 public class AuthLoginDTO extends CaptchaVerificationDTO {
 
     /**

@@ -8,6 +8,7 @@ import com.basicframework.framework.common.enums.UserTypeEnum;
 import com.basicframework.framework.common.pojo.CommonResult;
 import com.basicframework.framework.common.pojo.PageResult;
 import com.basicframework.framework.common.util.object.BeanUtils;
+import com.basicframework.framework.security.core.annotation.AuthenticatedOnly;
 import com.basicframework.module.system.controller.admin.notify.vo.message.NotifyMessageMyPageReqVO;
 import com.basicframework.module.system.controller.admin.notify.vo.message.NotifyMessagePageReqVO;
 import com.basicframework.module.system.controller.admin.notify.vo.message.NotifyMessageRespVO;
@@ -17,9 +18,9 @@ import com.basicframework.module.system.service.notify.NotifyMessageService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -28,10 +29,10 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/system/notify-message")
 @Validated
+@RequiredArgsConstructor
 public class NotifyMessageController {
 
-    @Resource
-    private NotifyMessageService notifyMessageService;
+    private final NotifyMessageService notifyMessageService;
 
     // ========== 管理所有的站内信 ==========
 
@@ -63,9 +64,10 @@ public class NotifyMessageController {
 
     @GetMapping("/my-page")
     @Operation(summary = "获得我的站内信分页")
-    public CommonResult<PageResult<NotifyMessageRespVO>> getMyMyNotifyMessagePage(
+    @AuthenticatedOnly
+    public CommonResult<PageResult<NotifyMessageRespVO>> getMyNotifyMessagePage(
             @Valid NotifyMessageMyPageReqVO pageVO) {
-        PageResult<NotifyMessageDO> pageResult = notifyMessageService.getMyMyNotifyMessagePage(
+        PageResult<NotifyMessageDO> pageResult = notifyMessageService.getMyNotifyMessagePage(
                 pageVO,
                 pageVO.getReadStatus(),
                 pageVO.getCreateTime(),
@@ -76,6 +78,7 @@ public class NotifyMessageController {
 
     @PutMapping("/update-read")
     @Operation(summary = "标记站内信为已读")
+    @AuthenticatedOnly
     @Parameter(name = "ids", description = "编号列表", required = true, example = "1024,2048")
     public CommonResult<Boolean> updateNotifyMessageRead(@RequestParam("ids") List<Long> ids) {
         notifyMessageService.updateNotifyMessageRead(ids, getLoginUserId(), UserTypeEnum.ADMIN.getValue());
@@ -84,6 +87,7 @@ public class NotifyMessageController {
 
     @PutMapping("/update-all-read")
     @Operation(summary = "标记所有站内信为已读")
+    @AuthenticatedOnly
     public CommonResult<Boolean> updateAllNotifyMessageRead() {
         notifyMessageService.updateAllNotifyMessageRead(getLoginUserId(), UserTypeEnum.ADMIN.getValue());
         return success(Boolean.TRUE);
@@ -91,6 +95,7 @@ public class NotifyMessageController {
 
     @GetMapping("/get-unread-list")
     @Operation(summary = "获取当前用户的最新站内信列表，默认 10 条")
+    @AuthenticatedOnly
     @Parameter(name = "size", description = "10")
     public CommonResult<List<NotifyMessageRespVO>> getUnreadNotifyMessageList(
             @RequestParam(name = "size", defaultValue = "10") Integer size) {
@@ -101,6 +106,7 @@ public class NotifyMessageController {
 
     @GetMapping("/get-unread-count")
     @Operation(summary = "获得当前用户的未读站内信数量")
+    @AuthenticatedOnly
     @ApiAccessLog(enable = false) // 由于前端会不断轮询该接口，记录日志没有意义
     public CommonResult<Long> getUnreadNotifyMessageCount() {
         return success(

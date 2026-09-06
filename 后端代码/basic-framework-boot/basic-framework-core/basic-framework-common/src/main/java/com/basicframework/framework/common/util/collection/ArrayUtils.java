@@ -2,8 +2,6 @@ package com.basicframework.framework.common.util.collection;
 
 import static com.basicframework.framework.common.util.collection.CollectionUtils.convertList;
 
-import cn.hutool.core.collection.CollectionUtil;
-import cn.hutool.core.collection.IterUtil;
 import cn.hutool.core.util.ArrayUtil;
 import java.util.Collection;
 import java.util.function.Consumer;
@@ -34,20 +32,20 @@ public class ArrayUtils {
         return result;
     }
 
-    public static <T, V> V[] toArray(Collection<T> from, Function<T, V> mapper) {
-        return toArray(convertList(from, mapper));
-    }
-
-    @SuppressWarnings("unchecked")
-    public static <T> T[] toArray(Collection<T> from) {
-        if (CollectionUtil.isEmpty(from)) {
-            return (T[]) (new Object[0]);
-        }
-        return ArrayUtil.toArray(from, (Class<T>) IterUtil.getElementType(from.iterator()));
+    /**
+     * 转换集合元素并返回无运行时类型假设的数组。
+     *
+     * @param from 原始集合
+     * @param mapper 元素转换函数
+     * @param <T> 原始元素类型
+     * @return 转换后的数组
+     */
+    public static <T> Object[] toArray(Collection<T> from, Function<T, ?> mapper) {
+        return convertList(from, mapper).toArray();
     }
 
     public static <T> T get(T[] array, int index) {
-        if (null == array || index >= array.length) {
+        if (array == null || index < 0 || index >= array.length) {
             return null;
         }
         return array[index];

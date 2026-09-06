@@ -3,7 +3,7 @@ import { computed, reactive, ref } from 'vue';
 
 import { LockKeyhole } from '@vben/icons';
 import { $t, useI18n } from '@vben/locales';
-import { storeToRefs, useAccessStore } from '@vben/stores';
+import { useAccessStore } from '@vben/stores';
 
 import { useScrollLock } from '@vben-core/composables';
 import { useVbenForm, z } from '@vben-core/form-ui';
@@ -35,7 +35,6 @@ const minute = useDateFormat(now, 'mm');
 const date = useDateFormat(now, 'YYYY-MM-DD dddd', { locales: locale.value });
 
 const showUnlockForm = ref(false);
-const { lockScreenPassword } = storeToRefs(accessStore);
 
 const [Form, { form, validate, getFieldComponentRef }] = useVbenForm(
   reactive({
@@ -51,21 +50,20 @@ const [Form, { form, validate, getFieldComponentRef }] = useVbenForm(
         },
         fieldName: 'password',
         label: $t('authentication.password'),
-        rules: z.string().min(1, { message: $t('authentication.passwordTip') }),
+        rules: z
+          .string()
+          .min(1, { message: $t('authentication.passwordTip') })
+          .max(128, { message: $t('authentication.passwordTip') }),
       },
     ]),
     showDefaultActions: false,
   }),
 );
 
-const validPass = computed(
-  () => lockScreenPassword?.value === form?.values?.password,
-);
-
 async function handleSubmit() {
   const { valid } = await validate();
   if (valid) {
-    if (validPass.value) {
+    if (await accessStore.verifyLockScreenPassword(form.values.password)) {
       accessStore.unlockScreen();
     } else {
       form.setFieldError('password', $t('authentication.passwordErrorTip'));

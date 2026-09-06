@@ -26,10 +26,11 @@ public class XssRequestWrapper extends HttpServletRequestWrapper {
         Map<String, String[]> parameters = super.getParameterMap();
         for (Map.Entry<String, String[]> entry : parameters.entrySet()) {
             String[] values = entry.getValue();
+            String[] cleanedValues = new String[values.length];
             for (int i = 0; i < values.length; i++) {
-                values[i] = xssCleaner.clean(values[i]);
+                cleanedValues[i] = xssCleaner.clean(values[i]);
             }
-            map.put(entry.getKey(), values);
+            map.put(entry.getKey(), cleanedValues);
         }
         return map;
     }
@@ -51,36 +52,6 @@ public class XssRequestWrapper extends HttpServletRequestWrapper {
     @Override
     public String getParameter(String name) {
         String value = super.getParameter(name);
-        if (value == null) {
-            return null;
-        }
-        return xssCleaner.clean(value);
-    }
-
-    // ============================ attribute ============================
-    @Override
-    public Object getAttribute(String name) {
-        Object value = super.getAttribute(name);
-        if (value instanceof String) {
-            return xssCleaner.clean((String) value);
-        }
-        return value;
-    }
-
-    // ============================ header ============================
-    @Override
-    public String getHeader(String name) {
-        String value = super.getHeader(name);
-        if (value == null) {
-            return null;
-        }
-        return xssCleaner.clean(value);
-    }
-
-    // ============================ queryString ============================
-    @Override
-    public String getQueryString() {
-        String value = super.getQueryString();
         if (value == null) {
             return null;
         }

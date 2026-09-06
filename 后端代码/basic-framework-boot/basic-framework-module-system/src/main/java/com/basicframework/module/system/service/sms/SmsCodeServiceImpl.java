@@ -6,16 +6,23 @@ import static com.basicframework.module.system.enums.ErrorCodeConstants.*;
 
 import cn.hutool.core.date.LocalDateTimeUtil;
 import cn.hutool.core.map.MapUtil;
-import com.basicframework.module.system.api.sms.dto.code.SmsCodeSendReqDTO;
-import com.basicframework.module.system.api.sms.dto.code.SmsCodeUseReqDTO;
-import com.basicframework.module.system.api.sms.dto.code.SmsCodeValidateReqDTO;
+import com.baomidou.lock.annotation.Lock4j;
+import com.basicframework.framework.common.exception.ErrorCode;
+import com.basicframework.framework.common.exception.ServiceException;
 import com.basicframework.module.system.dal.dataobject.sms.SmsCodeDO;
 import com.basicframework.module.system.dal.mysql.sms.SmsCodeMapper;
+import com.basicframework.module.system.dal.redis.sms.SmsCodeAttemptRedisDAO;
 import com.basicframework.module.system.enums.sms.SmsSceneEnum;
 import com.basicframework.module.system.framework.sms.config.SmsCodeProperties;
-import jakarta.annotation.Resource;
+import com.basicframework.module.system.service.sms.dto.SmsCodeSendReqDTO;
+import com.basicframework.module.system.service.sms.dto.SmsCodeUseReqDTO;
+import com.basicframework.module.system.service.sms.dto.SmsCodeValidateReqDTO;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.security.SecureRandom;
+import java.time.Duration;
 import java.time.LocalDateTime;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.validation.annotation.Validated;
 
@@ -25,22 +32,23 @@ import org.springframework.validation.annotation.Validated;
  */
 @Service
 @Validated
+@RequiredArgsConstructor
 public class SmsCodeServiceImpl implements SmsCodeService {
 
     private static final int SMS_CODE_LENGTH = 6;
     private static final int SMS_CODE_BOUND = 1_000_000;
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
-    @Resource
-    private SmsCodeProperties smsCodeProperties;
+    private final SmsCodeProperties smsCodeProperties;
 
-    @Resource
-    private SmsCodeMapper smsCodeMapper;
+    private final SmsCodeMapper smsCodeMapper;
 
-    @Resource
-    private SmsSendService smsSendService;
+    private final SmsCodeAttemptRedisDAO smsCodeAttemptRedisDAO;
+
+    private final SmsSendService smsSendService;
 
     @Override
+    @Lock4j(name = "sms_code_send", keys = "#reqDTO.mobile")
     public void sendSmsCode(SmsCodeSendReqDTO reqDTO) {
         SmsSceneEnum sceneEnum = SmsSceneEnum.getCodeByScene(reqDTO.getScene());
         if (sceneEnum == null) {
@@ -91,13 +99,13 @@ public class SmsCodeServiceImpl implements SmsCodeService {
     public void useSmsCode(SmsCodeUseReqDTO reqDTO) {
         // 检测验证码是否有效
         SmsCodeDO lastSmsCode = validateSmsCode0(reqDTO.getMobile(), reqDTO.getCode(), reqDTO.getScene());
-        // 使用验证码
-        smsCodeMapper.updateById(SmsCodeDO.builder()
-                .id(lastSmsCode.getId())
-                .used(true)
-                .usedTime(LocalDateTime.now())
-                .usedIp(reqDTO.getUsedIp())
-                .build());
+        // 条件更新核销：UPDATE 携带 used = 0 条件，并发请求只有一个能核销成功
+        int updated = smsCodeMapper.markUsedIfUnused(lastSmsCode.getId(), LocalDateTime.now(), reqDTO.getUsedIp());
+        if (updated == 0) {
+            throw exception(SMS_CODE_USED);
+        }
+        // 核销成功后清空失败计数
+        smsCodeAttemptRedisDAO.clear(lastSmsCode.getId());
     }
 
     @Override
@@ -106,22 +114,46 @@ public class SmsCodeServiceImpl implements SmsCodeService {
     }
 
     private SmsCodeDO validateSmsCode0(String mobile, String code, Integer scene) {
-        // 校验验证码
-        SmsCodeDO lastSmsCode = smsCodeMapper.selectLastByMobile(mobile, code, scene);
-        // 若验证码不存在，抛出异常
+        // 始终校验最新代次，避免同场景内较早但尚未过期的验证码继续生效。
+        SmsCodeDO lastSmsCode = smsCodeMapper.selectLastByMobile(mobile, null, scene);
         if (lastSmsCode == null) {
             throw exception(SMS_CODE_NOT_EXISTS);
         }
-        // 超过时间
-        if (LocalDateTimeUtil.between(lastSmsCode.getCreateTime(), LocalDateTime.now())
-                        .toMillis()
-                >= smsCodeProperties.getExpireTimes().toMillis()) { // 验证码已过期
+        LocalDateTime expiresAt = lastSmsCode.getCreateTime().plus(smsCodeProperties.getExpireTimes());
+        LocalDateTime now = LocalDateTime.now();
+        if (!expiresAt.isAfter(now)) {
             throw exception(SMS_CODE_EXPIRED);
         }
-        // 判断验证码是否已被使用
         if (Boolean.TRUE.equals(lastSmsCode.getUsed())) {
             throw exception(SMS_CODE_USED);
         }
+        if (!codeEquals(lastSmsCode.getCode(), code)) {
+            throw recordValidateFailure(lastSmsCode, Duration.between(now, expiresAt), SMS_CODE_NOT_EXISTS);
+        }
         return lastSmsCode;
+    }
+
+    private static boolean codeEquals(String expected, String actual) {
+        if (expected == null || actual == null) {
+            return false;
+        }
+        return MessageDigest.isEqual(
+                expected.getBytes(StandardCharsets.UTF_8), actual.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * 记录一次校验失败；失败次数达到上限时作废当前最新验证码，阻断对 6 位短码的持续猜测。
+     *
+     * @param smsCode 当前最新验证码记录
+     * @param ttl 当前验证码的剩余有效期
+     * @param errorCode 原始校验错误
+     * @return 原始校验错误对应的异常，供调用处直接抛出
+     */
+    private ServiceException recordValidateFailure(SmsCodeDO smsCode, Duration ttl, ErrorCode errorCode) {
+        long failures = smsCodeAttemptRedisDAO.recordFailure(smsCode.getId(), ttl);
+        if (failures >= smsCodeProperties.getMaxValidateFailures()) {
+            smsCodeMapper.markUsedIfUnused(smsCode.getId(), LocalDateTime.now(), null);
+        }
+        return exception(errorCode);
     }
 }

@@ -1,10 +1,14 @@
+import type { LocaleMessageValue } from 'vue-i18n';
+
 export type SupportedLanguagesType = 'en-US' | 'zh-CN';
 
-export type ImportLocaleFn = () => Promise<{ default: Record<string, string> }>;
+export type LocaleMessageMap = Record<string, LocaleMessageValue>;
+
+export type ImportLocaleFn = () => Promise<{ default: LocaleMessageMap }>;
 
 export type LoadMessageFn = (
   lang: SupportedLanguagesType,
-) => Promise<Record<string, string> | undefined>;
+) => Promise<LocaleMessageMap | undefined>;
 
 export interface LocaleSetupOptions {
   /**

@@ -92,7 +92,12 @@ logging:
     com.basicframework.module.infra.dal.mysql.job.JobLogMapper: INFO
     com.basicframework.module.infra.dal.mysql.file.FileConfigMapper: INFO
     com.basicframework.module.system.dal.mysql: debug
+    com.basicframework.module.system.dal.mysql.auth: INFO # MFA 密文与恢复码摘要不得写入 SQL 参数日志
+    com.basicframework.module.system.dal.mysql.session: INFO # access/refresh Token 不得写入 SQL 参数日志
     com.basicframework.module.system.dal.mysql.sms.SmsChannelMapper: INFO
+    com.basicframework.module.system.dal.mysql.sms.SmsCodeMapper: INFO # 短信验证码不得写入 SQL 参数日志
+    com.basicframework.module.system.dal.mysql.sms.SmsLogMapper: INFO # 短信正文与模板参数不得写入 SQL 参数日志
+    com.basicframework.module.system.dal.mysql.user.AdminUserMapper: INFO # 密码哈希与用户敏感字段不得写入 SQL 参数日志
     org.springframework.context.support.PostProcessorRegistrationDelegate: ERROR
 
 basic-framework:
@@ -100,8 +105,6 @@ basic-framework:
     enable: false
   access-log:
     enable: false
-  demo: false
-  tencent-lbs-key: ${TENCENT_LBS_KEY:}
   web:
     cors-allowed-origins:
       - '*'

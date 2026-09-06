@@ -3,11 +3,13 @@ package com.basicframework.module.system.service.auth.dto;
 import com.basicframework.framework.common.validation.Mobile;
 import jakarta.validation.constraints.NotEmpty;
 import lombok.Data;
+import lombok.ToString;
 
 /**
  * 管理后台 - 短信重置账号密码参数 DTO
  */
 @Data
+@ToString(exclude = {"password", "mobile", "code"})
 public class AuthResetPasswordDTO {
 
     /**

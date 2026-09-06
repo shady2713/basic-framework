@@ -1,8 +1,6 @@
 <script lang="ts" setup>
 import type { SetupContext } from 'vue';
 
-import type { Recordable } from '@vben/types';
-
 import type {
   JsonViewerAction,
   JsonViewerProps,
@@ -54,21 +52,20 @@ function handleClick(event: MouseEvent) {
     if (!pathNode || !pathNode.hasAttribute('path')) {
       return;
     }
+    const textContent = event.target.textContent;
     const param: JsonViewerValue = {
       el: event.target,
       path: pathNode.getAttribute('path') || '',
       depth: Number(pathNode.getAttribute('depth')) || 0,
-      value: event.target.textContent || undefined,
+      value: textContent ? JSON.parse(textContent) : undefined,
     };
-
-    param.value = JSON.parse(param.value);
     emit('valueClick', param);
   }
   emit('click', event);
 }
 
 // 支持显示 bigint 数据，如较长的订单号
-const jsonData = computed<Record<string, any>>(() => {
+const jsonData = computed<unknown>(() => {
   if (typeof props.value !== 'string') {
     return props.value || {};
   }
@@ -81,7 +78,7 @@ const jsonData = computed<Record<string, any>>(() => {
   }
 });
 
-const bindProps = computed<Recordable<any>>(() => {
+const bindProps = computed<Record<string, unknown>>(() => {
   const copyable = {
     copyText: $t('ui.jsonViewer.copy'),
     copiedText: $t('ui.jsonViewer.copied'),

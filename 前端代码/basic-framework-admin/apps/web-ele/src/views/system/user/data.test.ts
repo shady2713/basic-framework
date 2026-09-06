@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { useFormSchema } from './data';
+import {
+  useAssignRoleFormSchema,
+  useFormSchema,
+  useGridColumns,
+  useGridFormSchema,
+  useImportFormSchema,
+  useResetPasswordFormSchema,
+} from './data';
 
 function createRuleChain() {
   return {
@@ -17,6 +24,7 @@ function createRuleChain() {
 
 vi.mock('@vben/constants', () => ({
   CommonStatusEnum: {
+    DISABLE: 1,
     ENABLE: 0,
   },
   DICT_TYPE: {
@@ -51,6 +59,11 @@ vi.mock('#/utils', () => ({
 }));
 
 vi.mock('#/adapter/form', () => ({
+  buildOptionalEmailSchema: vi.fn(() => 'optionalEmail'),
+  buildOptionalMobileSchema: vi.fn(() => 'optionalMobile'),
+  buildOptionalRemarkSchema: vi.fn(() => 'optionalRemark'),
+  buildRequiredNicknameSchema: vi.fn(() => 'nicknameRequired'),
+  buildRequiredPasswordSchema: vi.fn(() => 'passwordRequired'),
   buildRequiredUsernameSchema: vi.fn(() => 'usernameRequired'),
   z: {
     boolean: vi.fn(() => createRuleChain()),
@@ -74,6 +87,52 @@ describe('system user form schema', () => {
     });
     expect(passwordField?.componentProps).toMatchObject({
       passwordStrength: true,
+    });
+  });
+
+  it('keeps password reset, role assignment, import and grid contracts', async () => {
+    expect(
+      useResetPasswordFormSchema().map(({ fieldName }) => fieldName),
+    ).toEqual(['id', 'newPassword', 'confirmPassword']);
+    expect(useImportFormSchema().map(({ fieldName }) => fieldName)).toEqual([
+      'file',
+      'updateSupport',
+    ]);
+    expect(useGridFormSchema().map(({ fieldName }) => fieldName)).toEqual([
+      'username',
+      'mobile',
+      'createTime',
+    ]);
+
+    const roleIds = useAssignRoleFormSchema().find(
+      ({ fieldName }) => fieldName === 'roleIds',
+    );
+    const afterFetch = (
+      roleIds?.componentProps as {
+        afterFetch: (
+          roles: Array<{ name: string; status: number }>,
+        ) => Promise<
+          Array<{ disabled: boolean; name: string; status: number }>
+        >;
+      }
+    ).afterFetch;
+    await expect(
+      afterFetch([
+        { name: '管理员', status: 0 },
+        { name: '停用角色', status: 1 },
+      ]),
+    ).resolves.toEqual([
+      { disabled: false, name: '管理员', status: 0 },
+      { disabled: true, name: '停用角色', status: 1 },
+    ]);
+
+    const statusChange = vi.fn(async () => true);
+    const statusColumn = useGridColumns(statusChange)?.find(
+      ({ field }) => field === 'status',
+    );
+    expect(statusColumn?.cellRender).toMatchObject({
+      attrs: { beforeChange: statusChange },
+      name: 'CellSwitch',
     });
   });
 });

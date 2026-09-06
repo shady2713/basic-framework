@@ -23,12 +23,12 @@ import com.basicframework.module.system.dal.dataobject.user.AdminUserDO;
 import com.basicframework.module.system.dal.mysql.session.UserSessionMapper;
 import com.basicframework.module.system.dal.redis.session.UserSessionRedisDAO;
 import com.basicframework.module.system.service.user.AdminUserService;
-import jakarta.annotation.Resource;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -36,22 +36,19 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 /** 用户会话服务实现。刷新令牌采用一次性轮换，数据库更新以旧摘要作为并发控制条件。 */
 @Service
+@RequiredArgsConstructor
 public class UserSessionServiceImpl implements UserSessionService {
 
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private static final int TOKEN_BYTES = 32;
 
-    @Resource
-    private UserSessionMapper userSessionMapper;
+    private final UserSessionMapper userSessionMapper;
 
-    @Resource
-    private UserSessionRedisDAO userSessionRedisDAO;
+    private final UserSessionRedisDAO userSessionRedisDAO;
 
-    @Resource
-    private SessionProperties sessionProperties;
+    private final SessionProperties sessionProperties;
 
-    @Resource
-    private AdminUserService adminUserService;
+    private final AdminUserService adminUserService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)

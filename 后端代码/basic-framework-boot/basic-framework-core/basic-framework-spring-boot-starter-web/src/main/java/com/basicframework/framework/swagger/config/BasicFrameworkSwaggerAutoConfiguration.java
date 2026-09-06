@@ -1,5 +1,6 @@
 package com.basicframework.framework.swagger.config;
 
+import com.basicframework.framework.web.config.WebProperties;
 import com.github.xiaoymin.knife4j.spring.configuration.Knife4jAutoConfiguration;
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
@@ -26,7 +27,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpHeaders;
 
@@ -34,7 +34,7 @@ import org.springframework.http.HttpHeaders;
  * Swagger 自动配置类，基于 OpenAPI + Springdoc 实现。
  *
  */
-@AutoConfiguration(before = Knife4jAutoConfiguration.class) // 保证覆写的 Knife4jOpenApiCustomizer 先生效
+@AutoConfiguration(before = Knife4jAutoConfiguration.class)
 @ConditionalOnClass({OpenAPI.class})
 @EnableConfigurationProperties(SwaggerProperties.class)
 @ConditionalOnProperty(
@@ -42,7 +42,6 @@ import org.springframework.http.HttpHeaders;
         name = "enabled",
         havingValue = "true",
         matchIfMissing = true) // 设置为 false 时，禁用
-@Import(Knife4jOpenApiCustomizer.class)
 public class BasicFrameworkSwaggerAutoConfiguration {
 
     // ========== 全局 OpenAPI 配置 ==========
@@ -54,8 +53,7 @@ public class BasicFrameworkSwaggerAutoConfiguration {
                 // 接口信息
                 .info(buildInfo(properties))
                 // 接口安全配置
-                .components(new Components().securitySchemes(securitySchemas))
-                .addSecurityItem(new SecurityRequirement().addList(HttpHeaders.AUTHORIZATION));
+                .components(new Components().securitySchemes(securitySchemas));
         securitySchemas.keySet().forEach(key -> openAPI.addSecurityItem(new SecurityRequirement().addList(key)));
         return openAPI;
     }
@@ -112,22 +110,30 @@ public class BasicFrameworkSwaggerAutoConfiguration {
      * 所有模块的 API 分组
      */
     @Bean
-    public GroupedOpenApi allGroupedOpenApi() {
-        return buildGroupedOpenApi("all", "");
+    public GroupedOpenApi allGroupedOpenApi(WebProperties webProperties) {
+        return buildGroupedOpenApi("all", "", webProperties);
     }
 
-    public static GroupedOpenApi buildGroupedOpenApi(String group) {
-        return buildGroupedOpenApi(group, group);
+    public static GroupedOpenApi buildGroupedOpenApi(String group, WebProperties webProperties) {
+        return buildGroupedOpenApi(group, group, webProperties);
     }
 
-    public static GroupedOpenApi buildGroupedOpenApi(String group, String path) {
+    static GroupedOpenApi buildGroupedOpenApi(String group, String path, WebProperties webProperties) {
         return GroupedOpenApi.builder()
                 .group(group)
-                .pathsToMatch("/admin-api/" + path + "/**", "/app-api/" + path + "/**")
+                .pathsToMatch(
+                        buildPathPattern(webProperties.getAdminApi().getPrefix(), path),
+                        buildPathPattern(webProperties.getAppApi().getPrefix(), path))
                 .addOperationCustomizer(
                         (operation, handlerMethod) -> operation.addParametersItem(buildSecurityHeaderParameter()))
                 .addOperationCustomizer(buildOperationIdCustomizer())
                 .build();
+    }
+
+    private static String buildPathPattern(String prefix, String path) {
+        String normalizedPrefix = prefix.endsWith("/") ? prefix.substring(0, prefix.length() - 1) : prefix;
+        String normalizedPath = path == null ? "" : path.replaceAll("^/+|/+$", "");
+        return normalizedPath.isEmpty() ? normalizedPrefix + "/**" : normalizedPrefix + "/" + normalizedPath + "/**";
     }
 
     /**
@@ -142,10 +148,7 @@ public class BasicFrameworkSwaggerAutoConfiguration {
                 .name(HttpHeaders.AUTHORIZATION) // header 名
                 .description("认证 Token") // 描述
                 .in(String.valueOf(SecurityScheme.In.HEADER)) // 请求 header
-                .schema(new StringSchema()
-                        ._default("Bearer test1")
-                        .name(HttpHeaders.AUTHORIZATION)
-                        .description("认证 Token"));
+                .schema(new StringSchema().name(HttpHeaders.AUTHORIZATION).description("认证 Token"));
     }
 
     /**

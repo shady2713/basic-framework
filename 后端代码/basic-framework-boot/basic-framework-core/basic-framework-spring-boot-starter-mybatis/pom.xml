@@ -19,58 +19,19 @@
             <groupId>com.basicframework</groupId>
             <artifactId>basic-framework-common</artifactId>
         </dependency>
-
-        <!-- Web 相关 -->
         <dependency>
-            <groupId>org.springframework</groupId>
-            <artifactId>spring-web</artifactId>
-            <scope>provided</scope> <!-- 设置为 provided，只有 DruidAdRemoveFilter 使用到 -->
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
         </dependency>
         <dependency>
-            <groupId>jakarta.servlet</groupId>
-            <artifactId>jakarta.servlet-api</artifactId>
-            <scope>provided</scope> <!-- 设置为 provided，只有 DruidAdRemoveFilter 使用到 -->
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
         </dependency>
 
         <!-- DB 相关 -->
         <dependency>
             <groupId>com.mysql</groupId>
             <artifactId>mysql-connector-j</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.oracle.database.jdbc</groupId>
-            <artifactId>ojdbc8</artifactId>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
-            <groupId>org.postgresql</groupId>
-            <artifactId>postgresql</artifactId>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
-            <groupId>com.microsoft.sqlserver</groupId>
-            <artifactId>mssql-jdbc</artifactId>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
-            <groupId>com.dameng</groupId>
-            <artifactId>DmJdbcDriver18</artifactId>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
-            <groupId>cn.com.kingbase</groupId>
-            <artifactId>kingbase8</artifactId>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
-            <groupId>org.opengauss</groupId>
-            <artifactId>opengauss-jdbc</artifactId>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
-            <groupId>com.taosdata.jdbc</groupId>
-            <artifactId>taos-jdbcdriver</artifactId>
-            <optional>true</optional>
         </dependency>
 
         <dependency>
@@ -102,12 +63,8 @@
         </dependency>
 
         <dependency>
-            <groupId>com.fhs-opensource</groupId> <!-- VO 数据翻译 -->
-            <artifactId>easy-trans-spring-boot-starter</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.fhs-opensource</groupId>
-            <artifactId>easy-trans-mybatis-plus-extend</artifactId>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId> <!-- MyBatis-Plus JSQLParser 本地缓存 -->
         </dependency>
 
         <!-- Test 测试相关 -->
@@ -120,7 +77,7 @@
 
     <build>
         <plugins>
-            <!-- 覆盖率棘轮门禁：基线 2026-08-22 实测 4.6%，取整 4%，只升不降 -->
+            <!-- 覆盖率棘轮门禁：补齐自动配置与数据源分支测试后行覆盖率 96.78%，取 96.7%，只升不降 -->
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
@@ -139,7 +96,7 @@
                                         <limit>
                                             <counter>LINE</counter>
                                             <value>COVEREDRATIO</value>
-                                            <minimum>0.045</minimum>
+                                            <minimum>0.967</minimum>
                                         </limit>
                                     </limits>
                                 </rule>

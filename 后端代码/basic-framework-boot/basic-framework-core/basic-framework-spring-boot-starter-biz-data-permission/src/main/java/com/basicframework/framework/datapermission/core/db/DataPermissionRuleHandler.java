@@ -2,7 +2,6 @@ package com.basicframework.framework.datapermission.core.db;
 
 import cn.hutool.core.collection.CollUtil;
 import com.baomidou.mybatisplus.extension.plugins.handler.MultiDataPermissionHandler;
-import com.basicframework.framework.common.security.CurrentUserProvider;
 import com.basicframework.framework.datapermission.core.rule.DataPermissionRule;
 import com.basicframework.framework.datapermission.core.rule.DataPermissionRuleFactory;
 import com.basicframework.framework.mybatis.core.util.MyBatisUtils;
@@ -10,7 +9,6 @@ import java.util.List;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.operators.conditional.AndExpression;
 import net.sf.jsqlparser.schema.Table;
-import org.springframework.beans.factory.ObjectProvider;
 
 /**
  * 基于 {@link DataPermissionRule} 的数据权限处理器
@@ -22,24 +20,13 @@ import org.springframework.beans.factory.ObjectProvider;
 public class DataPermissionRuleHandler implements MultiDataPermissionHandler {
 
     private final DataPermissionRuleFactory ruleFactory;
-    /**
-     * 当前登录用户身份接缝；security starter 缺席（无实现 Bean）时，不跳过权限校验
-     */
-    private final ObjectProvider<CurrentUserProvider> currentUserProvider;
 
-    public DataPermissionRuleHandler(
-            DataPermissionRuleFactory ruleFactory, ObjectProvider<CurrentUserProvider> currentUserProvider) {
+    public DataPermissionRuleHandler(DataPermissionRuleFactory ruleFactory) {
         this.ruleFactory = ruleFactory;
-        this.currentUserProvider = currentUserProvider;
     }
 
     @Override
     public Expression getSqlSegment(Table table, Expression where, String mappedStatementId) {
-        // 特殊：跨租户访问
-        if (isSkipPermissionCheck()) {
-            return null;
-        }
-
         // 获得 Mapper 对应的数据权限的规则
         List<DataPermissionRule> rules = ruleFactory.getDataPermissionRule(mappedStatementId);
         if (CollUtil.isEmpty(rules)) {
@@ -64,10 +51,5 @@ public class DataPermissionRuleHandler implements MultiDataPermissionHandler {
             allExpression = allExpression == null ? oneExpress : new AndExpression(allExpression, oneExpress);
         }
         return allExpression;
-    }
-
-    private boolean isSkipPermissionCheck() {
-        CurrentUserProvider provider = currentUserProvider.getIfAvailable();
-        return provider != null && provider.isSkipPermissionCheck();
     }
 }

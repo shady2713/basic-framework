@@ -13,7 +13,6 @@ import com.basicframework.framework.quartz.core.util.CronUtils;
 import com.basicframework.module.infra.dal.dataobject.job.JobDO;
 import com.basicframework.module.infra.dal.mysql.job.JobMapper;
 import com.basicframework.module.infra.enums.job.JobStatusEnum;
-import jakarta.annotation.Resource;
 import java.util.List;
 import java.util.Objects;
 import lombok.extern.slf4j.Slf4j;
@@ -29,11 +28,13 @@ import org.springframework.validation.annotation.Validated;
 @Slf4j
 public class JobServiceImpl implements JobService {
 
-    @Resource
-    private JobMapper jobMapper;
+    private final JobMapper jobMapper;
+    private final SchedulerManager schedulerManager;
 
-    @Resource
-    private SchedulerManager schedulerManager;
+    public JobServiceImpl(JobMapper jobMapper, SchedulerManager schedulerManager) {
+        this.jobMapper = jobMapper;
+        this.schedulerManager = schedulerManager;
+    }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -100,7 +101,9 @@ public class JobServiceImpl implements JobService {
     private void validateJobHandlerExists(String handlerName) {
         try {
             Object handler = SpringUtil.getBean(handlerName);
-            assert handler != null;
+            if (handler == null) {
+                throw exception(JOB_HANDLER_BEAN_NOT_EXISTS);
+            }
             if (!(handler instanceof JobHandler)) {
                 throw exception(JOB_HANDLER_BEAN_TYPE_ERROR);
             }

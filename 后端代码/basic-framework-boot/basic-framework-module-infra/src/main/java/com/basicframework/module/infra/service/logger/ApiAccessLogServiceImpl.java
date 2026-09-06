@@ -8,22 +8,20 @@ import com.basicframework.framework.common.util.string.StrUtils;
 import com.basicframework.module.infra.api.logger.dto.ApiAccessLogCreateReqDTO;
 import com.basicframework.module.infra.dal.dataobject.logger.ApiAccessLogDO;
 import com.basicframework.module.infra.dal.mysql.logger.ApiAccessLogMapper;
-import jakarta.annotation.Resource;
 import java.time.LocalDateTime;
-import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.validation.annotation.Validated;
 
 /**
  * API 访问日志 Service 实现类（仅保留写入和清理方法）
  */
-@Slf4j
 @Service
 @Validated
+@RequiredArgsConstructor
 public class ApiAccessLogServiceImpl implements ApiAccessLogService {
 
-    @Resource
-    private ApiAccessLogMapper apiAccessLogMapper;
+    private final ApiAccessLogMapper apiAccessLogMapper;
 
     @Override
     public void createApiAccessLog(ApiAccessLogCreateReqDTO createDTO) {

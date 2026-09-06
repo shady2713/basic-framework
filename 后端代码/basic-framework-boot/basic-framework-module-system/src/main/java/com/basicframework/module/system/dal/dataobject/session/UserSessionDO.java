@@ -29,6 +29,7 @@ public class UserSessionDO extends BaseDO {
     @ToString.Exclude
     private String accessToken;
 
+    @ToString.Exclude
     private String accessTokenHash;
 
     @TableField(exist = false)
@@ -36,6 +37,7 @@ public class UserSessionDO extends BaseDO {
     @ToString.Exclude
     private String refreshToken;
 
+    @ToString.Exclude
     private String refreshTokenHash;
 
     private Long userId;

@@ -4,7 +4,6 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ArrayUtil;
 import com.basicframework.framework.datapermission.core.annotation.DataPermission;
 import com.basicframework.framework.datapermission.core.aop.DataPermissionContextHolder;
-import com.fhs.trans.service.impl.SimpleTransService;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -43,11 +42,6 @@ public class DataPermissionRuleFactoryImpl implements DataPermissionRuleFactory 
         if (!dataPermission.enable()) {
             return Collections.emptyList();
         }
-        // 1.4 特殊：数据翻译只补充展示文本，强制忽略数据权限，避免递归查询
-        if (isTranslateCall()) {
-            return Collections.emptyList();
-        }
-
         // 2.1 情况一：已配置，只选择部分规则
         if (ArrayUtil.isNotEmpty(dataPermission.includeRules())) {
             return rules.stream()
@@ -62,22 +56,5 @@ public class DataPermissionRuleFactoryImpl implements DataPermissionRuleFactory 
         }
         // 2.3 已配置，全部规则
         return rules;
-    }
-
-    /**
-     * 判断是否为数据翻译 {@link com.fhs.core.trans.anno.Trans} 的调用
-     *
-     * 目前暂时只有这个办法，已经和 easy-trans 做过沟通
-     *
-     * @return 是否
-     */
-    private boolean isTranslateCall() {
-        StackTraceElement[] stack = Thread.currentThread().getStackTrace();
-        for (StackTraceElement e : stack) {
-            if (SimpleTransService.class.getName().equals(e.getClassName())) {
-                return true;
-            }
-        }
-        return false;
     }
 }

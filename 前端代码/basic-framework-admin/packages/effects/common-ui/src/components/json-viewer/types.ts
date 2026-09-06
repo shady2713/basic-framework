@@ -1,6 +1,6 @@
 export interface JsonViewerProps {
   /** 要展示的结构数据 */
-  value: any;
+  value: unknown;
   /** 展开深度 */
   expandDepth?: number;
   /** 是否可复制 */
@@ -30,7 +30,7 @@ export interface JsonViewerAction {
 }
 
 export interface JsonViewerValue {
-  value: any;
+  value: unknown;
   path: string;
   depth: number;
   el: HTMLElement;

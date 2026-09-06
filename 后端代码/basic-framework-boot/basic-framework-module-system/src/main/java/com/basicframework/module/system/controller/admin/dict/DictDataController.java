@@ -10,6 +10,7 @@ import com.basicframework.framework.common.pojo.PageParam;
 import com.basicframework.framework.common.pojo.PageResult;
 import com.basicframework.framework.common.util.object.BeanUtils;
 import com.basicframework.framework.excel.core.util.ExcelUtils;
+import com.basicframework.framework.security.core.annotation.AuthenticatedOnly;
 import com.basicframework.module.system.controller.admin.dict.vo.data.DictDataPageReqVO;
 import com.basicframework.module.system.controller.admin.dict.vo.data.DictDataRespVO;
 import com.basicframework.module.system.controller.admin.dict.vo.data.DictDataSaveReqVO;
@@ -19,11 +20,11 @@ import com.basicframework.module.system.service.dict.DictDataService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import java.io.IOException;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -32,10 +33,10 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/system/dict-data")
 @Validated
+@RequiredArgsConstructor
 public class DictDataController {
 
-    @Resource
-    private DictDataService dictDataService;
+    private final DictDataService dictDataService;
 
     @PostMapping("/create")
     @Operation(summary = "新增字典数据")
@@ -71,9 +72,9 @@ public class DictDataController {
         return success(true);
     }
 
-    @GetMapping(value = {"/list-all-simple", "simple-list"})
+    @GetMapping("/simple-list")
     @Operation(summary = "获得全部字典数据列表", description = "一般用于管理后台缓存字典数据在本地")
-    // 无需添加权限认证，因为前端全局都需要
+    @AuthenticatedOnly
     public CommonResult<List<DictDataSimpleRespVO>> getSimpleDictDataList() {
         List<DictDataDO> list = dictDataService.getDictDataList(CommonStatusEnum.ENABLE.getStatus(), null);
         return success(BeanUtils.toBean(list, DictDataSimpleRespVO.class));
@@ -82,14 +83,14 @@ public class DictDataController {
     @GetMapping("/page")
     @Operation(summary = "获得字典类型的分页")
     @PreAuthorize("@ss.hasPermission('system:dict:query')")
-    public CommonResult<PageResult<DictDataRespVO>> getDictTypePage(@Valid DictDataPageReqVO pageReqVO) {
+    public CommonResult<PageResult<DictDataRespVO>> getDictDataPage(@Valid DictDataPageReqVO pageReqVO) {
         PageResult<DictDataDO> pageResult = dictDataService.getDictDataPage(
                 pageReqVO, pageReqVO.getLabel(), pageReqVO.getDictType(), pageReqVO.getStatus());
         return success(BeanUtils.toBean(pageResult, DictDataRespVO.class));
     }
 
     @GetMapping(value = "/get")
-    @Operation(summary = "/查询字典数据详细")
+    @Operation(summary = "查询字典数据详细")
     @Parameter(name = "id", description = "编号", required = true, example = "1024")
     @PreAuthorize("@ss.hasPermission('system:dict:query')")
     public CommonResult<DictDataRespVO> getDictData(@RequestParam("id") Long id) {

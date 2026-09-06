@@ -14,8 +14,7 @@ import com.basicframework.framework.web.core.handler.GlobalExceptionHandler;
 import com.basicframework.module.system.api.auth.MfaCommonApi;
 import com.basicframework.module.system.api.permission.PermissionCommonApi;
 import com.basicframework.module.system.api.session.UserSessionCommonApi;
-import jakarta.annotation.Resource;
-import org.springframework.beans.factory.ObjectProvider;
+import java.util.List;
 import org.springframework.beans.factory.config.MethodInvokingFactoryBean;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureOrder;
@@ -39,8 +38,11 @@ import org.springframework.security.web.access.AccessDeniedHandler;
 @EnableConfigurationProperties(SecurityProperties.class)
 public class BasicFrameworkSecurityAutoConfiguration {
 
-    @Resource
-    private SecurityProperties securityProperties;
+    private final SecurityProperties securityProperties;
+
+    public BasicFrameworkSecurityAutoConfiguration(SecurityProperties securityProperties) {
+        this.securityProperties = securityProperties;
+    }
 
     /**
      * 认证失败处理类 Bean
@@ -80,9 +82,8 @@ public class BasicFrameworkSecurityAutoConfiguration {
      */
     @Bean
     public TokenAuthenticationFilter authenticationTokenFilter(
-            GlobalExceptionHandler globalExceptionHandler,
-            ObjectProvider<UserSessionCommonApi> userSessionApiProvider) {
-        return new TokenAuthenticationFilter(securityProperties, globalExceptionHandler, userSessionApiProvider);
+            GlobalExceptionHandler globalExceptionHandler, List<UserSessionCommonApi> userSessionApis) {
+        return new TokenAuthenticationFilter(securityProperties, globalExceptionHandler, userSessionApis);
     }
 
     @Bean("ss") // 使用 Spring Security 的缩写，方便使用

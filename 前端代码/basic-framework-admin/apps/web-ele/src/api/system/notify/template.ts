@@ -51,7 +51,7 @@ export function deleteNotifyTemplate(id: number) {
 /** 发送测试站内信 */
 export function sendNotify(data: {
   templateCode: string;
-  templateParams?: Record<string, object>;
+  templateParams?: Record<string, unknown>;
   userId: number;
 }) {
   return requestClient.post('/system/notify-template/send-notify', data);

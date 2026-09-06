@@ -1,13 +1,17 @@
 <script setup lang="ts">
 import type { RadioGroupRootEmits, RadioGroupRootProps } from 'reka-ui';
 
+import type { HTMLAttributes } from 'vue';
+
 import { computed } from 'vue';
 
 import { cn } from '@vben-core/shared/utils';
 
 import { RadioGroupRoot, useForwardPropsEmits } from 'reka-ui';
 
-const props = defineProps<RadioGroupRootProps & { class?: any }>();
+const props = defineProps<
+  RadioGroupRootProps & { class?: HTMLAttributes['class'] }
+>();
 const emits = defineEmits<RadioGroupRootEmits>();
 
 const delegatedProps = computed(() => {

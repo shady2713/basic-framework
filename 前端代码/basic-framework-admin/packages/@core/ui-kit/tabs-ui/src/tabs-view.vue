@@ -38,30 +38,38 @@ const {
 } = useTabsViewScroll(props);
 
 function onWheel(e: WheelEvent) {
-  if (props.wheelable) {
-    handleWheel(e);
-    e.stopPropagation();
-    e.preventDefault();
-  }
+  const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+  const canScroll =
+    delta < 0 ? !scrollIsAtLeft.value : delta > 0 && !scrollIsAtRight.value;
+
+  if (!props.wheelable || !showScrollButton.value || !canScroll) return;
+
+  handleWheel(e);
+  e.stopPropagation();
+  e.preventDefault();
 }
 
-useTabsDrag(props, emit);
+// @ts-expect-error tabsViewRef 仅由 SFC 模板绑定
+const { tabsViewRef } = useTabsDrag(props, emit);
 </script>
 
 <template>
-  <div class="flex h-full flex-1 overflow-hidden">
+  <div ref="tabsViewRef" class="flex h-full flex-1 overflow-hidden">
     <!-- 左侧滚动按钮 -->
-    <span
+    <button
       v-show="showScrollButton"
       :class="{
         'cursor-pointer text-muted-foreground hover:bg-muted': !scrollIsAtLeft,
-        'pointer-events-none opacity-30': scrollIsAtLeft,
+        'cursor-default opacity-30': scrollIsAtLeft,
       }"
+      :disabled="scrollIsAtLeft"
+      aria-label="Scroll tabs left"
       class="border-r px-2"
+      type="button"
       @click="scrollDirection('left')"
     >
-      <ChevronsLeft class="size-4 h-full" />
-    </span>
+      <ChevronsLeft aria-hidden="true" class="size-4 h-full" />
+    </button>
 
     <div
       :class="{
@@ -92,16 +100,19 @@ useTabsDrag(props, emit);
     </div>
 
     <!-- 右侧滚动按钮 -->
-    <span
+    <button
       v-show="showScrollButton"
       :class="{
         'cursor-pointer text-muted-foreground hover:bg-muted': !scrollIsAtRight,
-        'pointer-events-none opacity-30': scrollIsAtRight,
+        'cursor-default opacity-30': scrollIsAtRight,
       }"
-      class="cursor-pointer border-l px-2 text-muted-foreground hover:bg-muted"
+      :disabled="scrollIsAtRight"
+      aria-label="Scroll tabs right"
+      class="border-l px-2"
+      type="button"
       @click="scrollDirection('right')"
     >
-      <ChevronsRight class="size-4 h-full" />
-    </span>
+      <ChevronsRight aria-hidden="true" class="size-4 h-full" />
+    </button>
   </div>
 </template>

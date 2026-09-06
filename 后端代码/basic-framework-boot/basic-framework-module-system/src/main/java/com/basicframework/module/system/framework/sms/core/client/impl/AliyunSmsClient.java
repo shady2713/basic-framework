@@ -40,16 +40,23 @@ public class AliyunSmsClient extends AbstractSmsClient {
 
     private static final String RESPONSE_CODE_SUCCESS = "OK";
 
+    private final SmsHttpClient httpClient;
+
     public AliyunSmsClient(SmsChannelProperties properties) {
+        this(properties, HttpUtils::post);
+    }
+
+    @VisibleForTesting
+    AliyunSmsClient(SmsChannelProperties properties, SmsHttpClient httpClient) {
         super(properties);
         Assert.notEmpty(properties.getApiKey(), "apiKey 不能为空");
         Assert.notEmpty(properties.getApiSecret(), "apiSecret 不能为空");
+        this.httpClient = Objects.requireNonNull(httpClient, "httpClient 不能为空");
     }
 
     @Override
     public SmsSendRespDTO sendSms(
-            Long sendLogId, String mobile, String apiTemplateId, List<KeyValue<String, Object>> templateParams)
-            throws Throwable {
+            Long sendLogId, String mobile, String apiTemplateId, List<KeyValue<String, Object>> templateParams) {
         Assert.notBlank(properties.getSignature(), "短信签名不能为空");
         // 1. 执行请求
         // 参考链接 https://api.aliyun.com/document/Dysmsapi/2017-05-25/SendSms
@@ -88,7 +95,7 @@ public class AliyunSmsClient extends AbstractSmsClient {
     }
 
     @Override
-    public SmsTemplateRespDTO getSmsTemplate(String apiTemplateId) throws Throwable {
+    public SmsTemplateRespDTO getSmsTemplate(String apiTemplateId) {
         // 1. 执行请求
         // 参考链接 https://api.aliyun.com/document/Dysmsapi/2017-05-25/GetSmsTemplate
         TreeMap<String, Object> queryParam = new TreeMap<>();
@@ -193,7 +200,7 @@ public class AliyunSmsClient extends AbstractSmsClient {
                         + signedHeaders + ", " + "Signature=" + signature);
 
         // 5. 发起请求
-        String responseBody = HttpUtils.post(URL + "?" + queryString, headers, requestBody);
+        String responseBody = httpClient.post(URL + "?" + queryString, headers, requestBody);
         return JSONUtil.parseObj(responseBody);
     }
 

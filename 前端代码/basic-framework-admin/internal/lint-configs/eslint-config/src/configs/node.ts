@@ -24,7 +24,6 @@ export async function node(): Promise<Linter.Config[]> {
               'vite',
               '@vue/test-utils',
               '@vben/tailwind-config',
-              '@playwright/test',
             ],
           },
         ],

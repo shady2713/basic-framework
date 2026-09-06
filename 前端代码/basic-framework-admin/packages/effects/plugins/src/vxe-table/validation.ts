@@ -1,57 +1,49 @@
-/**
- * 创建验证类名的工具函数
- * @param isValidating 验证状态
- * @param fieldName 字段名
- * @param validationRules 验证规则，可以是字符串或自定义函数
- * @returns 返回 className 函数
- */
-function createValidationClassName(
-  isValidating: any,
-  fieldName: string,
-  validationRules: ((row: any) => boolean) | string,
+import type { Ref } from 'vue';
+
+type ValidationState = Readonly<Pick<Ref<boolean>, 'value'>>;
+type ValidationRule<T extends object> =
+  | 'required'
+  | ((row: Readonly<T>) => boolean);
+
+function hasRequiredValue(value: unknown): boolean {
+  if (value === null || value === undefined) return false;
+  if (typeof value === 'string') return value.trim().length > 0;
+  if (typeof value === 'number') return Number.isFinite(value);
+  if (Array.isArray(value)) return value.length > 0;
+  return true;
+}
+
+/** Creates a VXE cell class callback that activates only during validation. */
+function createValidationClassName<T extends object>(
+  isValidating: undefined | ValidationState,
+  fieldName: keyof T & string,
+  validationRule: ValidationRule<T>,
 ) {
-  return ({ row }: { row: any }) => {
+  return ({ row }: { row: T }): string => {
     if (!isValidating?.value) return '';
-
-    let isValid = true;
-    if (typeof validationRules === 'string') {
-      // 处理简单的验证规则
-      if (validationRules === 'required') {
-        isValid =
-          fieldName === 'count'
-            ? row[fieldName] && row[fieldName] > 0
-            : !!row[fieldName];
-      }
-    } else if (typeof validationRules === 'function') {
-      // 处理自定义验证函数
-      isValid = validationRules(row);
-    }
-
+    const isValid =
+      validationRule === 'required'
+        ? hasRequiredValue(row[fieldName])
+        : validationRule(row);
     return isValid ? '' : 'required-field-error';
   };
 }
 
-/**
- * 创建必填字段验证
- * @param isValidating 验证状态
- * @param fieldName 字段名
- * @returns 返回 className 函数
- */
-function createRequiredValidation(isValidating: any, fieldName: string) {
+function createRequiredValidation<T extends object>(
+  isValidating: undefined | ValidationState,
+  fieldName: keyof T & string,
+) {
   return createValidationClassName(isValidating, fieldName, 'required');
 }
 
-/**
- * 创建自定义验证
- * @param isValidating 验证状态
- * @param validationFn 自定义验证函数
- * @returns 返回 className 函数
- */
-function createCustomValidation(
-  isValidating: any,
-  validationFn: (row: any) => boolean,
+function createCustomValidation<T extends object>(
+  isValidating: undefined | ValidationState,
+  validationFn: (row: Readonly<T>) => boolean,
 ) {
-  return createValidationClassName(isValidating, '', validationFn);
+  return ({ row }: { row: T }): string => {
+    if (!isValidating?.value) return '';
+    return validationFn(row) ? '' : 'required-field-error';
+  };
 }
 
 export {

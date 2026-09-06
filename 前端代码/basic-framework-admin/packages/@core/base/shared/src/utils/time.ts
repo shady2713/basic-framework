@@ -31,7 +31,7 @@ export function formatTime(time: Date | number | string, fmt: string) {
         fmt = fmt.replace(
           match[0],
           match[0].length === 1
-            ? (o[k as keyof typeof o] as any)
+            ? String(o[k as keyof typeof o])
             : `00${o[k as keyof typeof o]}`.slice(
                 `${o[k as keyof typeof o]}`.length,
               ),
@@ -80,15 +80,13 @@ export function formatPast(
   format = 'YYYY-MM-DD HH:mm:ss',
 ): string {
   // 传入格式处理、存储转换值
-  let s: number, t: any;
+  let s: number;
   // 获取js 时间戳
   let time: number = Date.now();
-  // 是否是对象
-  typeof param === 'string' || typeof param === 'object'
-    ? (t = new Date(param).getTime())
-    : (t = param);
+  const timestamp =
+    param instanceof Date ? param.getTime() : new Date(param).getTime();
   // 当前时间戳 - 传入时间戳
-  time = Number.parseInt(`${time - t}`);
+  time = Number.parseInt(`${time - timestamp}`);
   if (time < 10_000) {
     // 10秒内
     return '刚刚';

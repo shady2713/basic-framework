@@ -32,5 +32,5 @@ export interface ActionItem extends Partial<ButtonProps> {
   auth?: string[];
   // 业务控制是否显示
   ifShow?: ((action: ActionItem) => boolean) | boolean;
-  tooltip?: string | { [key: string]: any; content?: string };
+  tooltip?: string | { [key: string]: unknown; content?: string };
 }

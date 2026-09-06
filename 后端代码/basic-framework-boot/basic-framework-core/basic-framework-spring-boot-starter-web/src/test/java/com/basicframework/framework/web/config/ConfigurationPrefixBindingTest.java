@@ -27,6 +27,20 @@ class ConfigurationPrefixBindingTest {
         });
     }
 
+    @Test
+    void requestBodyCacheLimitRejectsUnsafeConfiguration() {
+        contextRunner
+                .withPropertyValues("basic-framework.web.request-body-cache-max-bytes=10485761")
+                .run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
+    void rejectsMalformedNestedApiPrefix() {
+        contextRunner
+                .withPropertyValues("basic-framework.web.admin-api.prefix=/admin-api/")
+                .run(context -> assertThat(context).hasFailed());
+    }
+
     @Configuration(proxyBeanMethods = false)
     @EnableConfigurationProperties(WebProperties.class)
     static class TestConfiguration {}

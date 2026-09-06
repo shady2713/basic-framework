@@ -11,6 +11,7 @@ import com.basicframework.module.infra.job.InfraDataIntegrityAuditJob;
 import com.basicframework.module.infra.service.file.FileConfigService;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.mybatis.spring.SqlSessionTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 
@@ -25,6 +26,9 @@ class FilePersistenceIT extends AbstractPersistenceIntegrationTest {
 
     @Autowired
     private FileConfigService fileConfigService;
+
+    @Autowired
+    private SqlSessionTemplate sqlSessionTemplate;
 
     @Test
     void fileConfigurationAndHardDelete_succeedAgainstRealServices() throws Exception {
@@ -128,14 +132,16 @@ class FilePersistenceIT extends AbstractPersistenceIntegrationTest {
                 .hasMessage("infra_file.config_id 孤儿引用 1 条");
 
         jdbcTemplate.update("UPDATE infra_file_config SET deleted = b'0' WHERE id = ?", configId);
-        jdbcTemplate.update("DELETE FROM infra_file WHERE id = ?", 9_075_001L);
+        jdbcTemplate.update("DELETE FROM infra_file WHERE config_id = ?", configId);
         jdbcTemplate.update("UPDATE infra_file_config SET deleted = b'1' WHERE id = ?", configId);
+        sqlSessionTemplate.clearCache();
         assertThatThrownBy(() -> infraDataIntegrityAuditJob.execute(""))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("infra_file_content.config_id 孤儿引用 1 条");
 
         jdbcTemplate.update("UPDATE infra_file_config SET deleted = b'0' WHERE id = ?", configId);
-        jdbcTemplate.update("DELETE FROM infra_file_content WHERE id = ?", 9_075_001L);
+        jdbcTemplate.update("DELETE FROM infra_file_content WHERE config_id = ?", configId);
+        sqlSessionTemplate.clearCache();
         fileConfigService.deleteFileConfig(configId);
         assertThat(jdbcTemplate.queryForObject(
                         "SELECT deleted FROM infra_file_config WHERE id = ?", Boolean.class, configId))

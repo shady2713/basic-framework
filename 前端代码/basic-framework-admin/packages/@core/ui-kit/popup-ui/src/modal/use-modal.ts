@@ -19,6 +19,13 @@ const USER_MODAL_INJECT_KEY = Symbol('VBEN_MODAL_INJECT');
 
 const DEFAULT_MODAL_PROPS: Partial<ModalProps> = {};
 
+interface ModalInjectionContext {
+  consumed?: boolean;
+  extendApi?: (api: ExtendedModalApi) => void;
+  options?: ModalApiOptions;
+  reCreateModal?: () => Promise<void>;
+}
+
 export function setDefaultModalProps(props: Partial<ModalProps>) {
   Object.assign(DEFAULT_MODAL_PROPS, props);
 }
@@ -74,7 +81,7 @@ export function useVbenModal<TParentModalProps extends ModalProps = ModalProps>(
     return [Modal, extendedApi as ExtendedModalApi] as const;
   }
 
-  let injectData = inject<any>(USER_MODAL_INJECT_KEY, {});
+  let injectData = inject<ModalInjectionContext>(USER_MODAL_INJECT_KEY, {});
   // 这个数据已经被使用了，说明这个弹窗是嵌套的弹窗，不应该merge上层的配置
   if (injectData.consumed) {
     injectData = {};
@@ -130,7 +137,10 @@ export function useVbenModal<TParentModalProps extends ModalProps = ModalProps>(
   return [Modal, extendedApi] as const;
 }
 
-async function checkProps(api: ExtendedModalApi, attrs: Record<string, any>) {
+async function checkProps(
+  api: ExtendedModalApi,
+  attrs: Record<string, unknown>,
+) {
   if (!attrs || Object.keys(attrs).length === 0) {
     return;
   }

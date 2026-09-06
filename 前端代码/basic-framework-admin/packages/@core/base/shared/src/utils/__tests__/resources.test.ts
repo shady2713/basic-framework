@@ -1,62 +1,71 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { loadScript } from '../resources';
 
 const testJsPath = 'data:text/javascript,window.__load_script_test__=true;';
 const duplicateJsPath =
   'data:text/javascript,window.__duplicate_script_test__=true;';
-const errorJsPath = '';
+const errorJsPath = 'https://example.test/error.js';
+
+let appendedScripts: HTMLScriptElement[] = [];
 
 describe('loadScript', () => {
   beforeEach(() => {
-    // 每个测试前清空 head，保证环境干净
-    document.head.innerHTML = '';
+    appendedScripts = [];
+    vi.spyOn(document, 'querySelector').mockImplementation((selector) => {
+      const match = /^script\[src="(.*)"\]$/.exec(selector);
+      if (!match) {
+        return null;
+      }
+      return (
+        appendedScripts.find(
+          (script) => script.getAttribute('src') === match[1],
+        ) ?? null
+      );
+    });
+    vi.spyOn(document.head, 'append').mockImplementation((...nodes) => {
+      for (const node of nodes) {
+        if (node instanceof HTMLScriptElement) {
+          appendedScripts.push(node);
+        }
+      }
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('should resolve when the script loads successfully', async () => {
     const promise = loadScript(testJsPath);
 
-    // 此时脚本元素已被创建并插入
-    const script = document.querySelector(
-      `script[src="${testJsPath}"]`,
-    ) as HTMLScriptElement;
-    expect(script).toBeTruthy();
+    const script = appendedScripts[0];
+    if (!script) {
+      throw new Error('Expected the script element to be appended');
+    }
 
-    // 模拟加载成功
     script.dispatchEvent(new Event('load'));
-
-    // 等待 promise resolve
     await expect(promise).resolves.toBeUndefined();
   });
 
   it('should not insert duplicate script and resolve immediately if already loaded', async () => {
-    // 先手动插入一个相同 src 的 script
     const existing = document.createElement('script');
     existing.src = duplicateJsPath;
     document.head.append(existing);
 
-    // 再次调用
     const promise = loadScript(duplicateJsPath);
-
-    // 立即 resolve
     await expect(promise).resolves.toBeUndefined();
-
-    // head 中只保留一个
-    const scripts = document.head.querySelectorAll(
-      `script[src="${duplicateJsPath}"]`,
-    );
-    expect(scripts).toHaveLength(1);
+    expect(appendedScripts).toEqual([existing]);
   });
 
   it('should reject when the script fails to load', async () => {
     const promise = loadScript(errorJsPath);
 
-    const script = document.querySelector(
-      `script[src="${errorJsPath}"]`,
-    ) as HTMLScriptElement;
-    expect(script).toBeTruthy();
+    const script = appendedScripts[0];
+    if (!script) {
+      throw new Error('Expected the script element to be appended');
+    }
 
-    // 模拟加载失败
     script.dispatchEvent(new Event('error'));
 
     await expect(promise).rejects.toThrow(
@@ -68,21 +77,16 @@ describe('loadScript', () => {
     const p1 = loadScript(testJsPath);
     const p2 = loadScript(testJsPath);
 
-    const script = document.querySelector(
-      `script[src="${testJsPath}"]`,
-    ) as HTMLScriptElement;
-    expect(script).toBeTruthy();
+    const script = appendedScripts[0];
+    if (!script) {
+      throw new Error('Expected the script element to be appended');
+    }
 
-    // 触发一次 load，两个 promise 都应该 resolve
     script.dispatchEvent(new Event('load'));
 
     await expect(p1).resolves.toBeUndefined();
     await expect(p2).resolves.toBeUndefined();
 
-    // 只插入一次
-    const scripts = document.head.querySelectorAll(
-      `script[src="${testJsPath}"]`,
-    );
-    expect(scripts).toHaveLength(1);
+    expect(appendedScripts).toHaveLength(1);
   });
 });

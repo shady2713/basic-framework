@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import type { Recordable } from '@vben/types';
-
 import { computed, reactive } from 'vue';
 
 import { $t } from '@vben/locales';
@@ -24,7 +22,7 @@ withDefaults(defineProps<Props>(), {
 });
 
 const emit = defineEmits<{
-  submit: [Recordable<any>];
+  submit: [password: string];
 }>();
 
 const [Form, { resetForm, validate, getValues, getFieldComponentRef }] =
@@ -45,7 +43,8 @@ const [Form, { resetForm, validate, getValues, getFieldComponentRef }] =
           label: $t('authentication.password'),
           rules: z
             .string()
-            .min(1, { message: $t('ui.widgets.lockScreen.placeholder') }),
+            .min(1, { message: $t('ui.widgets.lockScreen.placeholder') })
+            .max(128, { message: $t('ui.widgets.lockScreen.placeholder') }),
         },
       ]),
       showDefaultActions: false,
@@ -72,10 +71,11 @@ const [Modal] = useVbenModal({
 
 async function handleSubmit() {
   const { valid } = await validate();
-  const values = await getValues();
-  if (valid) {
-    emit('submit', values?.lockScreenPassword);
+  if (!valid) {
+    return;
   }
+  const values = await getValues<{ lockScreenPassword: string }>();
+  emit('submit', values.lockScreenPassword);
 }
 </script>
 

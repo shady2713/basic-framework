@@ -10,7 +10,7 @@ export default defineComponent({
   props: {
     content: {
       default: undefined as
-        | PropType<(() => any) | Component | string>
+        | PropType<(() => unknown) | Component | string>
         | undefined,
       type: [Object, String, Function],
     },

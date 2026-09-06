@@ -13,6 +13,7 @@ import com.basicframework.framework.common.pojo.PageParam;
 import com.basicframework.framework.common.pojo.PageResult;
 import com.basicframework.framework.common.util.object.BeanUtils;
 import com.basicframework.framework.excel.core.util.ExcelUtils;
+import com.basicframework.framework.security.core.annotation.AuthenticatedOnly;
 import com.basicframework.framework.security.core.annotation.MfaStepUp;
 import com.basicframework.module.system.controller.admin.user.vo.user.*;
 import com.basicframework.module.system.convert.user.UserConvert;
@@ -21,6 +22,7 @@ import com.basicframework.module.system.dal.dataobject.dept.PostDO;
 import com.basicframework.module.system.dal.dataobject.user.AdminUserDO;
 import com.basicframework.module.system.dal.mysql.user.AdminUserQuery;
 import com.basicframework.module.system.enums.common.SexEnum;
+import com.basicframework.module.system.service.auth.AdminAuthService;
 import com.basicframework.module.system.service.dept.DeptService;
 import com.basicframework.module.system.service.dept.PostService;
 import com.basicframework.module.system.service.user.AdminUserService;
@@ -29,13 +31,14 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.Parameters;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -45,16 +48,16 @@ import org.springframework.web.multipart.MultipartFile;
 @RestController
 @RequestMapping("/system/user")
 @Validated
+@RequiredArgsConstructor
 public class UserController {
 
-    @Resource
-    private AdminUserService userService;
+    private final AdminUserService userService;
 
-    @Resource
-    private DeptService deptService;
+    private final DeptService deptService;
 
-    @Resource
-    private PostService postService;
+    private final PostService postService;
+
+    private final AdminAuthService authService;
 
     @PostMapping("/create")
     @Operation(summary = "新增用户")
@@ -65,7 +68,7 @@ public class UserController {
         return success(id);
     }
 
-    @PutMapping("update")
+    @PutMapping("/update")
     @Operation(summary = "修改用户")
     @PreAuthorize("@ss.hasPermission('system:user:update')")
     @MfaStepUp
@@ -79,7 +82,7 @@ public class UserController {
     @Parameter(name = "id", description = "编号", required = true, example = "1024")
     @PreAuthorize("@ss.hasPermission('system:user:delete')")
     @MfaStepUp
-    public CommonResult<Boolean> deleteUser(@RequestParam("id") Long id) {
+    public CommonResult<Boolean> deleteUser(@RequestParam("id") @Positive Long id) {
         userService.deleteUser(id);
         return success(true);
     }
@@ -100,6 +103,7 @@ public class UserController {
     @MfaStepUp
     public CommonResult<Boolean> updateUserPassword(@Valid @RequestBody UserUpdatePasswordReqVO reqVO) {
         userService.updateUserPassword(reqVO.getId(), reqVO.getPassword());
+        authService.unlockLogin(reqVO.getId());
         return success(true);
     }
 
@@ -109,6 +113,16 @@ public class UserController {
     @MfaStepUp
     public CommonResult<Boolean> updateUserStatus(@Valid @RequestBody UserUpdateStatusReqVO reqVO) {
         userService.updateUserStatus(reqVO.getId(), reqVO.getStatus());
+        return success(true);
+    }
+
+    @PutMapping("/unlock-login")
+    @Operation(summary = "解除用户登录锁定")
+    @Parameter(name = "id", description = "用户编号", required = true, example = "1024")
+    @PreAuthorize("@ss.hasPermission('system:user:update')")
+    @MfaStepUp
+    public CommonResult<Boolean> unlockLogin(@RequestParam("id") @Positive Long id) {
+        authService.unlockLogin(id);
         return success(true);
     }
 
@@ -137,8 +151,9 @@ public class UserController {
                 UserConvert.INSTANCE.convertList(pageResult.getList(), deptMap), pageResult.getTotal()));
     }
 
-    @GetMapping({"/list-all-simple", "/simple-list"})
+    @GetMapping("/simple-list")
     @Operation(summary = "获取用户精简信息列表", description = "只包含被开启的用户，主要用于前端的下拉选项")
+    @AuthenticatedOnly
     public CommonResult<List<UserSimpleRespVO>> getSimpleUserList() {
         List<AdminUserDO> list = userService.getUserListByStatus(CommonStatusEnum.ENABLE.getStatus());
         // 拼接数据
@@ -150,7 +165,7 @@ public class UserController {
     @Operation(summary = "获得用户详情")
     @Parameter(name = "id", description = "编号", required = true, example = "1024")
     @PreAuthorize("@ss.hasPermission('system:user:query')")
-    public CommonResult<UserRespVO> getUser(@RequestParam("id") Long id) {
+    public CommonResult<UserRespVO> getUser(@RequestParam("id") @Positive Long id) {
         AdminUserDO user = userService.getUser(id);
         if (user == null) {
             return success(null);
@@ -193,6 +208,7 @@ public class UserController {
 
     @GetMapping("/get-import-template")
     @Operation(summary = "获得导入用户模板")
+    @AuthenticatedOnly
     public void importTemplate(HttpServletResponse response) throws IOException {
         // 手动创建导入模板示例数据
         List<UserImportExcelVO> list = Arrays.asList(

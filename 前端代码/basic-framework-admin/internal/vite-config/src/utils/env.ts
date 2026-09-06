@@ -4,9 +4,26 @@ import { join } from 'node:path';
 
 type EnvValue = string | undefined;
 
-const getBoolean = (value: EnvValue) => value === 'true';
-const getNumber = (value: EnvValue, fallback: number) =>
-  Number(value) || fallback;
+const getBoolean = (key: string, value: EnvValue) => {
+  if (value === undefined || value === 'false') {
+    return false;
+  }
+  if (value === 'true') {
+    return true;
+  }
+  throw new TypeError(`${key} 必须为 true 或 false`);
+};
+
+const getPort = (value: EnvValue, fallback: number) => {
+  if (value === undefined) {
+    return fallback;
+  }
+  const port = Number(value);
+  if (!Number.isInteger(port) || port < 1 || port > 65_535) {
+    throw new TypeError('VITE_PORT 必须为 1-65535 的整数');
+  }
+  return port;
+};
 const getString = (value: EnvValue, fallback: string) => value ?? fallback;
 
 function parseEnvContent(content: string) {
@@ -22,6 +39,9 @@ function parseEnvContent(content: string) {
       continue;
     }
     const key = line.slice(0, separatorIndex).trim();
+    if (!/^[a-z_]\w*$/i.test(key)) {
+      continue;
+    }
     let value = line.slice(separatorIndex + 1).trim();
     if (
       (value.startsWith('"') && value.endsWith('"')) ||
@@ -52,11 +72,7 @@ async function readEnvFiles(root: string, mode?: string) {
   return envConfig;
 }
 
-async function loadEnv<T extends Record<string, any> = Record<string, string>>(
-  root: string,
-  mode?: string,
-  extraFiles?: string[],
-): Promise<T> {
+async function loadEnv(root: string, mode?: string, extraFiles?: string[]) {
   const envConfig = await readEnvFiles(root, mode);
   if (extraFiles?.length) {
     for (const file of extraFiles) {
@@ -67,21 +83,21 @@ async function loadEnv<T extends Record<string, any> = Record<string, string>>(
       Object.assign(envConfig, parseEnvContent(content));
     }
   }
-  return envConfig as T;
+  return envConfig;
 }
 
 async function loadAndConvertEnv(root: string, mode?: string) {
-  const env = await loadEnv<Record<string, string>>(root, mode);
+  const env = await loadEnv(root, mode);
   return {
     ...env,
-    VITE_APP_CAPTCHA_ENABLE: getBoolean(env.VITE_APP_CAPTCHA_ENABLE),
-    VITE_APP_DOCALERT_ENABLE: getBoolean(env.VITE_APP_DOCALERT_ENABLE),
-    VITE_ARCHIVER: getBoolean(env.VITE_ARCHIVER),
-    VITE_NITRO_MOCK: getBoolean(env.VITE_NITRO_MOCK),
-    VITE_PWA: getBoolean(env.VITE_PWA),
+    VITE_APP_CAPTCHA_ENABLE: getBoolean(
+      'VITE_APP_CAPTCHA_ENABLE',
+      env.VITE_APP_CAPTCHA_ENABLE,
+    ),
+    VITE_VISUALIZER: getBoolean('VITE_VISUALIZER', env.VITE_VISUALIZER),
     appTitle: getString(env.VITE_APP_TITLE, 'Basic Framework'),
     base: getString(env.VITE_BASE, '/'),
-    port: getNumber(env.VITE_PORT, 5173),
+    port: getPort(env.VITE_PORT, 5173),
   };
 }
 

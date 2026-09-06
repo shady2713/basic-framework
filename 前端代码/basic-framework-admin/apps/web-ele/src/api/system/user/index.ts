@@ -75,13 +75,13 @@ export function importUserTemplate() {
 
 /** 导入用户 */
 export function importUser(file: File, updateSupport: boolean) {
-  return requestClient.upload<SystemUserApi.UserImportResp>(
-    '/system/user/import',
-    {
-      file,
-      updateSupport,
-    },
-  );
+  return requestClient.upload<
+    SystemUserApi.UserImportResp,
+    { file: File; updateSupport: boolean }
+  >('/system/user/import', {
+    file,
+    updateSupport,
+  });
 }
 
 /** 用户密码重置 */
@@ -92,6 +92,11 @@ export function resetUserPassword(id: number, password: string) {
 /** 用户状态修改 */
 export function updateUserStatus(id: number, status: number) {
   return requestClient.put('/system/user/update-status', { id, status });
+}
+
+/** 解除用户的临时登录锁定 */
+export function unlockUserLogin(id: number) {
+  return requestClient.put(`/system/user/unlock-login?id=${id}`);
 }
 
 /** 获取用户精简信息列表 */

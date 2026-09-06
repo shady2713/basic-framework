@@ -15,7 +15,6 @@
     "#/*": "./src/*"
   },
   "dependencies": {
-    "@form-create/element-ui": "catalog:",
     "@vben/access": "workspace:*",
     "@vben/common-ui": "workspace:*",
     "@vben/constants": "workspace:*",
@@ -42,6 +41,7 @@
   },
   "devDependencies": {
     "@types/qrcode": "catalog:",
+    "@vue/test-utils": "catalog:",
     "unplugin-element-plus": "catalog:"
   }
 }

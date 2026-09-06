@@ -1,6 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { filterTree, mapTree, traverseTreeValues } from '../tree';
+import {
+  filterTree,
+  handleTree,
+  mapTree,
+  sortTree,
+  traverseTreeValues,
+} from '../tree';
 
 describe('traverseTreeValues', () => {
   interface Node {
@@ -66,6 +72,14 @@ describe('traverseTreeValues', () => {
     );
     expect(values).toEqual(['A', 'B', 'C']);
   });
+
+  it('preserves valid falsy values', () => {
+    const values = traverseTreeValues(
+      [{ value: 0 }, { value: false }, { value: '' }],
+      (node) => node.value,
+    );
+    expect(values).toEqual([0, false, '']);
+  });
 });
 
 describe('filterTree', () => {
@@ -93,8 +107,10 @@ describe('filterTree', () => {
   });
 
   it('should return nodes with even id values', () => {
+    const original = structuredClone(tree);
     const result = filterTree(tree, (node) => node.id % 2 === 0);
     expect(result).toEqual([{ id: 8, children: [{ id: 10 }] }]);
+    expect(tree).toEqual(original);
   });
 
   it('should return nodes with odd id values and their ancestors', () => {
@@ -191,6 +207,91 @@ describe('mapTree', () => {
           },
         ],
       },
+    ]);
+  });
+
+  it('supports a custom children property without mutating the source', () => {
+    const tree = [{ id: 1, nodes: [{ id: 2 }] }];
+    const result = mapTree(
+      tree,
+      (node) => ({ label: `node-${node.id}`, nodes: node.nodes }),
+      { childProps: 'nodes' },
+    );
+
+    expect(result).toEqual([
+      { label: 'node-1', nodes: [{ label: 'node-2', nodes: undefined }] },
+    ]);
+    expect(tree).toEqual([{ id: 1, nodes: [{ id: 2 }] }]);
+  });
+});
+
+describe('handleTree', () => {
+  it('builds a tree with custom fields and keeps input unchanged', () => {
+    const source = [
+      { key: 2, parentKey: 1, title: 'child' },
+      { key: 1, parentKey: 0, title: 'root' },
+      { key: 3, parentKey: 99, title: 'orphan' },
+    ];
+
+    const result = handleTree(source, 'key', 'parentKey', 'nodes');
+
+    expect(result).toEqual([
+      {
+        key: 1,
+        nodes: [{ key: 2, parentKey: 1, title: 'child' }],
+        parentKey: 0,
+        title: 'root',
+      },
+      { key: 3, parentKey: 99, title: 'orphan' },
+    ]);
+    expect(source.every((node) => !('nodes' in node))).toBe(true);
+  });
+
+  it('rejects a non-array value at the runtime boundary', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    expect(handleTree({ id: 1 } as unknown as object[])).toEqual([]);
+    expect(warn).toHaveBeenCalledWith('data must be an array');
+
+    warn.mockRestore();
+  });
+
+  it('does not create a cyclic tree when identifiers are duplicated', () => {
+    const result = handleTree([
+      { id: 1, parentId: 0 },
+      { id: 2, parentId: 1 },
+      { id: 1, parentId: 2 },
+    ]);
+
+    expect(result).toEqual([
+      {
+        children: [
+          {
+            children: [{ id: 1, parentId: 2 }],
+            id: 2,
+            parentId: 1,
+          },
+        ],
+        id: 1,
+        parentId: 0,
+      },
+    ]);
+  });
+});
+
+describe('sortTree', () => {
+  it('sorts every level without mutating the source', () => {
+    const source = [{ id: 2 }, { children: [{ id: 3 }, { id: 1 }], id: 1 }];
+
+    const result = sortTree(source, (left, right) => left.id - right.id);
+
+    expect(result).toEqual([
+      { children: [{ id: 1 }, { id: 3 }], id: 1 },
+      { id: 2 },
+    ]);
+    expect(source).toEqual([
+      { id: 2 },
+      { children: [{ id: 3 }, { id: 1 }], id: 1 },
     ]);
   });
 });

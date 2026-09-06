@@ -54,7 +54,7 @@ export function deleteSmsTemplate(id: number) {
 export function sendSms(data: {
   mobile: string;
   templateCode: string;
-  templateParams: Record<string, object>;
+  templateParams: Record<string, unknown>;
 }) {
   return requestClient.post('/system/sms-template/send-sms', data);
 }

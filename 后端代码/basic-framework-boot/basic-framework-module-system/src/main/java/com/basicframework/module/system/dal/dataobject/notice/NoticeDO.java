@@ -1,7 +1,6 @@
 package com.basicframework.module.system.dal.dataobject.notice;
 
 import com.baomidou.mybatisplus.annotation.KeySequence;
-import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.basicframework.framework.mybatis.core.dataobject.SoftDeletableDO;
@@ -26,7 +25,4 @@ public class NoticeDO extends SoftDeletableDO {
     private Integer type;
 
     private Integer status;
-
-    @TableField(exist = false)
-    private String remark;
 }

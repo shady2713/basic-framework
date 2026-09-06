@@ -16,7 +16,9 @@ import org.springframework.web.context.request.ServletRequestAttributes;
  * 客户端工具类
  *
  */
-public class ServletUtils {
+public final class ServletUtils {
+
+    private ServletUtils() {}
 
     /**
      * 返回 JSON 字符串
@@ -25,7 +27,7 @@ public class ServletUtils {
      * @param object   对象，会序列化成 JSON 字符串
      */
     @SuppressWarnings("deprecation") // 必须使用 APPLICATION_JSON_UTF8_VALUE，否则会乱码
-    public static void writeJSON(HttpServletResponse response, Object object) {
+    private static void writeJSON(HttpServletResponse response, Object object) {
         String content = JsonUtils.toJsonString(object);
         JakartaServletUtil.write(response, content, MediaType.APPLICATION_JSON_UTF8_VALUE);
     }
@@ -77,7 +79,7 @@ public class ServletUtils {
         if (request == null) {
             return null;
         }
-        return JakartaServletUtil.getClientIP(request);
+        return getClientIP(request);
     }
 
     public static boolean isJsonRequest(ServletRequest request) {
@@ -101,14 +103,10 @@ public class ServletUtils {
     }
 
     public static String getClientIP(HttpServletRequest request) {
-        return JakartaServletUtil.getClientIP(request);
+        return ClientIpResolver.resolve(request);
     }
 
     public static Map<String, String> getParamMap(HttpServletRequest request) {
         return JakartaServletUtil.getParamMap(request);
-    }
-
-    public static Map<String, String> getHeaderMap(HttpServletRequest request) {
-        return JakartaServletUtil.getHeaderMap(request);
     }
 }

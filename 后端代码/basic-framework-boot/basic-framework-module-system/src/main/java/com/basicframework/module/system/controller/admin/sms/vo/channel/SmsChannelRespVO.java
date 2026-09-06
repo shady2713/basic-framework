@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDateTime;
 import lombok.Data;
+import lombok.ToString;
 import org.hibernate.validator.constraints.URL;
 
 @Schema(description = "管理后台 - 短信渠道 Response VO")
@@ -30,9 +31,9 @@ public class SmsChannelRespVO {
     @Schema(description = "备注", example = "好吃！")
     private String remark;
 
-    @Schema(description = "短信 API 的账号", requiredMode = Schema.RequiredMode.REQUIRED, example = "sms-access-key")
-    @NotNull(message = "短信 API 的账号不能为空")
-    private String apiKey;
+    @Schema(description = "是否已配置短信 API 账号", requiredMode = Schema.RequiredMode.REQUIRED)
+    @ToString.Exclude
+    private Boolean apiKeyConfigured;
 
     @Schema(description = "是否已配置短信 API 密钥", requiredMode = Schema.RequiredMode.REQUIRED)
     private Boolean apiSecretConfigured;

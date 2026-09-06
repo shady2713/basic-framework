@@ -8,6 +8,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import org.springframework.boot.SpringApplication;
+import org.springframework.boot.context.properties.bind.Bindable;
+import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.env.EnvironmentPostProcessor;
 import org.springframework.core.Ordered;
 import org.springframework.core.env.ConfigurableEnvironment;
@@ -88,17 +90,56 @@ public class ProductionConfigurationEnvironmentPostProcessor implements Environm
     }
 
     private static void validateCorsOrigins(ConfigurableEnvironment environment, List<String> errors) {
-        String firstOrigin = environment.getProperty("basic-framework.web.cors-allowed-origins[0]");
-        if (isUnsafeValue(firstOrigin)) {
+        List<String> origins = Binder.get(environment)
+                .bind("basic-framework.web.cors-allowed-origins", Bindable.listOf(String.class))
+                .orElseGet(List::of);
+        if (origins.isEmpty()) {
             errors.add("basic-framework.web.cors-allowed-origins 必须配置为生产域名");
             return;
         }
-        if ("*".equals(firstOrigin)
-                || DEFAULT_CORS_ORIGIN.equals(firstOrigin)
-                || firstOrigin.contains("localhost")
-                || firstOrigin.contains("127.0.0.1")) {
-            errors.add("basic-framework.web.cors-allowed-origins 不能使用通配符、示例域名或本机地址");
+        for (int index = 0; index < origins.size(); index++) {
+            String origin = origins.get(index);
+            if (isUnsafeValue(origin)) {
+                errors.add("basic-framework.web.cors-allowed-origins[" + index + "] 必须配置为生产域名");
+            } else if (!isSafeCorsOrigin(origin)) {
+                errors.add("basic-framework.web.cors-allowed-origins["
+                        + index
+                        + "] 必须是精确 HTTPS Origin，不能使用通配符、示例域名、本机地址或路径");
+            }
         }
+    }
+
+    private static boolean isSafeCorsOrigin(String origin) {
+        if (!origin.equals(origin.trim())
+                || origin.contains("*")
+                || origin.contains("?")
+                || DEFAULT_CORS_ORIGIN.equalsIgnoreCase(origin)) {
+            return false;
+        }
+        try {
+            URI uri = URI.create(origin);
+            String host = uri.getHost();
+            return "https".equalsIgnoreCase(uri.getScheme())
+                    && StringUtils.hasText(host)
+                    && uri.getUserInfo() == null
+                    && !StringUtils.hasText(uri.getPath())
+                    && uri.getQuery() == null
+                    && uri.getFragment() == null
+                    && !isLocalCorsHost(host);
+        } catch (RuntimeException invalidOrigin) {
+            return false;
+        }
+    }
+
+    private static boolean isLocalCorsHost(String host) {
+        String normalizedHost = host.toLowerCase(Locale.ROOT);
+        return normalizedHost.equals("localhost")
+                || normalizedHost.equals("localhost.")
+                || normalizedHost.endsWith(".localhost")
+                || normalizedHost.equals("0.0.0.0")
+                || normalizedHost.startsWith("127.")
+                || normalizedHost.equals("::1")
+                || normalizedHost.equals("[::1]");
     }
 
     private static void validateRefreshCookie(ConfigurableEnvironment environment, List<String> errors) {
@@ -141,26 +182,41 @@ public class ProductionConfigurationEnvironmentPostProcessor implements Environm
             return;
         }
         String rpId = environment.getProperty(prefix + "rp-id");
-        String origin = environment.getProperty(prefix + "allowed-origins[0]");
         if (isUnsafeValue(rpId) || rpId.contains("example") || rpId.contains("localhost")) {
             errors.add(prefix + "rp-id 必须配置为生产域名");
             return;
         }
+        List<String> origins = Binder.get(environment)
+                .bind(prefix + "allowed-origins", Bindable.listOf(String.class))
+                .orElseGet(List::of);
+        if (origins.isEmpty()) {
+            errors.add(prefix + "allowed-origins 必须配置为 RP ID 范围内的精确 HTTPS Origin");
+            return;
+        }
+        for (int index = 0; index < origins.size(); index++) {
+            if (!isSafeWebAuthnOrigin(origins.get(index), rpId)) {
+                errors.add(prefix + "allowed-origins[" + index + "] 必须是 RP ID 范围内的精确 HTTPS Origin");
+            }
+        }
+    }
+
+    private static boolean isSafeWebAuthnOrigin(String origin, String rpId) {
+        if (isUnsafeValue(origin) || !origin.equals(origin.trim())) {
+            return false;
+        }
         try {
             URI uri = URI.create(origin);
             String host = uri.getHost();
-            if (!"https".equalsIgnoreCase(uri.getScheme())
-                    || host == null
-                    || !(host.equalsIgnoreCase(rpId)
+            return "https".equalsIgnoreCase(uri.getScheme())
+                    && host != null
+                    && (host.equalsIgnoreCase(rpId)
                             || host.toLowerCase(Locale.ROOT).endsWith("." + rpId.toLowerCase(Locale.ROOT)))
-                    || uri.getUserInfo() != null
-                    || (uri.getPath() != null && !uri.getPath().isEmpty())
-                    || uri.getQuery() != null
-                    || uri.getFragment() != null) {
-                errors.add(prefix + "allowed-origins 必须是 RP ID 范围内的精确 HTTPS Origin");
-            }
+                    && uri.getUserInfo() == null
+                    && (uri.getPath() == null || uri.getPath().isEmpty())
+                    && uri.getQuery() == null
+                    && uri.getFragment() == null;
         } catch (RuntimeException invalidOrigin) {
-            errors.add(prefix + "allowed-origins 必须是合法 HTTPS Origin");
+            return false;
         }
     }
 

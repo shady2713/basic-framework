@@ -18,9 +18,7 @@ import com.basicframework.module.system.dal.mysql.user.AdminUserMapper;
 import com.basicframework.module.system.dal.redis.RedisKeyConstants;
 import com.basicframework.module.system.enums.permission.DataScopeEnum;
 import com.google.common.annotations.VisibleForTesting;
-import jakarta.annotation.Resource;
 import java.util.*;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
@@ -34,17 +32,19 @@ import org.springframework.validation.annotation.Validated;
  */
 @Service
 @Validated
-@Slf4j
 public class DeptServiceImpl implements DeptService {
 
-    @Resource
-    private DeptMapper deptMapper;
+    private final DeptMapper deptMapper;
 
-    @Resource
-    private AdminUserMapper userMapper;
+    private final AdminUserMapper userMapper;
 
-    @Resource
-    private RoleMapper roleMapper;
+    private final RoleMapper roleMapper;
+
+    public DeptServiceImpl(DeptMapper deptMapper, AdminUserMapper userMapper, RoleMapper roleMapper) {
+        this.deptMapper = deptMapper;
+        this.userMapper = userMapper;
+        this.roleMapper = roleMapper;
+    }
 
     @Override
     @Transactional(rollbackFor = Exception.class)

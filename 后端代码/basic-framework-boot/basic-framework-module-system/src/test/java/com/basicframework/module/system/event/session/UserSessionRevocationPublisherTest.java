@@ -42,4 +42,20 @@ class UserSessionRevocationPublisherTest {
 
         verify(eventPublisher, never()).publishEvent(org.mockito.ArgumentMatchers.any());
     }
+
+    @Test
+    void revokeAdminSession_publishesSingleUserEvent() {
+        publisher.revokeAdminSession(1L, ROLE_PERMISSION_CHANGED);
+
+        ArgumentCaptor<UserSessionRevocationEvent> captor = ArgumentCaptor.forClass(UserSessionRevocationEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        assertThat(captor.getValue().userIds()).containsExactly(1L);
+    }
+
+    @Test
+    void revokeAdminSessions_onlyNullIds_doesNotPublish() {
+        publisher.revokeAdminSessions(Arrays.asList(null, null), ROLE_PERMISSION_CHANGED);
+
+        verify(eventPublisher, never()).publishEvent(org.mockito.ArgumentMatchers.any());
+    }
 }

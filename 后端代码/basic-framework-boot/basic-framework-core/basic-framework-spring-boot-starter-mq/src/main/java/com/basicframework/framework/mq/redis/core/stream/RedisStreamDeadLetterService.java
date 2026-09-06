@@ -1,5 +1,7 @@
 package com.basicframework.framework.mq.redis.core.stream;
 
+import static com.basicframework.framework.common.util.exception.SafeExceptionLogUtils.format;
+
 import cn.hutool.core.util.StrUtil;
 import com.basicframework.framework.common.util.json.JsonUtils;
 import com.basicframework.framework.mq.redis.config.RedisMQProperties;
@@ -8,6 +10,7 @@ import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -131,6 +134,11 @@ public class RedisStreamDeadLetterService {
             long deliveryCount,
             RedisStreamFailureKind failureKind,
             RuntimeException failure) {
+        Objects.requireNonNull(record, "record must not be null");
+        if (deliveryCount < 1L) {
+            throw new IllegalArgumentException("deliveryCount 必须大于 0");
+        }
+        Objects.requireNonNull(failureKind, "failureKind must not be null");
         String streamKey = record.getRequiredStream();
         String originalRecordId = record.getId().getValue();
         String deadLetterKey = deadLetterKey(streamKey, group);
@@ -297,7 +305,10 @@ public class RedisStreamDeadLetterService {
         try {
             eventPublisher.publishEvent(event);
         } catch (RuntimeException exception) {
-            log.error("[deadLetter][发布死信告警事件失败，死信({})已持久化]", event.deadLetterRecordId(), exception);
+            log.error(
+                    "[deadLetter][发布死信告警事件失败，死信({})已持久化，stackTrace({})]",
+                    event.deadLetterRecordId(),
+                    format(exception));
         }
     }
 

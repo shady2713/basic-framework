@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { HoverCardContentProps } from 'reka-ui';
 
+import type { HTMLAttributes } from 'vue';
+
 import { computed } from 'vue';
 
 import { cn } from '@vben-core/shared/utils';
@@ -8,7 +10,7 @@ import { cn } from '@vben-core/shared/utils';
 import { HoverCardContent, HoverCardPortal, useForwardProps } from 'reka-ui';
 
 const props = withDefaults(
-  defineProps<HoverCardContentProps & { class?: any }>(),
+  defineProps<HoverCardContentProps & { class?: HTMLAttributes['class'] }>(),
   {
     sideOffset: 4,
   },

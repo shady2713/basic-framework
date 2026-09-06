@@ -16,7 +16,7 @@ public class NotifyMessageRespVO {
     private Long userId;
 
     @Schema(description = "用户类型，参见 UserTypeEnum 枚举", requiredMode = Schema.RequiredMode.REQUIRED, example = "1")
-    private Byte userType;
+    private Integer userType;
 
     @Schema(description = "模版编号", requiredMode = Schema.RequiredMode.REQUIRED, example = "13013")
     private Long templateId;

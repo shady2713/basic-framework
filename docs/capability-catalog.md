@@ -39,7 +39,7 @@ Properties：`WebProperties`（`basic-framework.web`）、
 
 访问日志与异常日志统一经 `SensitiveDataSanitizer` 处理：字段名匹配忽略
 大小写、下划线和连字符，密码、Token、Secret、API/访问/私钥、会话凭证、
-验证码及 L4 敏感个人信息默认从 query、JSON body 和启用记录的响应 data 中
+验证码、L3 直接联系方式（手机号、电话、邮箱）及 L4 敏感数据默认从 query、JSON body 和启用记录的响应 data 中
 删除；JSON 解析失败只记录固定占位内容。接口特有敏感字段通过
 `@ApiAccessLog.sanitizeKeys` 追加，禁止缩减全局规则。
 
@@ -51,11 +51,17 @@ Properties：`WebProperties`（`basic-framework.web`）、
 - `BasicFrameworkWebSecurityConfigurerAdapter`：URL 授权规则
 - `BasicFrameworkOperateLogConfiguration`：操作日志切面
 
+用户资料差异仍以原值比较；操作审计展示邮箱、手机号和电话时由 system 模块的
+脱敏解析函数转换为掩码，不持久化直接联系方式。
+
 Properties：`SecurityProperties`（`basic-framework.security`，含
 permit-all 清单和部署注入的凭据主密钥）。该自动配置同时提供
 `CredentialCipher`，供业务模块以版本化 AES-GCM 加密必须恢复的 L4 凭据。
 消费 `module-system` api 包的
-UserSessionCommonApi / PermissionCommonApi / OperateLogCommonApi。
+UserSessionCommonApi / PermissionCommonApi / OperateLogCommonApi。Token 过滤器按
+`UserSessionCommonApi#getSupportedUserType()` 建立 Provider 索引：system 模块只装配
+ADMIN 实现，后续会员模块为微信小程序、APP、H5 注册 MEMBER 实现；重复类型启动失败，
+缺少对应 Provider 的请求关闭失败，不跨用户类型回退。
 注册 common 层 `CurrentUserProvider` SPI 的实现
 （`CurrentUserProviderImpl`，委托 `SecurityFrameworkUtils`），向
 mybatis 字段填充、数据权限等 starter 提供当前登录用户身份。
@@ -76,6 +82,10 @@ Redis 连接与缓存抽象。auto-configuration：
 - `BasicFrameworkRateLimiterConfiguration`（`@RateLimiter`，登录/短信/
   注册等端点强制挂载，见 AGENTS.md 安全基线）
 
+幂等与限流的 key、次数和时间边界采用 fail-closed 校验；限流时间精度为毫秒，
+具体使用契约见对应 starter 的 `README.md`。`@Idempotent` 为框架交付的能力缝
+（见 ADR 0028）：默认由下游项目按端点启用，仓库内暂无消费点，契约由切面测试钉住。
+
 ### basic-framework-spring-boot-starter-mybatis
 
 数据访问。auto-configuration：
@@ -84,7 +94,9 @@ Redis 连接与缓存抽象。auto-configuration：
   主数据源，业务确有路由需求时再由部署配置增加命名数据源
 - `BasicFrameworkMybatisAutoConfiguration`：MyBatis-Plus、字段填充、
   分页
-- `BasicFrameworkTranslateAutoConfiguration`：easy-trans 字段翻译
+
+展示字段由业务查询显式批量补全；框架不引入隐式字段翻译组件，避免隐藏查询和
+数据权限旁路。操作日志中的用户昵称由 system 模块一次批量查询补全。
 
 ### basic-framework-spring-boot-starter-mq
 
@@ -137,41 +149,21 @@ IP 归属地解析工具（Area 数据）。纯工具接缝，无 auto-configura
 `AreaConvert`（Excel 地区转换器，实现 fastexcel `Converter`，fastexcel
 为 optional 依赖）归属于本 starter 的 `ip.core.convert` 包。
 
-## 业务模块：basic-framework-module-crm（客户档案示例）
-
-按 `docs/development-guide.md` 实现的业务模块，作为架构规约的业务侧参考。
-
-- **职责**：客户档案 CRUD。`dal/dataobject/crm/CustomerDO`、
-  `dal/mysql/crm/CustomerMapper`、`service/crm/CustomerService(Impl)`、
-  `controller/admin/crm/CustomerController`；Service 单测
-  `CustomerServiceImplTest` 10 例。
-- **数据表**：`crm_customer`（审计字段、`idx_mobile`；不收集敏感身份数据）。
-- **错误码**：独立段 `1_006_000_00x`（`enums/ErrorCodeConstants`，
-  `ErrorCodeUniquenessTest` 覆盖不撞码）。
-- **权限点**：`crm:customer:create/update/delete/query`；V6 迁移种入
-  菜单/按钮/超管授权，与 Controller `@PreAuthorize` 一一对应。
-- **字段契约**：`name`/`amount`/`contractDate` 已登记
-  `docs/contracts/field-catalog.yaml`，mobile 复用共享规则；三端一致由
-  check-field-catalog 门禁钉死。
-- **前端**：`views/crm/customer/`（Grid/表单/规则中心复用）+ `api/crm`
-  封装；页面/表单 schema 单测 5 例。
-
 ## 业务模块 api 包
 
 module-system / module-infra 的对外契约（CommonApi 接口 + DTO）由
 `basic-framework-module-system-api` / `basic-framework-module-infra-api`
-薄子模块承载，包名与业务模块的 `api` 包一致；实现留在业务模块同名
-包内，core starters 只依赖契约类型（ArchUnit 规则 C 对 api 包豁免，
+薄子模块承载，包名与业务模块的 `api` 包一致；必要实现留在业务模块同名
+包内，core starters 只依赖契约类型（ArchUnit 规则 C 使用已发布契约显式清单，
+不会因 `api` 包名自动放行，
 见 ModuleBoundaryArchitectureTest）。
 
 - system 侧（`basic-framework-module-system-api`）：Permission /
-  MenuReference / UserSession / OperateLog / DictData
-- infra 侧（`basic-framework-module-infra-api`）：ApiAccessLog /
-  ApiErrorLog / CodegenReference
+  MenuReference / UserSession / OperateLog / DictData / Mfa
+- infra 侧（`basic-framework-module-infra-api`）：ApiAccessLog / ApiErrorLog
 
 业务模块之间也只消费上述薄 API 契约，不得直接访问对方 Mapper、DO 或 ServiceImpl；
-同步完整性校验必须加入调用方现有事务。V26 的代码生成父菜单引用是首个双向业务协作
-实例，边界决策见 `docs/adr/0007-business-module-api-boundaries.md`。
+同步完整性校验必须加入调用方现有事务。
 
 ## 装配与版本
 

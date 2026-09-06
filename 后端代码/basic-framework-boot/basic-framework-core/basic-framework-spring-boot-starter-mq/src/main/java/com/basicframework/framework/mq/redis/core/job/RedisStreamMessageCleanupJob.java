@@ -1,5 +1,7 @@
 package com.basicframework.framework.mq.redis.core.job;
 
+import static com.basicframework.framework.common.util.exception.SafeExceptionLogUtils.format;
+
 import com.basicframework.framework.mq.redis.config.RedisMQProperties;
 import com.basicframework.framework.mq.redis.core.RedisMQTemplate;
 import com.basicframework.framework.mq.redis.core.stream.AbstractRedisStreamMessageListener;
@@ -47,7 +49,7 @@ public class RedisStreamMessageCleanupJob {
             try {
                 execute();
             } catch (Exception ex) {
-                log.error("[cleanup][执行异常]", ex);
+                log.error("[cleanup][执行异常，stackTrace({})]", format(ex));
             } finally {
                 lock.unlock();
             }
@@ -88,7 +90,7 @@ public class RedisStreamMessageCleanupJob {
                 log.info("[cleanupStream][Stream({}) 清理消息数量({})]", streamKey, deletedCount);
             }
         } catch (RuntimeException exception) {
-            log.error("[cleanupStream][Stream({}) 清理异常]", streamKey, exception);
+            log.error("[cleanupStream][Stream({}) 清理异常，stackTrace({})]", streamKey, format(exception));
         }
     }
 

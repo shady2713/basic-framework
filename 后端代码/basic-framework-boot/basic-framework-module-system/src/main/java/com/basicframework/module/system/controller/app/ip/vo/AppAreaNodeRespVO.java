@@ -4,7 +4,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 import lombok.Data;
 
-@Schema(description = "用户 App - 地区节点 Response VO")
+@Schema(description = "应用端 - 地区节点 Response VO")
 @Data
 public class AppAreaNodeRespVO {
 

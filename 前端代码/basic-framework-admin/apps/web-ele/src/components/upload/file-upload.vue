@@ -1,300 +1,78 @@
 <script lang="ts" setup>
-import type { UploadFile, UploadRequestOptions } from 'element-plus';
+import type { UploadFile } from 'element-plus';
 
-import type { FileUploadProps, UploadApiResult } from './typing';
+import type { FileUploadProps, UploadModelValue } from './typing';
 
-import { computed, ref, toRefs, watch } from 'vue';
+import { toRefs } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 import { $t } from '@vben/locales';
-import {
-  checkFileType,
-  isObject,
-  isString,
-  logError,
-  openWindow,
-} from '@vben/utils';
+import { defaultFileAccepts, openWindow } from '@vben/utils';
 
 import { ElButton, ElUpload } from 'element-plus';
 
-import {
-  showError,
-  showErrorMessage,
-  showSuccessMessage,
-} from '#/utils/feedback';
+import { showErrorMessage } from '#/utils/feedback';
 
-import { UploadResultStatus } from './typing';
+import { isSafeUploadUrl } from './upload-security';
 import { useUploadType } from './use-upload';
-import {
-  requestUpload,
-  resolveUploadUrl,
-  resolveUploadValue,
-} from './use-upload-core';
+import { useUploadListState } from './use-upload-list-state';
 
 defineOptions({ name: 'FileUpload', inheritAttrs: false });
 
 const props = withDefaults(defineProps<FileUploadProps>(), {
-  value: () => [],
-  modelValue: undefined,
+  accept: () => defaultFileAccepts,
+  api: undefined,
   directory: undefined,
   disabled: false,
   drag: false,
   helpText: '',
-  maxSize: 2,
+  listType: 'text',
   maxNumber: 1,
-  accept: () => [],
+  maxSize: 2,
+  modelValue: undefined,
   multiple: false,
-  api: undefined,
+  publicRead: false,
   resultField: '',
   showDescription: false,
+  value: () => [],
 });
-const emit = defineEmits([
-  'change',
-  'update:value',
-  'update:modelValue',
-  'delete',
-  'returnText',
-  'preview',
-]);
+const emit = defineEmits<{
+  change: [value: UploadModelValue];
+  delete: [file: UploadFile];
+  preview: [file: UploadFile];
+  'update:modelValue': [value: UploadModelValue];
+  'update:value': [value: UploadModelValue];
+}>();
 const { accept, helpText, maxNumber, maxSize } = toRefs(props);
-const isInnerOperate = ref<boolean>(false);
-const { getStringAccept } = useUploadType({
+const { getHelpText, getStringAccept } = useUploadType({
   acceptRef: accept,
   helpTextRef: helpText,
   maxNumberRef: maxNumber,
   maxSizeRef: maxSize,
 });
 
-/** 计算当前绑定的值，优先使用 modelValue */
-const currentValue = computed(() => {
-  return props.modelValue === undefined ? props.value : props.modelValue;
-});
-
-/** 判断是否使用 modelValue */
-const isUsingModelValue = computed(() => {
-  return props.modelValue !== undefined;
-});
-
-const fileList = ref<UploadFile[]>([]);
-const isLtMsg = ref<boolean>(true); // 文件大小错误提示
-const isActMsg = ref<boolean>(true); // 文件类型错误提示
-const isFirstRender = ref<boolean>(true); // 是否第一次渲染
-const uploadNumber = ref<number>(0); // 上传文件计数器
-const uploadList = ref<any[]>([]); // 临时上传列表
-
-watch(
-  currentValue,
-  (v) => {
-    if (isInnerOperate.value) {
-      isInnerOperate.value = false;
-      return;
-    }
-    let value: string[] = [];
-    if (v) {
-      if (Array.isArray(v)) {
-        value = v;
-      } else {
-        value.push(v);
-      }
-      fileList.value = value
-        .map((item, i) => {
-          if (item && isString(item)) {
-            return {
-              uid: -i,
-              name: item.slice(Math.max(0, item.lastIndexOf('/') + 1)),
-              status: UploadResultStatus.SUCCESS,
-              url: item,
-            } as UploadFile;
-          } else if (item && isObject(item)) {
-            const file = item as unknown as Record<string, any>;
-            return {
-              uid: file.uid ?? -i,
-              name: file.name ?? '',
-              status: file.status ?? UploadResultStatus.SUCCESS,
-              url: file.url,
-            } as UploadFile;
-          }
-          return null;
-        })
-        .filter(Boolean) as UploadFile[];
-    } else {
-      // 值为空时清空文件列表
-      fileList.value = [];
-    }
-    if (!isFirstRender.value) {
-      emit('change', value);
-      isFirstRender.value = false;
-    }
-  },
-  {
-    immediate: true,
-    deep: true,
-  },
-);
-
-/** 处理文件删除 */
-function handleRemove(file: UploadFile) {
-  if (fileList.value) {
-    const index = fileList.value.findIndex((item) => item.uid === file.uid);
-    index !== -1 && fileList.value.splice(index, 1);
-    const value = getValue();
-    isInnerOperate.value = true;
-    emit('update:value', value);
-    emit('update:modelValue', value);
-    emit('change', value);
-    emit('delete', file);
-  }
+function emitModelChange(value: UploadModelValue) {
+  emit('update:value', value);
+  emit('update:modelValue', value);
+  emit('change', value);
 }
 
-/** 处理文件预览 */
-function handlePreview(file: UploadFile) {
-  emit('preview', file);
-  if (file.url) {
-    openWindow(file.url);
-  }
-}
-
-/** 处理文件数量超限 */
-function handleExceed() {
-  showErrorMessage($t('ui.upload.maxNumber', [maxNumber.value]));
-}
-
-/** 处理上传错误 */
-function handleUploadError(error: unknown) {
-  logError('upload:file:error', error);
-  showError(error, $t('ui.upload.uploadError'));
-  // 上传失败时减少计数器
-  uploadNumber.value = Math.max(0, uploadNumber.value - 1);
-}
-
-/**
- * 上传前校验
- * @param file 待上传的文件
- * @returns 是否允许上传
- */
-/* eslint-disable unicorn/no-nested-ternary */
-async function beforeUpload(file: File) {
-  const fileContent = await file.text();
-  emit('returnText', fileContent);
-
-  // 检查文件数量限制（使用 getValue 获取实际已上传的文件数量）
-  const currentFiles = getValue();
-  const currentCount = Array.isArray(currentFiles)
-    ? currentFiles.length
-    : currentFiles
-      ? 1
-      : 0;
-  if (currentCount >= props.maxNumber) {
-    showErrorMessage($t('ui.upload.maxNumber', [props.maxNumber]));
-    return false;
-  }
-
-  const { maxSize, accept } = props;
-  const isAct = checkFileType(file, accept);
-  if (!isAct) {
-    showErrorMessage($t('ui.upload.acceptUpload', [accept]));
-    isActMsg.value = false;
-    // 防止弹出多个错误提示
-    setTimeout(() => (isActMsg.value = true), 1000);
-    return false;
-  }
-  const isLt = file.size / 1024 / 1024 > maxSize;
-  if (isLt) {
-    showErrorMessage($t('ui.upload.maxSizeMultiple', [maxSize]));
-    isLtMsg.value = false;
-    // 防止弹出多个错误提示
-    setTimeout(() => (isLtMsg.value = true), 1000);
-    return false;
-  }
-
-  // 只有在验证通过后才增加计数器
-  uploadNumber.value++;
-  return true;
-}
-
-/** 自定义上传请求 */
-async function customRequest(options: UploadRequestOptions) {
-  try {
-    const res = await requestUpload(props, options);
-
-    // 处理上传成功后的逻辑
-    handleUploadSuccess(res, options.file as File);
-
-    options.onSuccess!(res);
-    showSuccessMessage($t('ui.upload.uploadSuccess'));
-  } catch (error: unknown) {
-    logError('upload:file:request', error);
-    options.onError!(error as never);
-    handleUploadError(error);
-  }
-}
-
-/**
- * 处理上传成功
- * @param res 上传响应结果
- * @param file 上传的文件
- */
-function handleUploadSuccess(res: UploadApiResult, file: File) {
-  // 删除临时文件
-  const index = fileList.value?.findIndex((item) => item.name === file.name);
-  if (index !== -1) {
-    fileList.value?.splice(index!, 1);
-  }
-
-  // 添加到临时上传列表
-  const fileUrl = resolveUploadUrl(res);
-  uploadList.value.push({
-    name: file.name,
-    url: fileUrl,
-    status: UploadResultStatus.SUCCESS,
-    uid: file.name + Date.now(),
+const { beforeUpload, customRequest, fileList, handleExceed, handleRemove } =
+  useUploadListState({
+    imageOnly: false,
+    logScope: 'upload:file',
+    onDelete: (file) => emit('delete', file),
+    onModelChange: emitModelChange,
+    props,
   });
 
-  // 检查是否所有文件都上传完成
-  if (uploadList.value.length >= uploadNumber.value) {
-    fileList.value?.push(...uploadList.value);
-    uploadList.value = [];
-    uploadNumber.value = 0;
-
-    // 更新值
-    const value = getValue();
-    isInnerOperate.value = true;
-    emit('update:value', value);
-    emit('update:modelValue', value);
-    emit('change', value);
+function handlePreview(file: UploadFile) {
+  emit('preview', file);
+  if (!file.url || !isSafeUploadUrl(file.url)) {
+    showErrorMessage($t('ui.upload.previewUnavailable'));
+    return;
   }
-}
-
-/**
- * 获取当前文件列表的值
- * @returns 文件 URL 列表或字符串
- */
-function getValue() {
-  const list = (fileList.value || [])
-    .filter((item) => item?.status === UploadResultStatus.SUCCESS)
-    .map((item: UploadFile) => {
-      return resolveUploadValue(item, props.resultField);
-    });
-
-  // 单个文件的情况，根据输入参数类型决定返回格式
-  if (props.maxNumber === 1) {
-    const singleValue = list.length > 0 ? list[0] : '';
-    // 如果原始值是字符串或 modelValue 是字符串，返回字符串
-    if (
-      isString(props.value) ||
-      (isUsingModelValue.value && isString(props.modelValue))
-    ) {
-      return singleValue;
-    }
-    return singleValue;
-  }
-
-  // 多文件情况，根据输入参数类型决定返回格式
-  if (isUsingModelValue.value) {
-    return Array.isArray(props.modelValue) ? list : list.join(',');
-  }
-
-  return Array.isArray(props.value) ? list : list.join(',');
+  openWindow(file.url);
 }
 </script>
 
@@ -305,44 +83,47 @@ function getValue() {
       v-model:file-list="fileList"
       :accept="getStringAccept"
       :before-upload="beforeUpload"
-      :http-request="customRequest"
       :disabled="disabled"
-      :limit="maxNumber"
-      :multiple="multiple"
       :drag="drag"
-      list-type="text"
-      :on-remove="handleRemove"
-      :on-preview="handlePreview"
+      :http-request="customRequest"
+      :limit="maxNumber === Infinity ? undefined : maxNumber"
+      :list-type="listType"
+      :multiple="multiple"
       :on-exceed="handleExceed"
+      :on-preview="handlePreview"
+      :on-remove="handleRemove"
     >
       <template v-if="drag">
         <div class="upload-drag-area">
-          <p class="upload-drag-icon">
+          <p class="upload-drag-icon" aria-hidden="true">
             <IconifyIcon icon="lucide:cloud-upload" :size="48" />
           </p>
-          <p class="upload-drag-text">点击或拖拽文件到此区域上传</p>
-          <p class="upload-drag-hint">
-            支持{{ accept.join('/') }}格式文件，不超过{{ maxSize }}MB
-          </p>
+          <p class="upload-drag-text">{{ $t('ui.upload.dragDescription') }}</p>
+          <p class="upload-drag-hint">{{ getHelpText }}</p>
         </div>
       </template>
       <template v-else>
-        <ElButton v-if="fileList && fileList.length < maxNumber" type="primary">
-          <IconifyIcon icon="lucide:cloud-upload" class="mr-1" />
+        <ElButton
+          v-if="fileList.length < maxNumber"
+          :aria-label="$t('ui.upload.upload')"
+          type="primary"
+        >
+          <IconifyIcon
+            icon="lucide:cloud-upload"
+            class="mr-1"
+            aria-hidden="true"
+          />
           {{ $t('ui.upload.upload') }}
         </ElButton>
       </template>
     </ElUpload>
-    <div
+    <p
       v-if="showDescription && !drag"
-      class="mt-2 flex flex-wrap items-center text-sm"
+      class="mt-2 text-sm text-muted-foreground"
+      aria-live="polite"
     >
-      请上传不超过
-      <span class="mx-1 font-bold text-primary">{{ maxSize }}MB</span>
-      的
-      <span class="mx-1 font-bold text-primary">{{ accept.join('/') }}</span>
-      格式文件
-    </div>
+      {{ getHelpText }}
+    </p>
   </div>
 </template>
 
@@ -350,7 +131,7 @@ function getValue() {
 .upload-drag-area {
   padding: 20px;
   text-align: center;
-  background-color: #fafafa;
+  background-color: var(--el-fill-color-lighter);
   border-radius: 8px;
   transition: border-color 0.3s;
 }
@@ -361,17 +142,17 @@ function getValue() {
 
 .upload-drag-icon {
   margin-bottom: 16px;
-  color: #d9d9d9;
+  color: var(--el-text-color-placeholder);
 }
 
 .upload-drag-text {
   margin-bottom: 8px;
   font-size: 16px;
-  color: #666;
+  color: var(--el-text-color-primary);
 }
 
 .upload-drag-hint {
   font-size: 14px;
-  color: #999;
+  color: var(--el-text-color-secondary);
 }
 </style>

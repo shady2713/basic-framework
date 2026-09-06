@@ -77,16 +77,25 @@ public class AreaUtils {
      * 获得指定区域对应的编号
      *
      * @param pathStr 区域路径，例如说：河南省/石家庄市/新华区
-     * @return 区域
+     * @return 区域；路径为空或任一级不存在时返回 {@code null}
      */
     public static Area parseArea(String pathStr) {
-        String[] paths = pathStr.split("/");
+        if (pathStr == null || pathStr.isBlank()) {
+            return null;
+        }
+        String[] paths = pathStr.split("/", -1);
         Area area = null;
         for (String path : paths) {
+            if (path.isBlank()) {
+                return null;
+            }
             if (area == null) {
                 area = findFirst(areas.values(), item -> item.getName().equals(path));
             } else {
                 area = findFirst(area.getChildren(), item -> item.getName().equals(path));
+            }
+            if (area == null) {
+                return null;
             }
         }
         return area;

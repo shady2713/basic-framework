@@ -3,6 +3,7 @@ package com.basicframework.module.infra.service.file;
 import com.basicframework.framework.common.pojo.PageParam;
 import com.basicframework.framework.common.pojo.PageResult;
 import com.basicframework.module.infra.dal.dataobject.file.FileDO;
+import com.basicframework.module.infra.enums.file.FileAccessTypeEnum;
 import com.basicframework.module.infra.service.file.dto.FilePresignedUrlDTO;
 import jakarta.validation.constraints.NotEmpty;
 import java.time.LocalDateTime;
@@ -32,18 +33,36 @@ public interface FileService {
      * @param name      文件名称，允许空
      * @param directory 目录，允许空
      * @param type      文件的 MIME 类型，允许空
-     * @return 文件路径
+     * @param principal 已认证上传主体
+     * @param accessType 文件读取策略
+     * @return 文件访问地址
      */
-    String createFile(@NotEmpty(message = "文件内容不能为空") byte[] content, String name, String directory, String type);
+    String createFile(
+            @NotEmpty(message = "文件内容不能为空") byte[] content,
+            String name,
+            String directory,
+            String type,
+            FileUploadPrincipal principal,
+            FileAccessTypeEnum accessType);
 
     /**
      * 生成文件预签名地址信息，用于上传
      *
      * @param name      文件名
      * @param directory 目录
+     * @param size      文件大小
+     * @param type      文件 MIME 类型
+     * @param principal 已认证上传主体
+     * @param accessType 文件读取策略
      * @return 预签名地址信息
      */
-    FilePresignedUrlDTO presignPutUrl(@NotEmpty(message = "文件名不能为空") String name, String directory);
+    FilePresignedUrlDTO presignPutUrl(
+            @NotEmpty(message = "文件名不能为空") String name,
+            String directory,
+            Long size,
+            String type,
+            FileUploadPrincipal principal,
+            FileAccessTypeEnum accessType);
     /**
      * 生成文件预签名地址信息，用于读取
      *
@@ -56,10 +75,11 @@ public interface FileService {
     /**
      * 创建文件
      *
-     * @param file 创建信息
-     * @return 编号
+     * @param uploadToken 一次性上传完成凭据
+     * @param principal 当前登录主体
+     * @return 校验通过后的文件访问地址
      */
-    Long createFile(FileDO file);
+    String createPresignedFile(String uploadToken, FileUploadPrincipal principal);
 
     FileDO getFile(Long id);
 
@@ -82,7 +102,8 @@ public interface FileService {
      *
      * @param configId 配置编号
      * @param path     文件路径
+     * @param principal 当前请求主体与文件管理权限
      * @return 文件内容
      */
-    byte[] getFileContent(Long configId, String path) throws Exception;
+    byte[] getFileContent(Long configId, String path, FileAccessPrincipal principal) throws Exception;
 }

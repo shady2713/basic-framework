@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "pnpm unbuild",
-    "stub": "pnpm unbuild --stub"
+    "stub": "pnpm unbuild --stub",
+    "typecheck": "tsc --noEmit"
   },
   "files": [
     "dist"
@@ -76,17 +77,16 @@
     "@tanstack/vue-store": "catalog:",
     "@vue/shared": "catalog:",
     "clsx": "catalog:",
-    "crypto-js": "catalog:",
     "dayjs": "catalog:",
     "defu": "catalog:",
     "es-toolkit": "catalog:",
     "lodash.clonedeep": "catalog:",
     "nprogress": "catalog:",
     "tailwind-merge": "catalog:",
-    "theme-colors": "catalog:"
+    "theme-colors": "catalog:",
+    "vue": "catalog:"
   },
   "devDependencies": {
-    "@types/crypto-js": "catalog:",
     "@types/lodash.clonedeep": "catalog:",
     "@types/nprogress": "catalog:"
   }

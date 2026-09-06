@@ -23,11 +23,6 @@
             <groupId>com.basicframework</groupId>
             <artifactId>basic-framework-module-system-api</artifactId>
         </dependency>
-        <dependency>
-            <groupId>com.basicframework</groupId>
-            <artifactId>basic-framework-module-infra-api</artifactId>
-        </dependency>
-
         <!-- 业务组件 -->
         <dependency>
             <groupId>com.basicframework</groupId>
@@ -49,6 +44,11 @@
         <dependency>
             <groupId>com.basicframework</groupId>
             <artifactId>basic-framework-spring-boot-starter-protection</artifactId>
+        </dependency>
+        <dependency>
+            <!-- starter-protection 中为 optional；短信验证码发送按手机号使用 @Lock4j 串行化。 -->
+            <groupId>com.baomidou</groupId>
+            <artifactId>lock4j-redisson-spring-boot-starter</artifactId>
         </dependency>
 
         <dependency>
@@ -109,7 +109,7 @@
 
     <build>
         <plugins>
-            <!-- 覆盖率棘轮门禁：2026-08-25 JaCoCo bundle line 实测 40.762%，取整 40%，只升不降 -->
+            <!-- 覆盖率棘轮门禁：短信供应商请求边界可测试化后行覆盖率 75.04%，取 75%，只升不降 -->
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
@@ -128,7 +128,7 @@
                                         <limit>
                                             <counter>LINE</counter>
                                             <value>COVEREDRATIO</value>
-                                            <minimum>0.4075</minimum>
+                                            <minimum>0.750</minimum>
                                         </limit>
                                     </limits>
                                 </rule>

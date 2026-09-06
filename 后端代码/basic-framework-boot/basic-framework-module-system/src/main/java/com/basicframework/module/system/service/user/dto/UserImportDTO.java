@@ -6,6 +6,7 @@ import com.basicframework.framework.common.validation.Username;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
+import lombok.ToString;
 
 /**
  * 用户导入参数 DTO
@@ -39,12 +40,14 @@ public class UserImportDTO {
      */
     @EmailEx
     @Size(max = 50, message = "邮箱长度不能超过 50 个字符")
+    @ToString.Exclude
     private String email;
 
     /**
      * 手机号码
      */
     @Mobile
+    @ToString.Exclude
     private String mobile;
 
     /**

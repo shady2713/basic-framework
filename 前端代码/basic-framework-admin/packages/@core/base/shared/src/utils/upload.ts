@@ -93,14 +93,22 @@ export function getFileNameFromUrl(url: null | string | undefined): string {
 /**
  * 默认图片类型
  */
-export const defaultImageAccepts = [
-  'bmp',
-  'gif',
-  'jpeg',
-  'jpg',
-  'png',
-  'svg',
-  'webp',
+export const defaultImageAccepts = ['bmp', 'gif', 'jpeg', 'jpg', 'png', 'webp'];
+
+/**
+ * 与服务端 FileTypeUtils 白名单保持一致的默认文件类型。
+ */
+export const defaultFileAccepts = [
+  ...defaultImageAccepts,
+  'pdf',
+  'doc',
+  'docx',
+  'xls',
+  'xlsx',
+  'ppt',
+  'pptx',
+  'txt',
+  'zip',
 ];
 
 /**
@@ -132,9 +140,20 @@ export function checkFileType(file: File, accepts: string[]) {
   if (!accepts || accepts.length === 0) {
     return true;
   }
-  const newTypes = accepts.join('|');
-  const reg = new RegExp(`${String.raw`\.(` + newTypes})$`, 'i');
-  return reg.test(file.name);
+  const fileName = file.name.toLowerCase();
+  const mimeType = file.type.toLowerCase();
+  return accepts.some((rawAccept) => {
+    const accept = rawAccept.trim().toLowerCase();
+    if (!accept) return false;
+    if (accept.endsWith('/*')) {
+      return mimeType.startsWith(accept.slice(0, -1));
+    }
+    if (accept.includes('/')) {
+      return mimeType === accept;
+    }
+    const extension = accept.startsWith('.') ? accept : `.${accept}`;
+    return fileName.endsWith(extension);
+  });
 }
 
 /**

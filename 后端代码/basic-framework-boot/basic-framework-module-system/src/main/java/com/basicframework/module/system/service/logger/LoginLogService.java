@@ -2,8 +2,8 @@ package com.basicframework.module.system.service.logger;
 
 import com.basicframework.framework.common.pojo.PageParam;
 import com.basicframework.framework.common.pojo.PageResult;
-import com.basicframework.module.system.api.logger.dto.LoginLogCreateReqDTO;
 import com.basicframework.module.system.dal.dataobject.logger.LoginLogDO;
+import com.basicframework.module.system.service.logger.dto.LoginLogCreateReqDTO;
 import jakarta.validation.Valid;
 import java.time.LocalDateTime;
 

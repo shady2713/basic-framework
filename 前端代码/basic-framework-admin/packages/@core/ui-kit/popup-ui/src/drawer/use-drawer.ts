@@ -23,6 +23,12 @@ const USER_DRAWER_INJECT_KEY = Symbol('VBEN_DRAWER_INJECT');
 
 const DEFAULT_DRAWER_PROPS: Partial<DrawerProps> = {};
 
+interface DrawerInjectionContext {
+  extendApi?: (api: ExtendedDrawerApi) => void;
+  options?: DrawerApiOptions;
+  reCreateDrawer?: () => Promise<void>;
+}
+
 export function setDefaultDrawerProps(props: Partial<DrawerProps>) {
   Object.assign(DEFAULT_DRAWER_PROPS, props);
 }
@@ -74,7 +80,7 @@ export function useVbenDrawer<
     return [Drawer, extendedApi as ExtendedDrawerApi] as const;
   }
 
-  const injectData = inject<any>(USER_DRAWER_INJECT_KEY, {});
+  const injectData = inject<DrawerInjectionContext>(USER_DRAWER_INJECT_KEY, {});
 
   const mergedOptions = {
     ...DEFAULT_DRAWER_PROPS,
@@ -121,7 +127,10 @@ export function useVbenDrawer<
   return [Drawer, extendedApi] as const;
 }
 
-async function checkProps(api: ExtendedDrawerApi, attrs: Record<string, any>) {
+async function checkProps(
+  api: ExtendedDrawerApi,
+  attrs: Record<string, unknown>,
+) {
   if (!attrs || Object.keys(attrs).length === 0) {
     return;
   }

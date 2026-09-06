@@ -3,7 +3,7 @@ import { dirname } from 'node:path';
 
 export async function outputJSON(
   filePath: string,
-  data: any,
+  data: unknown,
   spaces: number = 2,
 ) {
   try {

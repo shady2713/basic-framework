@@ -27,7 +27,8 @@
 docker.env
 .env
 .env.local
-**/.claude/settings.local.json
+**/.claude/
+**/http-client.private.env.json
 
 .playwright-mcp/
 

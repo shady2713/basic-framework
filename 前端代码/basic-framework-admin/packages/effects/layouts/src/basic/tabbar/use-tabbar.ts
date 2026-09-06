@@ -52,7 +52,7 @@ export function useTabbar() {
   });
 
   const { locale } = useI18n();
-  const currentTabs = ref<RouteLocationNormalizedGeneric[]>();
+  const currentTabs = ref<RouteLocationNormalizedGeneric[]>([]);
   watch(
     [
       () => tabbarStore.getTabs,
@@ -62,6 +62,7 @@ export function useTabbar() {
     ([tabs]) => {
       currentTabs.value = tabs.map((item) => wrapperTabLocale(item));
     },
+    { immediate: true },
   );
 
   /**
@@ -76,7 +77,11 @@ export function useTabbar() {
 
   // 点击tab,跳转路由
   const handleClick = (key: string) => {
-    const { fullPath, path } = tabbarStore.getTabByKey(key);
+    const tab = tabbarStore.getTabByKey(key);
+    if (!tab) {
+      return;
+    }
+    const { fullPath, path } = tab;
     router.push(fullPath || path);
   };
 
@@ -150,7 +155,7 @@ export function useTabbar() {
       {
         handler: async () => {
           if (!contentIsMaximize.value) {
-            await router.push(tab.fullPath);
+            await router.push(tab.fullPath || tab.path);
           }
           toggleMaximize();
         },

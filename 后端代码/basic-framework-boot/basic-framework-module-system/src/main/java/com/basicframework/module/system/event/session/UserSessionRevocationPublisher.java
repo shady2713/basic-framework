@@ -2,20 +2,20 @@ package com.basicframework.module.system.event.session;
 
 import com.basicframework.framework.common.enums.UserTypeEnum;
 import com.basicframework.module.system.enums.session.UserSessionRevocationReasonEnum;
-import jakarta.annotation.Resource;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Set;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
 /** 发布用户会话撤销事件，隔离业务服务与会话服务。 */
 @Component
+@RequiredArgsConstructor
 public class UserSessionRevocationPublisher {
 
-    @Resource
-    private ApplicationEventPublisher eventPublisher;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * 撤销一个管理端用户的全部会话。

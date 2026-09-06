@@ -5,7 +5,7 @@ import utc from 'dayjs/plugin/utc';
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-type FormatDate = Date | dayjs.Dayjs | number | string;
+type FormatDate = Date | dayjs.Dayjs | null | number | string;
 
 type Format =
   | 'HH'
@@ -21,7 +21,7 @@ type Format =
 
 export function formatDate(time?: FormatDate, format: Format = 'YYYY-MM-DD') {
   // 日期不存在，则返回空
-  if (!time) {
+  if (time === null || time === undefined || time === '') {
     return '';
   }
   try {
@@ -30,8 +30,8 @@ export function formatDate(time?: FormatDate, format: Format = 'YYYY-MM-DD') {
       throw new Error('Invalid date');
     }
     return date.tz().format(format);
-  } catch (error) {
-    console.error(`Error formatting date: ${error}`);
+  } catch {
+    console.warn('[date] Unable to format an invalid date value');
     return String(time ?? '');
   }
 }
@@ -40,21 +40,31 @@ export function formatDateTime(time?: FormatDate) {
   return formatDate(time, 'YYYY-MM-DD HH:mm:ss');
 }
 
-export function formatDate2(date: Date, format?: string): string {
-  // 日期不存在，则返回空
+export function formatDate2(
+  date: Date | null | undefined,
+  format?: string,
+): string {
   if (!date) {
     return '';
   }
-  // 日期存在，则进行格式化
-  return date ? dayjs(date).format(format ?? 'YYYY-MM-DD HH:mm:ss') : '';
+  return dayjs(date).format(format ?? 'YYYY-MM-DD HH:mm:ss');
 }
 
-export function isDate(value: any): value is Date {
+export function isDate(value: unknown): value is Date {
   return value instanceof Date;
 }
 
-export function isDayjsObject(value: any): value is dayjs.Dayjs {
+export function isDayjsObject(value: unknown): value is dayjs.Dayjs {
   return dayjs.isDayjs(value);
+}
+
+function isFormatDate(value: unknown): value is FormatDate {
+  return (
+    typeof value === 'number' ||
+    typeof value === 'string' ||
+    isDate(value) ||
+    isDayjsObject(value)
+  );
 }
 
 /**
@@ -64,8 +74,12 @@ export function isDayjsObject(value: any): value is dayjs.Dayjs {
  * @param _column
  * @param cellValue 字段值
  */
-export function dateFormatter(_row: any, _column: any, cellValue: any): string {
-  return cellValue ? formatDate(cellValue)?.toString() || '' : '';
+export function dateFormatter(
+  _row: unknown,
+  _column: unknown,
+  cellValue: unknown,
+): string {
+  return isFormatDate(cellValue) ? formatDate(cellValue) : '';
 }
 
 /**

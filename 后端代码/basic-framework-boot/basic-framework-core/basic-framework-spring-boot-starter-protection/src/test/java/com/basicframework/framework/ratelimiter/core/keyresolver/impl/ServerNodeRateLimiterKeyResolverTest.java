@@ -3,6 +3,8 @@ package com.basicframework.framework.ratelimiter.core.keyresolver.impl;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import cn.hutool.crypto.SecureUtil;
@@ -21,7 +23,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 /**
  * Server 节点级限流 Key 解析器单元测试
  *
- * 契约：key = md5(方法签名 + 参数拼接 + serverNode)，serverNode = {@code address@pid}。
+ * 契约：key = md5(方法签名 + serverNode)，serverNode = {@code address@pid}，请求参数不参与限流桶。
  * 主机信息与进程号取自 {@link SystemUtil} 静态上下文，用 mockStatic 隔离。
  */
 @ExtendWith(MockitoExtension.class)
@@ -50,7 +52,7 @@ class ServerNodeRateLimiterKeyResolverTest {
     }
 
     @Test
-    void resolver_appendsHostAddressAndPidToKey() {
+    void resolver_usesOnlyHostAddressAndPid() {
         HostInfo hostInfo = mock(HostInfo.class);
         when(hostInfo.getAddress()).thenReturn("10.1.2.3");
         utils = mockStatic(SystemUtil.class);
@@ -58,13 +60,11 @@ class ServerNodeRateLimiterKeyResolverTest {
         utils.when(SystemUtil::getCurrentPID).thenReturn(42L);
         when(joinPoint.getSignature()).thenReturn(signature);
         when(signature.toString()).thenReturn(METHOD_SIGNATURE);
-        when(joinPoint.getArgs()).thenReturn(new Object[] {"a"});
 
         String serverNode = "10.1.2.3@42";
         String key = resolver.resolver(joinPoint, rateLimiter);
 
-        assertThat(key)
-                .isEqualTo(SecureUtil.md5(METHOD_SIGNATURE + "a" + serverNode))
-                .hasSize(32);
+        assertThat(key).isEqualTo(SecureUtil.md5(METHOD_SIGNATURE + serverNode)).hasSize(32);
+        verify(joinPoint, never()).getArgs();
     }
 }

@@ -2,11 +2,13 @@ package com.basicframework.server;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
+import com.tngtech.archunit.base.DescribedPredicate;
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
+import java.util.Set;
 
 /**
  * 模块边界架构门禁
@@ -16,11 +18,35 @@ import com.tngtech.archunit.lang.ArchRule;
  * importOptions 只导入 main classes，排除测试类自身。
  *
  * 规则 A/B/C/D 均为硬规则：当前零违例，任何新增违例直接让构建变红。
- * 规则 A/B/C 豁免业务模块的 api 包（公开的跨模块契约，调用方只许依赖 api
- * 契约，不得触碰实现）；convert 包引用 VO 属本职（VO 与 DO 互转），规则 D 对其豁免。
+ * 规则 A/B/C 只豁免薄 api 模块明确发布的契约，调用方不得借包名触碰实现；
+ * convert 包引用 VO 属本职（VO 与 DO 互转），规则 D 对其豁免。
  */
 @AnalyzeClasses(packages = "com.basicframework..", importOptions = ImportOption.DoNotIncludeTests.class)
 class ModuleBoundaryArchitectureTest {
+
+    private static final Set<String> PUBLISHED_API_CONTRACT_NAMES = Set.of(
+            "com.basicframework.module.infra.api.logger.ApiAccessLogCommonApi",
+            "com.basicframework.module.infra.api.logger.ApiErrorLogCommonApi",
+            "com.basicframework.module.infra.api.logger.dto.ApiAccessLogCreateReqDTO",
+            "com.basicframework.module.infra.api.logger.dto.ApiErrorLogCreateReqDTO",
+            "com.basicframework.module.system.api.auth.MfaCommonApi",
+            "com.basicframework.module.system.api.dict.DictDataCommonApi",
+            "com.basicframework.module.system.api.dict.dto.DictDataRespDTO",
+            "com.basicframework.module.system.api.logger.OperateLogCommonApi",
+            "com.basicframework.module.system.api.logger.dto.OperateLogCreateReqDTO",
+            "com.basicframework.module.system.api.permission.MenuReferenceCommonApi",
+            "com.basicframework.module.system.api.permission.PermissionCommonApi",
+            "com.basicframework.module.system.api.permission.dto.DeptDataPermissionRespDTO",
+            "com.basicframework.module.system.api.session.UserSessionCommonApi",
+            "com.basicframework.module.system.api.session.dto.UserSessionCheckRespDTO");
+
+    private static final DescribedPredicate<JavaClass> PUBLISHED_API_CONTRACT =
+            new DescribedPredicate<>("published thin-module API contract") {
+                @Override
+                public boolean test(JavaClass javaClass) {
+                    return PUBLISHED_API_CONTRACT_NAMES.contains(javaClass.getName());
+                }
+            };
 
     /**
      * 规则 A：module-system 不得依赖 module-infra 的内部实现，只允许使用公开 api 契约。
@@ -31,7 +57,7 @@ class ModuleBoundaryArchitectureTest {
             .resideInAPackage("com.basicframework.module.system..")
             .should()
             .dependOnClassesThat(JavaClass.Predicates.resideInAPackage("com.basicframework.module.infra..")
-                    .and(JavaClass.Predicates.resideOutsideOfPackage("com.basicframework.module.infra..api..")));
+                    .and(DescribedPredicate.not(PUBLISHED_API_CONTRACT)));
 
     /**
      * 规则 B：module-infra 不得依赖 module-system 的内部实现，只允许使用公开 api 契约。
@@ -42,14 +68,13 @@ class ModuleBoundaryArchitectureTest {
             .resideInAPackage("com.basicframework.module.infra..")
             .should()
             .dependOnClassesThat(JavaClass.Predicates.resideInAPackage("com.basicframework.module.system..")
-                    .and(JavaClass.Predicates.resideOutsideOfPackage("com.basicframework.module.system..api..")));
+                    .and(DescribedPredicate.not(PUBLISHED_API_CONTRACT)));
 
     /**
      * 规则 C：framework（core starters）不得依赖任何业务模块。
      * starter 是能力接缝，只允许被业务模块消费，反向依赖会破坏分层。
-     * 豁免：业务模块的 api 包是公开的跨模块契约（CommonApi + DTO，由
-     * basic-framework-module-xxx-api 薄模块承载），framework 只许依赖
-     * api 契约，不得触碰业务模块的内部实现。
+     * 豁免：仅允许 basic-framework-module-xxx-api 薄模块明确发布的
+     * CommonApi + DTO，包名本身不构成豁免。
      */
     @ArchTest
     static final ArchRule framework_must_not_depend_on_modules = noClasses()
@@ -57,7 +82,7 @@ class ModuleBoundaryArchitectureTest {
             .resideInAPackage("com.basicframework.framework..")
             .should()
             .dependOnClassesThat(JavaClass.Predicates.resideInAPackage("com.basicframework.module..")
-                    .and(JavaClass.Predicates.resideOutsideOfPackage("com.basicframework.module..api..")));
+                    .and(DescribedPredicate.not(PUBLISHED_API_CONTRACT)));
 
     /**
      * 规则 D：service/dal 层不得依赖 controller 包（含 vo）。

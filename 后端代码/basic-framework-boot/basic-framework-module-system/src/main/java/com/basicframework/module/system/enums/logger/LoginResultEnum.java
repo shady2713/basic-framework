@@ -15,6 +15,7 @@ public enum LoginResultEnum {
     CAPTCHA_NOT_FOUND(30), // 图片验证码不存在
     CAPTCHA_CODE_ERROR(31), // 图片验证码不正确
     MFA_CODE_ERROR(40), // MFA 验证失败
+    ACCOUNT_LOCKED(50), // 账号登录失败次数过多，已临时锁定
     ;
 
     /**

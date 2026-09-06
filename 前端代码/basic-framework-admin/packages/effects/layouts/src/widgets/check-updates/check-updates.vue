@@ -6,9 +6,7 @@ import { $t } from '@vben/locales';
 import { useVbenModal } from '@vben-core/popup-ui';
 
 interface Props {
-  // 轮询时间，分钟
   checkUpdatesInterval?: number;
-  // 检查更新的地址
   checkUpdateUrl?: string;
 }
 
@@ -19,23 +17,29 @@ const props = withDefaults(defineProps<Props>(), {
   checkUpdateUrl: import.meta.env.BASE_URL || '/',
 });
 
+let activeRequest: AbortController | undefined;
 let isCheckingUpdates = false;
+let isMounted = false;
+let timer: ReturnType<typeof setInterval> | undefined;
 const currentVersionTag = ref('');
 const lastVersionTag = ref('');
-const timer = ref<ReturnType<typeof setInterval>>();
 
 const [UpdateNoticeModal, modalApi] = useVbenModal({
   closable: false,
   closeOnPressEscape: false,
   closeOnClickModal: false,
+  onCancel() {
+    lastVersionTag.value = currentVersionTag.value;
+    currentVersionTag.value = '';
+    start();
+  },
   onConfirm() {
     lastVersionTag.value = currentVersionTag.value;
-    window.location.reload();
-    // handleSubmitLogout();
+    location.reload();
   },
 });
 
-async function getVersionTag() {
+async function getVersionTag(signal: AbortSignal) {
   try {
     if (
       location.hostname === 'localhost' ||
@@ -47,76 +51,108 @@ async function getVersionTag() {
       cache: 'no-cache',
       method: 'HEAD',
       redirect: 'manual',
+      signal,
     });
 
     return (
       response.headers.get('etag') || response.headers.get('last-modified')
     );
-  } catch {
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      return null;
+    }
     console.error('Failed to fetch version tag');
     return null;
   }
 }
 
-async function checkForUpdates() {
-  const versionTag = await getVersionTag();
+async function checkForUpdates(signal: AbortSignal) {
+  const versionTag = await getVersionTag(signal);
   if (!versionTag) {
     return;
   }
 
-  // 首次运行时不提示更新
   if (!lastVersionTag.value) {
     lastVersionTag.value = versionTag;
     return;
   }
 
-  if (lastVersionTag.value !== versionTag && versionTag) {
-    clearInterval(timer.value);
+  if (lastVersionTag.value !== versionTag) {
+    stop();
     handleNotice(versionTag);
   }
 }
+
 function handleNotice(versionTag: string) {
   currentVersionTag.value = versionTag;
   modalApi.open();
 }
 
 function start() {
-  if (props.checkUpdatesInterval <= 0) {
+  stop();
+  const interval = props.checkUpdatesInterval;
+  if (
+    !isMounted ||
+    document.hidden ||
+    !Number.isFinite(interval) ||
+    interval <= 0
+  ) {
     return;
   }
 
-  // 每 checkUpdatesInterval(默认值为1) 分钟检查一次
-  timer.value = setInterval(
-    checkForUpdates,
-    props.checkUpdatesInterval * 60 * 1000,
-  );
+  timer = setInterval(runCheck, interval * 60 * 1000);
+}
+
+async function runCheck() {
+  if (
+    !isMounted ||
+    document.hidden ||
+    isCheckingUpdates ||
+    currentVersionTag.value
+  ) {
+    return;
+  }
+
+  isCheckingUpdates = true;
+  const request = new AbortController();
+  activeRequest = request;
+  try {
+    await checkForUpdates(request.signal);
+  } finally {
+    if (activeRequest === request) {
+      activeRequest = undefined;
+    }
+    isCheckingUpdates = false;
+  }
 }
 
 function handleVisibilitychange() {
   if (document.hidden) {
     stop();
-  } else {
-    if (!isCheckingUpdates) {
-      isCheckingUpdates = true;
-      checkForUpdates().finally(() => {
-        isCheckingUpdates = false;
-        start();
-      });
-    }
+    activeRequest?.abort();
+    return;
   }
+
+  runCheck().finally(start);
 }
 
 function stop() {
-  clearInterval(timer.value);
+  if (timer) {
+    clearInterval(timer);
+    timer = undefined;
+  }
 }
 
 onMounted(() => {
+  isMounted = true;
   start();
   document.addEventListener('visibilitychange', handleVisibilitychange);
 });
 
 onUnmounted(() => {
+  isMounted = false;
   stop();
+  activeRequest?.abort();
   document.removeEventListener('visibilitychange', handleVisibilitychange);
 });
 </script>

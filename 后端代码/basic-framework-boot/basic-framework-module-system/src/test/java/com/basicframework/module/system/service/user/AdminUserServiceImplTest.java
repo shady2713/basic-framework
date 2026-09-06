@@ -1,22 +1,29 @@
 package com.basicframework.module.system.service.user;
 
 import static com.basicframework.module.system.enums.ErrorCodeConstants.USER_IMPORT_LIST_IS_EMPTY;
+import static com.basicframework.module.system.enums.ErrorCodeConstants.USER_MOBILE_EXISTS;
 import static com.basicframework.module.system.enums.session.UserSessionRevocationReasonEnum.PASSWORD_CHANGED;
 import static com.basicframework.module.system.enums.session.UserSessionRevocationReasonEnum.USER_DISABLED;
 import static com.basicframework.module.system.enums.session.UserSessionRevocationReasonEnum.USER_INFO_CHANGED;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.basicframework.framework.common.enums.CommonStatusEnum;
 import com.basicframework.framework.common.exception.ServiceException;
+import com.basicframework.framework.common.pojo.PageParam;
+import com.basicframework.framework.common.pojo.PageResult;
 import com.basicframework.module.system.dal.dataobject.user.AdminUserDO;
 import com.basicframework.module.system.dal.mysql.dept.UserPostMapper;
 import com.basicframework.module.system.dal.mysql.user.AdminUserMapper;
+import com.basicframework.module.system.dal.mysql.user.AdminUserQuery;
 import com.basicframework.module.system.event.session.UserSessionRevocationPublisher;
 import com.basicframework.module.system.service.dept.DeptService;
 import com.basicframework.module.system.service.dept.PostService;
@@ -24,6 +31,7 @@ import com.basicframework.module.system.service.permission.PermissionService;
 import com.basicframework.module.system.service.user.dto.UserImportDTO;
 import com.basicframework.module.system.service.user.dto.UserImportResultDTO;
 import com.mzt.logapi.context.LogRecordContext;
+import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -71,6 +79,9 @@ class AdminUserServiceImplTest {
     private PasswordEncoder passwordEncoder;
 
     @Mock
+    private PasswordPolicy passwordPolicy;
+
+    @Mock
     private UserSessionRevocationPublisher sessionRevocationPublisher;
 
     @Mock
@@ -84,6 +95,47 @@ class AdminUserServiceImplTest {
 
     @Captor
     private ArgumentCaptor<String> rawPasswordCaptor;
+
+    @Test
+    void getUserByMobile_normalizesInputBeforeLookup() {
+        AdminUserDO user = new AdminUserDO().setId(1L).setMobile("13812345678");
+        when(userMapper.selectByMobile("13812345678")).thenReturn(user);
+
+        AdminUserDO result = userService.getUserByMobile(" 13812345678 ");
+
+        assertThat(result).isSameAs(user);
+        verify(userMapper).selectByMobile("13812345678");
+    }
+
+    @Test
+    void createUser_normalizesIdentityFieldsAndRunsPasswordPolicy() {
+        AdminUserDO user = new AdminUserDO()
+                .setUsername("  Alice_01  ")
+                .setNickname("  Alice😀  ")
+                .setMobile(" 13812345678 ")
+                .setEmail("Alice@Example.COM ")
+                .setPassword("violet river orbits quietly!")
+                .setPostIds(Set.of());
+        when(passwordEncoder.encode("violet river orbits quietly!")).thenReturn("encoded-password");
+        LogRecordContext.putEmptySpan();
+
+        try {
+            userService.createUser(user);
+
+            verify(passwordPolicy).validate("violet river orbits quietly!", "alice_01");
+            verify(userMapper).insert(userCaptor.capture());
+            assertThat(userCaptor.getValue())
+                    .extracting(
+                            AdminUserDO::getUsername,
+                            AdminUserDO::getNickname,
+                            AdminUserDO::getMobile,
+                            AdminUserDO::getEmail,
+                            AdminUserDO::getPassword)
+                    .containsExactly("alice_01", "Alice😀", "13812345678", "Alice@example.com", "encoded-password");
+        } finally {
+            LogRecordContext.clear();
+        }
+    }
 
     @Test
     void deleteUser_clearsDepartmentLeaderBeforeDeletingUser() {
@@ -174,7 +226,11 @@ class AdminUserServiceImplTest {
 
     @Test
     void updateUserPassword_selfChange_revokesAllSessions() {
-        AdminUserDO user = new AdminUserDO().setId(1L).setNickname("管理员").setPassword("encoded-old");
+        AdminUserDO user = new AdminUserDO()
+                .setId(1L)
+                .setUsername("admin")
+                .setNickname("管理员")
+                .setPassword("encoded-old");
         when(userMapper.selectById(1L)).thenReturn(user);
         when(passwordEncoder.matches("old-password", "encoded-old")).thenReturn(true);
         when(passwordEncoder.encode("new-password")).thenReturn("encoded-new");
@@ -183,6 +239,7 @@ class AdminUserServiceImplTest {
         try {
             userService.updateUserPassword(1L, "old-password", "new-password");
 
+            verify(passwordPolicy).validate("new-password", "admin");
             verify(userMapper).updateById(userCaptor.capture());
             assertThat(userCaptor.getValue())
                     .extracting(AdminUserDO::getId, AdminUserDO::getPassword)
@@ -196,7 +253,7 @@ class AdminUserServiceImplTest {
 
     @Test
     void updateUserPassword_adminReset_revokesAllSessions() {
-        AdminUserDO user = new AdminUserDO().setId(1L).setNickname("管理员");
+        AdminUserDO user = new AdminUserDO().setId(1L).setUsername("admin").setNickname("管理员");
         when(userMapper.selectById(1L)).thenReturn(user);
         when(passwordEncoder.encode("new-password")).thenReturn("encoded-new");
         LogRecordContext.putEmptySpan();
@@ -204,6 +261,7 @@ class AdminUserServiceImplTest {
         try {
             userService.updateUserPassword(1L, "new-password");
 
+            verify(passwordPolicy).validate("new-password", "admin");
             verify(userMapper).updateById(userCaptor.capture());
             assertThat(userCaptor.getValue())
                     .extracting(AdminUserDO::getId, AdminUserDO::getPassword)
@@ -213,6 +271,28 @@ class AdminUserServiceImplTest {
         } finally {
             LogRecordContext.clear();
         }
+    }
+
+    @Test
+    void upgradePasswordEncodingIfNeeded_currentStrengthDoesNotWrite() {
+        when(passwordEncoder.upgradeEncoding("current-hash")).thenReturn(false);
+
+        userService.upgradePasswordEncodingIfNeeded(1L, "verified-password", "current-hash");
+
+        verify(passwordEncoder).upgradeEncoding("current-hash");
+        verify(passwordEncoder, never()).encode(anyString());
+        verifyNoInteractions(sessionRevocationPublisher);
+    }
+
+    @Test
+    void upgradePasswordEncodingIfNeeded_oldStrengthUsesCompareAndSetWithoutRevokingSessions() {
+        when(passwordEncoder.upgradeEncoding("old-hash")).thenReturn(true);
+        when(passwordEncoder.encode("verified-password")).thenReturn("upgraded-hash");
+
+        userService.upgradePasswordEncodingIfNeeded(1L, "verified-password", "old-hash");
+
+        verify(userMapper).updatePasswordIfUnchanged(1L, "old-hash", "upgraded-hash");
+        verifyNoInteractions(sessionRevocationPublisher);
     }
 
     // ========== 新增导入：禁用状态 + 随机密码 ==========
@@ -294,6 +374,44 @@ class AdminUserServiceImplTest {
         assertThat(staticFields).allSatisfy(field -> assertThat(field.getName()).doesNotContain("PASSWORD_KEY"));
     }
 
+    @Test
+    @SuppressWarnings("unchecked")
+    void importUserList_validationFailure_returnsDeclaredConstraintMessage() {
+        UserImportDTO importUser = buildImportUser(" ");
+        ConstraintViolation<Object> violation = mock(ConstraintViolation.class);
+        when(violation.getMessage()).thenReturn("用户账号不能为空");
+        when(validator.validate(any(), any(Class[].class))).thenReturn(Set.of(violation));
+
+        UserImportResultDTO result = userService.importUserList(List.of(importUser), false);
+
+        assertThat(result.getFailureUsernames()).containsEntry("第 1 行", "用户账号不能为空");
+        verify(userMapper, never()).insert(any(AdminUserDO.class));
+    }
+
+    @Test
+    void importUserList_businessFailure_returnsExplicitPublicMessage() {
+        UserImportDTO importUser = buildImportUser("zhangsan").setMobile("13812345678");
+        when(userMapper.selectByMobile("13812345678"))
+                .thenReturn(new AdminUserDO().setId(99L).setMobile("13812345678"));
+
+        UserImportResultDTO result = userService.importUserList(List.of(importUser), false);
+
+        assertThat(result.getFailureUsernames()).containsEntry("zhangsan", USER_MOBILE_EXISTS.getMsg());
+        verify(userMapper, never()).insert(any(AdminUserDO.class));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void firstConstraintViolationMessage_blankDeclaredMessage_usesStableFallback() {
+        ConstraintViolation<Object> violation = mock(ConstraintViolation.class);
+        when(violation.getMessage()).thenReturn(" ");
+
+        String message = AdminUserServiceImpl.firstConstraintViolationMessage(
+                new jakarta.validation.ConstraintViolationException(Set.of(violation)));
+
+        assertThat(message).isEqualTo("用户信息校验失败");
+    }
+
     // ========== 更新已存在用户：不触碰密码与状态 ==========
 
     @Test
@@ -326,5 +444,35 @@ class AdminUserServiceImplTest {
 
     private UserImportDTO buildImportUser(String username) {
         return new UserImportDTO().setUsername(username).setNickname("昵称" + username);
+    }
+
+    // ========== 用户分页：部门条件走缓存 ==========
+
+    @Test
+    void getUserPage_withDeptId_usesCachedChildDeptIdsIncludingSelf() {
+        when(deptService.getChildDeptIdListFromCache(10L)).thenReturn(Set.of(11L, 12L));
+        when(userMapper.selectPage(any(PageParam.class), any(AdminUserQuery.class)))
+                .thenReturn(PageResult.empty());
+
+        userService.getUserPage(new PageParam(), new AdminUserQuery(null, null, null, null, null, null), 10L, null);
+
+        verify(deptService).getChildDeptIdListFromCache(10L);
+        verify(deptService, never()).getChildDeptList(any(Long.class));
+        ArgumentCaptor<AdminUserQuery> queryCaptor = ArgumentCaptor.forClass(AdminUserQuery.class);
+        verify(userMapper).selectPage(any(), queryCaptor.capture());
+        assertThat(queryCaptor.getValue().getDeptIds()).containsExactlyInAnyOrder(10L, 11L, 12L);
+    }
+
+    @Test
+    void getUserPage_withoutDeptId_skipsDeptLookup() {
+        when(userMapper.selectPage(any(PageParam.class), any(AdminUserQuery.class)))
+                .thenReturn(PageResult.empty());
+
+        userService.getUserPage(new PageParam(), new AdminUserQuery(null, null, null, null, null, null), null, null);
+
+        verify(deptService, never()).getChildDeptIdListFromCache(any());
+        ArgumentCaptor<AdminUserQuery> queryCaptor = ArgumentCaptor.forClass(AdminUserQuery.class);
+        verify(userMapper).selectPage(any(), queryCaptor.capture());
+        assertThat(queryCaptor.getValue().getDeptIds()).isEmpty();
     }
 }

@@ -11,6 +11,7 @@ import {
   importUser,
   importUserTemplate,
   resetUserPassword,
+  unlockUserLogin,
   updateUser,
   updateUserStatus,
 } from './index';
@@ -59,6 +60,7 @@ describe('system user API contracts', () => {
     await importUser(file, true);
     await resetUserPassword(7, 'new-password');
     await updateUserStatus(7, 1);
+    await unlockUserLogin(7);
     await getSimpleUserList();
 
     expect(requestClient.get.mock.calls).toEqual([
@@ -74,6 +76,7 @@ describe('system user API contracts', () => {
       ['/system/user/update', user],
       ['/system/user/update-password', { id: 7, password: 'new-password' }],
       ['/system/user/update-status', { id: 7, status: 1 }],
+      ['/system/user/unlock-login?id=7'],
     ]);
     expect(requestClient.delete.mock.calls).toEqual([
       ['/system/user/delete?id=7'],

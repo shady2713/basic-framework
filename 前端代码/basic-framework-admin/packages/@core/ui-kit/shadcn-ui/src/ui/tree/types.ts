@@ -1,7 +1,8 @@
 import type { Arrayable } from '@vueuse/core';
 import type { FlattenedItem } from 'reka-ui';
 
-import type { Recordable } from '@vben-core/typings';
+export type TreeKey = number | string;
+export type TreeNode = Record<string, unknown>;
 
 export interface TreeProps {
   /** 单选时允许取消已有选项 */
@@ -15,17 +16,17 @@ export interface TreeProps {
   /** 子级字段名 */
   childrenField?: string;
   /** 默认展开的键 */
-  defaultExpandedKeys?: Array<number | string>;
+  defaultExpandedKeys?: TreeKey[];
   /** 默认展开的级别（优先级高于defaultExpandedKeys） */
   defaultExpandedLevel?: number;
   /** 默认值 */
-  defaultValue?: Arrayable<number | string>;
+  defaultValue?: Arrayable<TreeKey>;
   /** 禁用 */
   disabled?: boolean;
   /** 禁用字段名 */
   disabledField?: string;
   /** 自定义节点类名 */
-  getNodeClass?: (item: FlattenedItem<Recordable<any>>) => string;
+  getNodeClass?: (item: FlattenedItem<TreeNode>) => string;
   iconField?: string;
   /** label字段 */
   labelField?: string;
@@ -36,7 +37,7 @@ export interface TreeProps {
   /** 启用展开收缩动画 */
   transition?: boolean;
   /** 树数据 */
-  treeData: Recordable<any>[];
+  treeData: TreeNode[];
   /** 值字段 */
   valueField?: string;
 }

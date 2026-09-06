@@ -1,31 +1,67 @@
-export function resetSize(vm: any) {
-  const EmployeeWindow = window as any;
+import type { CaptchaPoint } from '@vben/types';
+
+interface ElementSize {
+  height: string;
+  width: string;
+}
+
+function resolveSize(value: string, parentSize: number): string {
+  if (!value.endsWith('%')) return value;
+  const percentage = Number.parseFloat(value);
+  return Number.isFinite(percentage)
+    ? `${(percentage / 100) * parentSize}px`
+    : '0px';
+}
+
+export function resetSize(
+  rootElement: HTMLElement | null,
+  barSize: ElementSize,
+  imgSize: ElementSize,
+) {
   const parentWidth =
-    vm.$el.parentNode.offsetWidth || EmployeeWindow.offsetWidth;
+    rootElement?.parentElement?.offsetWidth || window.innerWidth;
   const parentHeight =
-    vm.$el.parentNode.offsetHeight || EmployeeWindow.offsetHeight;
-  const img_width = vm.imgSize.width.includes('%')
-    ? `${(Number.parseInt(vm.imgSize.width) / 100) * parentWidth}px`
-    : vm.imgSize.width;
-
-  const img_height = vm.imgSize.height.includes('%')
-    ? `${(Number.parseInt(vm.imgSize.height) / 100) * parentHeight}px`
-    : vm.imgSize.height;
-
-  const bar_width = vm.barSize.width.includes('%')
-    ? `${(Number.parseInt(vm.barSize.width) / 100) * parentWidth}px`
-    : vm.barSize.width;
-
-  const bar_height = vm.barSize.height.includes('%')
-    ? `${(Number.parseInt(vm.barSize.height) / 100) * parentHeight}px`
-    : vm.barSize.height;
+    rootElement?.parentElement?.offsetHeight || window.innerHeight;
 
   return {
-    barHeight: bar_height,
-    barWidth: bar_width,
-    imgHeight: img_height,
-    imgWidth: img_width,
+    barHeight: resolveSize(barSize.height, parentHeight),
+    barWidth: resolveSize(barSize.width, parentWidth),
+    imgHeight: resolveSize(imgSize.height, parentHeight),
+    imgWidth: resolveSize(imgSize.width, parentWidth),
   };
+}
+
+export function scaleCaptchaPoints(
+  points: CaptchaPoint[],
+  imgSize: Pick<ReturnType<typeof resetSize>, 'imgHeight' | 'imgWidth'>,
+): CaptchaPoint[] | undefined {
+  const width = Number.parseFloat(imgSize.imgWidth);
+  const height = Number.parseFloat(imgSize.imgHeight);
+  if (
+    !Number.isFinite(width) ||
+    !Number.isFinite(height) ||
+    width <= 0 ||
+    height <= 0
+  ) {
+    return undefined;
+  }
+  if (
+    points.some(
+      ({ x, y }) =>
+        !Number.isFinite(x) ||
+        !Number.isFinite(y) ||
+        x < 0 ||
+        y < 0 ||
+        x > width ||
+        y > height,
+    )
+  ) {
+    return undefined;
+  }
+  return points.map(({ x, y }) => ({
+    x: Math.round((310 * x) / width),
+    y: Math.round((155 * y) / height),
+  }));
 }
 
 export const _code_chars = [

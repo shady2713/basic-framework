@@ -5,9 +5,11 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
+import lombok.ToString;
 
 @Schema(description = "管理后台 - TOTP 验证 Request VO")
 @Data
+@ToString(exclude = {"mfaToken", "code"})
 public class AuthMfaTotpVerifyReqVO {
 
     @NotBlank(message = "MFA 挑战令牌不能为空")

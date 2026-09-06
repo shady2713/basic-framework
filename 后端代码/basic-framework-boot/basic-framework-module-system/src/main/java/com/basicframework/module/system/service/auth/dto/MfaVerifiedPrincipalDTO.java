@@ -5,9 +5,11 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 
 /** MFA 验证后的登录主体。 */
 @Data
+@ToString(exclude = {"recoveryCodes"})
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor

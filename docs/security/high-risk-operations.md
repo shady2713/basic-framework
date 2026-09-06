@@ -21,7 +21,7 @@ POST/PUT/DELETE 就自动升级，仍由专用权限、参数校验、操作确�
 
 | 风险边界 | Controller | 受保护方法 |
 | --- | --- | --- |
-| 账号创建、认证标识变更、禁用、重置、删除、批量导入和敏感导出 | `UserController` | `createUser`、`updateUser`、`deleteUser`、`deleteUserList`、`updateUserPassword`、`updateUserStatus`、`exportUserList`、`importExcel` |
+| 账号创建、认证标识变更、禁用、重置、解除登录锁定、删除、批量导入和敏感导出 | `UserController` | `createUser`、`updateUser`、`deleteUser`、`deleteUserList`、`updateUserPassword`、`updateUserStatus`、`unlockLogin`、`exportUserList`、`importExcel` |
 | 本人联系方式/密码与 MFA 因子管理 | `UserProfileController` | `updateUserProfile`、`updateUserProfilePassword`、`startManagedTotpEnrollment`、`finishManagedTotpEnrollment`、`startManagedWebAuthnEnrollment`、`finishManagedWebAuthnEnrollment`、`removeMfaFactor`、`resetMfaRecoveryCodes` |
 | 角色、菜单权限和数据范围分配 | `PermissionController` | `assignRoleMenu`、`assignRoleDataScope`、`assignUserRole` |
 | 权限资源定义 | `MenuController` | `createMenu`、`updateMenu`、`deleteMenu`、`deleteMenuList` |
@@ -35,6 +35,10 @@ POST/PUT/DELETE 就自动升级，仍由专用权限、参数校验、操作确�
 `UserProfileController#updateUserProfile` 同时承载昵称、头像、邮箱和手机号；手机号可
 参与短信登录，因此当前按整个命令保护，避免仅靠客户端字段拆分形成旁路。
 
+权限分配的 Controller 权限与 MFA 只证明请求经过高风险入口。`PermissionService`
+还必须接收当前操作者编号；凡授予、撤销或修改 `super_admin` 角色，操作者本身必须
+持有启用中的 `super_admin`。后台任务和集成调用也不得使用目标用户编号冒充操作者。
+
 ## 不使用 step-up 的管理命令
 
 | Controller 范围 | 结论与理由 |
@@ -43,9 +47,7 @@ POST/PUT/DELETE 就自动升级，仍由专用权限、参数校验、操作确�
 | `DeptController`、`PostController`、`DictTypeController`、`DictDataController` | 组织与字典主数据属于普通管理 CRUD，使用专用权限、约束和删除矩阵，不按 HTTP 动词强制 MFA。 |
 | `NoticeController`、`NotifyTemplateController`、`NotifyMessageController`、`SmsTemplateController` | 内容与消息操作使用专用权限和审计；渠道凭证由 `SmsChannelController` 单独升级保护。 |
 | `UserProfileController` 的首次 MFA 注册 | 普通用户尚无第二因子，入口使用当前密码重新认证和服务端一次性 ceremony；注册后的管理命令才要求 step-up。 |
-| `CodegenController` | 只维护生成器元数据和下载生成结果，不修改运行中权限、凭证或任务执行状态。 |
 | `FileController` | 文件上传、登记和删除属于资源生命周期，按权限、路径校验和删除矩阵治理；不得因所有删除动作而统一要求 MFA。 |
-| `CustomerController` | CRM 客户是业务聚合，按业务权限、数据范围和删除矩阵治理。 |
 
 ## 防回退与变更规则
 

@@ -6,6 +6,17 @@ interface RunOptions {
   command?: string;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function hasCommand(packageJson: unknown, command: string) {
+  if (!isRecord(packageJson) || !isRecord(packageJson.scripts)) {
+    return false;
+  }
+  return typeof packageJson.scripts[command] === 'string';
+}
+
 export async function run(options: RunOptions) {
   const { command } = options;
   if (!command) {
@@ -16,7 +27,7 @@ export async function run(options: RunOptions) {
 
   // 只显示有对应命令的包
   const selectPkgs = packages.filter((pkg) => {
-    return (pkg?.packageJson as Record<string, any>)?.scripts?.[command];
+    return hasCommand(pkg.packageJson, command);
   });
 
   let selectPkg: string | symbol;

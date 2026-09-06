@@ -2,9 +2,7 @@ package com.basicframework.module.system.api.permission;
 
 import com.basicframework.module.system.api.permission.dto.DeptDataPermissionRespDTO;
 import com.basicframework.module.system.service.permission.PermissionService;
-import jakarta.annotation.Resource;
-import java.util.Collection;
-import java.util.Set;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 /**
@@ -12,15 +10,10 @@ import org.springframework.stereotype.Service;
  *
  */
 @Service
-public class PermissionApiImpl implements PermissionApi {
+@RequiredArgsConstructor
+public class PermissionApiImpl implements PermissionCommonApi {
 
-    @Resource
-    private PermissionService permissionService;
-
-    @Override
-    public Set<Long> getUserRoleIdListByRoleIds(Collection<Long> roleIds) {
-        return permissionService.getUserRoleIdListByRoleId(roleIds);
-    }
+    private final PermissionService permissionService;
 
     @Override
     public boolean hasAnyPermissions(Long userId, String... permissions) {

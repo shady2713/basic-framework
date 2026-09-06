@@ -44,6 +44,10 @@ docs/                              architecture and decision records
 - **No hardcoded tunables or secrets in code.** Anything that varies by
   deployment is a validated configuration property. Secrets come from
   environment variables; no password, token, or internal IP is committed.
+- Production dependencies use constructor injection. Legacy `@Resource`,
+  `@Autowired`, `@Inject`, and field-level `@Value` occurrences are governed by
+  `docs/contracts/field-injection-baseline.json`; neither a file nor the total
+  may increase, and new files must contain none.
 - **Misconfiguration fails loud at startup**, not at first request.
   `ProductionConfigurationEnvironmentPostProcessor` is the pattern;
   extend the same fail-closed validation to every profile.
@@ -69,10 +73,10 @@ docs/                              architecture and decision records
 ## Testing tiers
 
 1. **Unit** (`mvn test` / `pnpm test:unit`): service and util logic,
-   edge cases, error paths, concurrency. Backend services follow the
-   BaseDbUnitTest (Mockito + H2) pattern.
-2. **Slice/API**: `@WebMvcTest` for controllers, `@SpringBootTest` with
-   Testcontainers for integration paths that need real MySQL/Redis.
+   edge cases, error paths, concurrency. Backend service tests use JUnit 5
+   and Mockito; this repository does not provide an H2/BaseDbUnitTest layer.
+2. **API/integration**: controller contracts are covered by focused tests;
+   `@SpringBootTest` with Testcontainers covers paths that need real MySQL/Redis.
 3. **Boot smoke**: the packaged jar starts and answers a health check;
    catches "green unit tests, broken product".
 4. **Frontend**: component/logic specs with vitest; e2e snapshots only
@@ -93,21 +97,40 @@ CI-specific infrastructure only supplies tool images, services, caches, and
 artifacts. Every blocking job is a dependency of the single `aggregate` check.
 
 Backend: `mvn -q verify` — compile, tests, Spotless 格式化门禁, JaCoCo
-覆盖率棘轮, ArchUnit module-boundary rules. OWASP dependency check 的临时
-例外及移除条件登记在 `docs/exceptions.yaml`。
-Frontend: `pnpm check` (circular, dep, typecheck, cspell) + `pnpm lint`
+覆盖率棘轮, ArchUnit module-boundary rules. `dependencies` gate 生成 Maven
+解析后的 CycloneDX 聚合 SBOM，并以固定镜像摘要的 Trivy 扫描后端依赖、前端锁文件、
+容器配置和最终应用镜像，阻断 HIGH/CRITICAL；该门禁不依赖 NVD API Key。
+Frontend: `pnpm check` (circular, dep, explicit-any ratchet, workspace typecheck
+registration, typecheck, cspell) + `pnpm lint`
 + `pnpm test:coverage`（包含单元测试与覆盖率棘轮），with
 `pnpm-lock.yaml` committed.
-Repo: pre-commit runs trailing-newline/whitespace and lint-staged via
-lefthook; production build uses `--mode production` only.
+Every frontend workspace package with a `tsconfig.json` registers a real
+`typecheck` command; packages containing Vue SFC source use `vue-tsc`, and all
+other typed packages use `tsc`. The contract gate rejects missing commands and
+placeholder bypasses before Turbo runs.
+Repo: pre-commit runs trailing-newline/whitespace and the secret scan via
+lefthook; staged frontend files pass prettier/eslint/stylelint through
+`scripts/pre-commit-frontend.sh`（lefthook 驱动，非 lint-staged 包）;
+`node scripts/check-source-quality.mjs` blocks logical source files
+over 800 lines and unowned `TODO`/`FIXME`/`XXX` comments; production build uses
+`--mode production` only. Package builds must transform TypeScript in Vue SFCs;
+the production-build wrapper rejects skipped transformation warnings and
+untransformed TypeScript SFCs in `dist`.
 Contracts: `node scripts/check-field-catalog.mjs` keeps
 `docs/contracts/field-catalog.yaml` (the field-contract source of truth)
 in sync with both ends' code; handling rules live in
 `docs/security/data-classification.md`.
+Starter documentation: `node scripts/check-starter-documentation.mjs` requires every
+`basic-framework-spring-boot-starter-*` capability seam to contain a structured README.
 Lifecycle: `node scripts/check-data-lifecycle.mjs` keeps every final Flyway
 table and physical foreign key registered in
 `docs/contracts/data-lifecycle.json`; policy semantics live in
 `docs/data-lifecycle.md`.
+Data permission: `node scripts/check-data-permission.mjs` requires every
+application table to be protected by an explicit runtime dept/user-column
+registration or documented in `docs/contracts/data-permission-exemptions.json`
+with an alternative control and verifiable production-source evidence; new
+unclassified tables and stale exemption evidence fail the contracts gate.
 
 ## Documentation
 
@@ -133,7 +156,7 @@ table and physical foreign key registered in
 - No dead code: unused scripts, env vars, config keys, and mock
   scaffolding are deleted in the change that orphans them.
 - `TODO` (this iteration) / `FIXME` (bug, next release) / `XXX` (known
-  tech debt) carry an owner or issue reference.
+  tech debt) carry an owner or issue reference; the contracts gate enforces it.
 - No comments restating what the code obviously does. No emoji in code,
   comments, or docs.
 

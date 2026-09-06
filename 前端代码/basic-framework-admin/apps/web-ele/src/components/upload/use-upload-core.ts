@@ -8,12 +8,13 @@ import type { FileUploadProps, UploadApiResult } from './typing';
 
 import type { AxiosProgressEvent } from '#/api/infra/file';
 
-import { isFunction, isObject, isString } from '@vben/utils';
+import { get, isFunction, isObject, isString } from '@vben/utils';
 
+import { isSafeUploadUrl } from './upload-security';
 import { useUpload } from './use-upload';
 
 export function unwrapUploadResponse(response: unknown): unknown {
-  if (isObject(response) && 'data' in (response as Record<string, unknown>)) {
+  if (isObject(response) && Object.hasOwn(response as object, 'data')) {
     return (response as Record<string, unknown>).data;
   }
   return response;
@@ -21,17 +22,13 @@ export function unwrapUploadResponse(response: unknown): unknown {
 
 export function resolveUploadUrl(response: unknown): string {
   const value = unwrapUploadResponse(response);
-  if (isString(value)) {
+  if (isString(value) && isSafeUploadUrl(value)) {
     return value;
   }
   if (isObject(value)) {
-    const data = (value as Record<string, unknown>).data;
     const url = (value as Record<string, unknown>).url;
-    if (isString(url)) {
+    if (isString(url) && isSafeUploadUrl(url)) {
       return url;
-    }
-    if (isString(data)) {
-      return data;
     }
   }
   return '';
@@ -43,18 +40,26 @@ export function resolveUploadValue(
 ): unknown {
   const response = unwrapUploadResponse(file.response);
   if (resultField && response !== null && response !== undefined) {
-    return response;
+    const result = get(response, resultField);
+    if (result === undefined) {
+      throw new Error(`上传响应缺少结果字段: ${resultField}`);
+    }
+    return result;
   }
   return file.url || resolveUploadUrl(response) || response;
 }
 
 export async function requestUpload(
-  props: Pick<FileUploadProps, 'api' | 'directory'>,
+  props: Pick<FileUploadProps, 'api' | 'directory' | 'publicRead'>,
   options: UploadRequestOptions,
 ): Promise<UploadApiResult> {
   let { api } = props;
   if (!api || !isFunction(api)) {
-    api = useUpload(props.directory, 'inline').httpRequest;
+    api = useUpload(
+      props.directory,
+      'inline',
+      props.publicRead ?? false,
+    ).httpRequest;
   }
   const progressEvent: AxiosProgressEvent = (event) => {
     const total = event.total || 0;

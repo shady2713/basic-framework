@@ -8,21 +8,21 @@ import type { Recordable } from '@vben/types';
 export interface DescriptionItemSchema {
   labelMinWidth?: number;
   contentMinWidth?: number;
-  labelStyle?: CSSProperties; // 自定义标签样式
-  field: string; // 对应 data 中的字段名
-  label: JSX.Element | string | VNode; // 内容的描述
-  span?: number; // 包含列的数量
-  show?: (...arg: unknown[]) => boolean; // 是否显示
-  slot?: string; // 插槽名称
+  labelStyle?: CSSProperties;
+  field: string;
+  label: JSX.Element | string | VNode;
+  span?: number;
+  show?: (data?: Recordable<unknown>) => boolean;
+  slot?: string;
   render?: (
     val: unknown,
-    data?: Recordable<any>,
-  ) => Element | JSX.Element | number | string | undefined | VNode; // 自定义需要展示的内容
+    data?: Recordable<unknown>,
+  ) => Element | JSX.Element | number | string | undefined | VNode;
 }
 
 export interface DescriptionProps extends ElDescriptionProps {
-  schema: DescriptionItemSchema[]; // 描述项配置
-  data: Recordable<any>; // 数据
+  schema: DescriptionItemSchema[];
+  data: Recordable<unknown>;
 }
 
 export interface DescInstance {

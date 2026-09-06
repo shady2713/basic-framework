@@ -1,16 +1,30 @@
 package com.basicframework.server.config;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.SpringApplication;
+import org.springframework.core.Ordered;
 import org.springframework.mock.env.MockEnvironment;
 
 class ProductionConfigurationEnvironmentPostProcessorTest {
 
     private final ProductionConfigurationEnvironmentPostProcessor processor =
             new ProductionConfigurationEnvironmentPostProcessor();
+
+    @Test
+    void nonProduction_skipsProductionOnlyValidation() {
+        assertThatCode(() -> processor.postProcessEnvironment(new MockEnvironment(), new SpringApplication()))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void processor_runsAfterRegularEnvironmentPostProcessors() {
+        assertThat(processor.getOrder()).isEqualTo(Ordered.LOWEST_PRECEDENCE);
+    }
 
     @Test
     void production_rejectsDisabledMfa() {
@@ -43,6 +57,58 @@ class ProductionConfigurationEnvironmentPostProcessorTest {
     }
 
     @Test
+    void production_rejectsMissingCorsOrigin() {
+        MockEnvironment environment = productionEnvironment();
+        environment.setProperty("basic-framework.web.cors-allowed-origins[0]", "");
+
+        assertThatThrownBy(() -> processor.postProcessEnvironment(environment, new SpringApplication()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("basic-framework.web.cors-allowed-origins[0] 必须配置为生产域名");
+    }
+
+    @Test
+    void production_rejectsUnsafeSecondaryCorsOrigin() {
+        MockEnvironment environment = productionEnvironment();
+        environment.setProperty("basic-framework.web.cors-allowed-origins[1]", "*");
+        enableValidMfa(environment);
+
+        assertThatThrownBy(() -> processor.postProcessEnvironment(environment, new SpringApplication()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("basic-framework.web.cors-allowed-origins[1]");
+    }
+
+    @Test
+    void production_acceptsMultipleExactHttpsCorsOrigins() {
+        MockEnvironment environment = productionEnvironment();
+        environment.setProperty("basic-framework.web.cors-allowed-origins[1]", "https://ops.company.invalid");
+        enableValidMfa(environment);
+
+        assertThatCode(() -> processor.postProcessEnvironment(environment, new SpringApplication()))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void production_rejectsNonExactCorsOrigins() {
+        for (String unsafeOrigin : List.of(
+                "https://admin.example.com",
+                "https://*.company.invalid",
+                "http://admin.company.invalid",
+                "https://admin.company.invalid/path",
+                "https://admin.company.invalid?unexpected=true",
+                "https://localhost",
+                " https://admin.company.invalid",
+                "https://[invalid")) {
+            MockEnvironment environment = productionEnvironment();
+            environment.setProperty("basic-framework.web.cors-allowed-origins[1]", unsafeOrigin);
+            enableValidMfa(environment);
+
+            assertThatThrownBy(() -> processor.postProcessEnvironment(environment, new SpringApplication()))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("basic-framework.web.cors-allowed-origins[1]");
+        }
+    }
+
+    @Test
     void production_rejectsMissingFlywayCredentials() {
         MockEnvironment environment = productionEnvironment();
         environment.setProperty("spring.flyway.password", "");
@@ -65,11 +131,7 @@ class ProductionConfigurationEnvironmentPostProcessorTest {
     @Test
     void production_acceptsValidMfaMasterKey() {
         MockEnvironment environment = productionEnvironment();
-        environment.setProperty("basic-framework.security.mfa.enabled", "true");
-        environment.setProperty("basic-framework.security.mfa.webauthn.enabled", "true");
-        environment.setProperty("basic-framework.security.mfa.webauthn.rp-id", "company.invalid");
-        environment.setProperty(
-                "basic-framework.security.mfa.webauthn.allowed-origins[0]", "https://admin.company.invalid");
+        enableValidMfa(environment);
 
         assertThatCode(() -> processor.postProcessEnvironment(environment, new SpringApplication()))
                 .doesNotThrowAnyException();
@@ -85,7 +147,29 @@ class ProductionConfigurationEnvironmentPostProcessorTest {
 
         assertThatThrownBy(() -> processor.postProcessEnvironment(environment, new SpringApplication()))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("allowed-origins 必须是 RP ID 范围内的精确 HTTPS Origin");
+                .hasMessageContaining("allowed-origins[0] 必须是 RP ID 范围内的精确 HTTPS Origin");
+    }
+
+    @Test
+    void production_rejectsUnsafeSecondaryWebAuthnOrigin() {
+        MockEnvironment environment = productionEnvironment();
+        enableValidMfa(environment);
+        environment.setProperty("basic-framework.security.mfa.webauthn.allowed-origins[1]", "https://attacker.invalid");
+
+        assertThatThrownBy(() -> processor.postProcessEnvironment(environment, new SpringApplication()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("basic-framework.security.mfa.webauthn.allowed-origins[1]");
+    }
+
+    @Test
+    void production_acceptsMultipleExactWebAuthnOrigins() {
+        MockEnvironment environment = productionEnvironment();
+        enableValidMfa(environment);
+        environment.setProperty(
+                "basic-framework.security.mfa.webauthn.allowed-origins[1]", "https://ops.company.invalid");
+
+        assertThatCode(() -> processor.postProcessEnvironment(environment, new SpringApplication()))
+                .doesNotThrowAnyException();
     }
 
     private static MockEnvironment productionEnvironment() {
@@ -105,5 +189,13 @@ class ProductionConfigurationEnvironmentPostProcessorTest {
         environment.setProperty(
                 "basic-framework.security.credential-encryption-key", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=");
         return environment;
+    }
+
+    private static void enableValidMfa(MockEnvironment environment) {
+        environment.setProperty("basic-framework.security.mfa.enabled", "true");
+        environment.setProperty("basic-framework.security.mfa.webauthn.enabled", "true");
+        environment.setProperty("basic-framework.security.mfa.webauthn.rp-id", "company.invalid");
+        environment.setProperty(
+                "basic-framework.security.mfa.webauthn.allowed-origins[0]", "https://admin.company.invalid");
     }
 }

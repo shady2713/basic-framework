@@ -7,9 +7,9 @@ import com.basicframework.framework.common.enums.CommonStatusEnum;
 import com.basicframework.framework.common.enums.UserTypeEnum;
 import com.basicframework.module.system.dal.dataobject.notify.NotifyTemplateDO;
 import com.google.common.annotations.VisibleForTesting;
-import jakarta.annotation.Resource;
 import java.util.Map;
 import java.util.Objects;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.validation.annotation.Validated;
@@ -21,13 +21,11 @@ import org.springframework.validation.annotation.Validated;
 @Service
 @Validated
 @Slf4j
+@RequiredArgsConstructor
 public class NotifySendServiceImpl implements NotifySendService {
 
-    @Resource
-    private NotifyTemplateService notifyTemplateService;
-
-    @Resource
-    private NotifyMessageService notifyMessageService;
+    private final NotifyTemplateService notifyTemplateService;
+    private final NotifyMessageService notifyMessageService;
 
     @Override
     public Long sendSingleNotifyToAdmin(Long userId, String templateCode, Map<String, Object> templateParams) {

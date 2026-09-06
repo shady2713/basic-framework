@@ -19,6 +19,7 @@ import {
   deleteUserList,
   exportUser,
   getUserPage,
+  unlockUserLogin,
   updateUserStatus,
 } from '#/api/system/user';
 import { useCrudActions } from '#/composables/use-crud-actions';
@@ -100,6 +101,15 @@ function handleResetPassword(row: SystemUserApi.User) {
 /** 分配角色 */
 function handleAssignRole(row: SystemUserApi.User) {
   assignRoleModalApi.setData(row).open();
+}
+
+/** 解除登录锁定 */
+async function handleUnlockLogin(row: SystemUserApi.User) {
+  await confirm({
+    content: `确认解除用户 ${row.username} 的临时登录锁定吗？`,
+  });
+  await unlockUserLogin(row.id!);
+  showSuccessMessage($t('ui.actionMessage.operationSuccess'));
 }
 
 /** 更新用户状态 */
@@ -244,6 +254,13 @@ const [Grid, gridApi] = useVbenVxeGrid({
                   link: true,
                   auth: ['system:user:update-password'],
                   onClick: handleResetPassword.bind(null, row),
+                },
+                {
+                  label: '解除登录锁定',
+                  type: 'primary',
+                  link: true,
+                  auth: ['system:user:update'],
+                  onClick: handleUnlockLogin.bind(null, row),
                 },
               ]"
             />

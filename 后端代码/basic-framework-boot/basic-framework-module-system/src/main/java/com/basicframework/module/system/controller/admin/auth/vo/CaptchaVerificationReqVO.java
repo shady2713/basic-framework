@@ -3,9 +3,11 @@ package com.basicframework.module.system.controller.admin.auth.vo;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotEmpty;
 import lombok.Data;
+import lombok.ToString;
 
 @Schema(description = "管理后台 - 验证码 Request VO")
 @Data
+@ToString(exclude = {"captchaVerification"})
 public class CaptchaVerificationReqVO {
 
     // ========== 图片验证码相关 ==========

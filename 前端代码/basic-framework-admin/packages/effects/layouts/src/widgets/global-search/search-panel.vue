@@ -14,16 +14,21 @@ import {
 } from '@vben/utils';
 
 import { VbenIcon, VbenScrollbar } from '@vben-core/shadcn-ui';
-import { isHttpUrl } from '@vben-core/shared/utils';
 
 import { onKeyStroke, useLocalStorage, useThrottleFn } from '@vueuse/core';
+
+import { resolveNavigationDestination } from '../../navigation-destination';
 
 defineOptions({
   name: 'SearchPanel',
 });
 
 const props = withDefaults(
-  defineProps<{ keyword?: string; menus?: MenuRecordRaw[] }>(),
+  defineProps<{
+    active: boolean;
+    keyword?: string;
+    menus?: MenuRecordRaw[];
+  }>(),
   {
     keyword: '',
     menus: () => [],
@@ -42,41 +47,24 @@ const searchResults = ref<MenuRecordRaw[]>([]);
 
 const handleSearch = useThrottleFn(search, 200);
 
-// 搜索函数，用于根据搜索关键词查找匹配的菜单项
 function search(searchKey: string) {
-  // 去除搜索关键词的前后空格
-  searchKey = searchKey.trim();
-
-  // 如果搜索关键词为空，清空搜索结果并返回
+  searchKey = searchKey.trim().toLowerCase();
   if (!searchKey) {
     searchResults.value = [];
+    activeIndex.value = -1;
     return;
   }
-
-  // 使用搜索关键词创建正则表达式
-  const reg = createSearchReg(searchKey);
-
-  // 初始化结果数组
   const results: MenuRecordRaw[] = [];
-
-  // 遍历搜索项
   traverseTreeValues(searchItems.value, (item) => {
-    // 如果菜单项的名称匹配正则表达式，将其添加到结果数组中
-    if (reg.test(item.name?.toLowerCase())) {
+    if (
+      !item.disabled &&
+      matchesSearchKey(item.name.toLowerCase(), searchKey)
+    ) {
       results.push(item);
     }
   });
-
-  // 更新搜索结果
-  searchResults.value = results;
-
-  // 如果有搜索结果，设置索引为 0
-  if (results.length > 0) {
-    activeIndex.value = 0;
-  }
-
-  // 赋值索引为 0
-  activeIndex.value = 0;
+  searchResults.value = uniqueByField(results, 'path');
+  activeIndex.value = searchResults.value.length > 0 ? 0 : -1;
 }
 
 // When the keyboard up and down keys move to an invisible place
@@ -91,9 +79,8 @@ function scrollIntoView() {
   }
 }
 
-// enter keyboard event
 async function handleEnter() {
-  if (searchResults.value.length === 0) {
+  if (!props.active || searchResults.value.length === 0) {
     return;
   }
   const result = searchResults.value;
@@ -103,20 +90,23 @@ async function handleEnter() {
   }
   const to = result[index];
   if (to) {
+    const destination = resolveNavigationDestination(to.path);
+    if (!destination) {
+      return;
+    }
     searchHistory.value = uniqueByField([...searchHistory.value, to], 'path');
     handleClose();
     await nextTick();
-    if (isHttpUrl(to.path)) {
-      openWindow(to.path);
+    if (destination.kind === 'external') {
+      openWindow(destination.url);
     } else {
-      router.push({ path: to.path, replace: true });
+      await router.push({ path: destination.path, replace: true });
     }
   }
 }
 
-// Arrow key up
 function handleUp() {
-  if (searchResults.value.length === 0) {
+  if (!props.active || searchResults.value.length === 0) {
     return;
   }
   activeIndex.value--;
@@ -126,9 +116,8 @@ function handleUp() {
   scrollIntoView();
 }
 
-// Arrow key down
 function handleDown() {
-  if (searchResults.value.length === 0) {
+  if (!props.active || searchResults.value.length === 0) {
     return;
   }
   activeIndex.value++;
@@ -138,16 +127,19 @@ function handleDown() {
   scrollIntoView();
 }
 
-// close search modal
 function handleClose() {
   searchResults.value = [];
   emit('close');
 }
 
-// Activate when the mouse moves to a certain line
 function handleMouseenter(e: MouseEvent) {
-  const index = (e.target as HTMLElement)?.dataset.index;
+  const index = (e.currentTarget as HTMLElement).dataset.index;
   activeIndex.value = Number(index);
+}
+
+async function handleSelect(index: number) {
+  activeIndex.value = index;
+  await handleEnter();
 }
 
 function removeItem(index: number) {
@@ -156,43 +148,22 @@ function removeItem(index: number) {
   } else {
     searchHistory.value.splice(index, 1);
   }
-  activeIndex.value = Math.max(activeIndex.value - 1, 0);
+  activeIndex.value =
+    searchResults.value.length > 0 ? Math.max(activeIndex.value - 1, 0) : -1;
   scrollIntoView();
 }
 
-// 存储所有需要转义的特殊字符
-const code = new Set([
-  '$',
-  '(',
-  ')',
-  '*',
-  '+',
-  '.',
-  '?',
-  '[',
-  '\\',
-  ']',
-  '^',
-  '{',
-  '|',
-  '}',
-]);
-
-// 转换函数，用于转义特殊字符
-function transform(c: string) {
-  // 如果字符在特殊字符列表中，返回转义后的字符
-  // 如果不在，返回字符本身
-  return code.has(c) ? `\\${c}` : c;
-}
-
-// 创建搜索正则表达式
-function createSearchReg(key: string) {
-  // 将输入的字符串拆分为单个字符
-  // 对每个字符进行转义
-  // 然后用'.*'连接所有字符，创建正则表达式
-  const keys = [...key].map((item) => transform(item)).join('.*');
-  // 返回创建的正则表达式
-  return new RegExp(`.*${keys}.*`);
+function matchesSearchKey(value: string, searchKey: string): boolean {
+  let searchIndex = 0;
+  for (const character of value) {
+    if (character === searchKey[searchIndex]) {
+      searchIndex += 1;
+      if (searchIndex === searchKey.length) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 watch(
@@ -206,23 +177,32 @@ watch(
   },
 );
 
-onMounted(() => {
-  searchItems.value = mapTree(props.menus, (item) => {
-    return {
+watch(
+  () => props.menus,
+  (menus) => {
+    searchItems.value = mapTree(menus, (item) => ({
       ...item,
-      name: $t(item?.name),
-    };
-  });
+      name: $t(item.name),
+    }));
+    if (props.keyword) {
+      handleSearch(props.keyword);
+    }
+  },
+  { immediate: true },
+);
+
+onMounted(() => {
   if (searchHistory.value.length > 0) {
     searchResults.value = searchHistory.value;
   }
-  // enter search
   onKeyStroke('Enter', handleEnter);
-  // Monitor keyboard arrow keys
   onKeyStroke('ArrowUp', handleUp);
   onKeyStroke('ArrowDown', handleDown);
-  // esc close
-  onKeyStroke('Escape', handleClose);
+  onKeyStroke('Escape', () => {
+    if (props.active) {
+      handleClose();
+    }
+  });
 });
 </script>
 
@@ -260,7 +240,7 @@ onMounted(() => {
           {{ $t('ui.widgets.search.recent') }}
         </li>
         <li
-          v-for="(item, index) in uniqueByField(searchResults, 'path')"
+          v-for="(item, index) in searchResults"
           :key="item.path"
           :class="
             activeIndex === index
@@ -269,23 +249,29 @@ onMounted(() => {
           "
           :data-index="index"
           :data-search-item="index"
-          class="bg-accent flex-center group mb-3 w-full cursor-pointer rounded-lg px-4 py-4"
-          @click="handleEnter"
+          class="bg-accent group mb-3 flex w-full items-center rounded-lg"
           @mouseenter="handleMouseenter"
         >
-          <VbenIcon
-            :icon="item.icon"
-            class="mr-2 size-5 flex-shrink-0"
-            fallback
-          />
-
-          <span class="flex-1">{{ item.name }}</span>
-          <div
+          <button
+            class="flex-center flex-1 cursor-pointer px-4 py-4 text-left"
+            type="button"
+            @click="handleSelect(index)"
+          >
+            <VbenIcon
+              :icon="item.icon"
+              class="mr-2 size-5 flex-shrink-0"
+              fallback
+            />
+            <span class="flex-1">{{ item.name }}</span>
+          </button>
+          <button
+            :aria-label="$t('common.delete')"
             class="flex-center dark:hover:bg-accent hover:text-primary-foreground rounded-full p-1 hover:scale-110"
-            @click.stop="removeItem(index)"
+            type="button"
+            @click="removeItem(index)"
           >
             <X class="size-4" />
-          </div>
+          </button>
         </li>
       </ul>
     </div>

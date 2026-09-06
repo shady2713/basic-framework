@@ -12,6 +12,7 @@ import com.basicframework.framework.common.util.object.BeanUtils;
 import com.basicframework.framework.datapermission.core.annotation.DataPermission;
 import com.basicframework.framework.ratelimiter.core.annotation.RateLimiter;
 import com.basicframework.framework.ratelimiter.core.keyresolver.impl.ClientIpRateLimiterKeyResolver;
+import com.basicframework.framework.security.core.annotation.AuthenticatedOnly;
 import com.basicframework.framework.security.core.annotation.MfaStepUp;
 import com.basicframework.module.system.controller.admin.auth.vo.AuthMfaTotpSetupRespVO;
 import com.basicframework.module.system.controller.admin.auth.vo.AuthMfaTotpVerifyReqVO;
@@ -37,12 +38,11 @@ import com.basicframework.module.system.service.permission.RoleService;
 import com.basicframework.module.system.service.user.AdminUserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import java.util.List;
-import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -50,29 +50,23 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/system/user/profile")
 @Validated
-@Slf4j
+@RequiredArgsConstructor
+@AuthenticatedOnly
 public class UserProfileController {
 
-    @Resource
-    private AdminUserService userService;
+    private final AdminUserService userService;
 
-    @Resource
-    private DeptService deptService;
+    private final DeptService deptService;
 
-    @Resource
-    private PostService postService;
+    private final PostService postService;
 
-    @Resource
-    private PermissionService permissionService;
+    private final PermissionService permissionService;
 
-    @Resource
-    private RoleService roleService;
+    private final RoleService roleService;
 
-    @Resource
-    private MfaService mfaService;
+    private final MfaService mfaService;
 
-    @Resource
-    private MfaFactorManagementService mfaFactorManagementService;
+    private final MfaFactorManagementService mfaFactorManagementService;
 
     @GetMapping("/get")
     @Operation(summary = "获得登录用户信息")

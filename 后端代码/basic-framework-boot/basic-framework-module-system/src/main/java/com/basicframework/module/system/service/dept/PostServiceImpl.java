@@ -12,7 +12,6 @@ import com.basicframework.module.system.dal.dataobject.dept.PostDO;
 import com.basicframework.module.system.dal.dataobject.dept.UserPostDO;
 import com.basicframework.module.system.dal.mysql.dept.PostMapper;
 import com.basicframework.module.system.dal.mysql.dept.UserPostMapper;
-import jakarta.annotation.Resource;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -28,11 +27,13 @@ import org.springframework.validation.annotation.Validated;
 @Validated
 public class PostServiceImpl implements PostService {
 
-    @Resource
-    private PostMapper postMapper;
+    private final PostMapper postMapper;
+    private final UserPostMapper userPostMapper;
 
-    @Resource
-    private UserPostMapper userPostMapper;
+    public PostServiceImpl(PostMapper postMapper, UserPostMapper userPostMapper) {
+        this.postMapper = postMapper;
+        this.userPostMapper = userPostMapper;
+    }
 
     @Override
     public Long createPost(PostDO post) {

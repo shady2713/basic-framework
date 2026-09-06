@@ -1,5 +1,6 @@
 package com.basicframework.module.system.service.dept;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -196,6 +197,30 @@ class DeptServiceImplTest {
                 .isInstanceOf(ServiceException.class)
                 .extracting(ex -> ((ServiceException) ex).getCode())
                 .isEqualTo(ErrorCodeConstants.DEPT_NOT_ENABLE.getCode());
+    }
+
+    @Test
+    void createDept_defaultsMissingParentToRoot() {
+        DeptDO dept = new DeptDO().setName("新部门");
+
+        deptService.createDept(dept);
+
+        assertThat(dept.getParentId()).isEqualTo(DeptDO.PARENT_ID_ROOT);
+        verify(deptMapper).insert(dept);
+    }
+
+    @Test
+    void getDeptList_empty_returnsEmptyList() {
+        assertThat(deptService.getDeptList(List.of())).isEmpty();
+
+        verify(deptMapper, never()).selectByIds(any());
+    }
+
+    @Test
+    void getDeptByName_blank_returnsNull() {
+        assertThat(deptService.getDeptByName("  ")).isNull();
+
+        verify(deptMapper, never()).selectFirstOne(any(), any());
     }
 
     private static DeptDO dept(Long id, Long leaderUserId) {

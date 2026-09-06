@@ -36,17 +36,23 @@ const mockRoutes = [
   },
 ] as RouteRecordRaw[];
 
+function mockRouteAt(index: number): RouteRecordRaw {
+  const route = mockRoutes[index];
+  if (!route) throw new Error(`Missing mock route at index ${index}`);
+  return route;
+}
+
 describe('hasAuthority', () => {
   it('should return true if there is no authority defined', () => {
-    expect(hasAuthority(mockRoutes[2], ['admin'])).toBe(true);
+    expect(hasAuthority(mockRouteAt(2), ['admin'])).toBe(true);
   });
 
   it('should return true if the user has the required authority', () => {
-    expect(hasAuthority(mockRoutes[0], ['admin'])).toBe(true);
+    expect(hasAuthority(mockRouteAt(0), ['admin'])).toBe(true);
   });
 
   it('should return false if the user does not have the required authority', () => {
-    expect(hasAuthority(mockRoutes[1], ['user'])).toBe(false);
+    expect(hasAuthority(mockRouteAt(1), ['user'])).toBe(false);
   });
 });
 

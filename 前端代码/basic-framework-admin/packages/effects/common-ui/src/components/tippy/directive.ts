@@ -1,100 +1,163 @@
-import type { ComputedRef, Directive } from 'vue';
+import type { Instance, Placement } from 'tippy.js';
+
+import type { ComputedRef, Directive, VNode } from 'vue';
+import type { TippyOptions } from 'vue-tippy';
 
 import { useTippy } from 'vue-tippy';
 
-export default function useTippyDirective(isDark: ComputedRef<boolean>) {
-  const directive: Directive = {
-    mounted(el, binding, vnode) {
-      const opts =
-        typeof binding.value === 'string'
-          ? { content: binding.value }
-          : binding.value || {};
+const TIPPY_PLACEMENTS = new Set<Placement>([
+  'auto',
+  'auto-end',
+  'auto-start',
+  'bottom',
+  'bottom-end',
+  'bottom-start',
+  'left',
+  'left-end',
+  'left-start',
+  'right',
+  'right-end',
+  'right-start',
+  'top',
+  'top-end',
+  'top-start',
+]);
 
-      const modifiers = Object.keys(binding.modifiers || {});
-      const placement = modifiers.find((modifier) => modifier !== 'arrow');
-      const withArrow = modifiers.includes('arrow');
+type TippyDirectiveValue = null | string | TippyOptions | undefined;
+type TippyController = Pick<
+  ReturnType<typeof useTippy>,
+  'destroy' | 'setProps'
+>;
 
-      if (placement) {
-        opts.placement = opts.placement || placement;
+const tippyControllers = new WeakMap<HTMLElement, TippyController>();
+
+function isPlacement(value: string): value is Placement {
+  return TIPPY_PLACEMENTS.has(value as Placement);
+}
+
+export function normalizeTippyOptions(
+  value: unknown,
+  theme: string,
+): TippyOptions {
+  if (value === null || value === undefined) {
+    return { theme };
+  }
+  if (typeof value === 'string') {
+    return { content: value, theme };
+  }
+  if (typeof value === 'object' && !Array.isArray(value)) {
+    return { theme, ...value } as TippyOptions;
+  }
+  throw new TypeError('v-tippy binding must be a string or an options object');
+}
+
+function applyModifiers(
+  options: TippyOptions,
+  modifiers: Partial<Record<string, boolean>>,
+) {
+  const placement = Object.keys(modifiers).find((value) => isPlacement(value));
+  if (placement && options.placement === undefined) {
+    options.placement = placement;
+  }
+  if (modifiers.arrow && options.arrow === undefined) {
+    options.arrow = true;
+  }
+}
+
+function invokeVNodeHandler(handler: unknown, instance: Instance): unknown {
+  if (typeof handler === 'function') {
+    return handler(instance);
+  }
+  if (Array.isArray(handler)) {
+    let result: unknown;
+    for (const candidate of handler) {
+      if (typeof candidate === 'function' && candidate(instance) === false) {
+        result = false;
       }
+    }
+    return result;
+  }
+  return undefined;
+}
 
-      if (withArrow) {
-        opts.arrow = opts.arrow === undefined ? true : opts.arrow;
-      }
+function hasVNodeHandler(vnode: VNode, name: string): boolean {
+  const handler = vnode.props?.[name];
+  return (
+    typeof handler === 'function' ||
+    (Array.isArray(handler) &&
+      handler.some((item) => typeof item === 'function'))
+  );
+}
 
-      if (vnode.props && vnode.props.onTippyShow) {
-        opts.onShow = function (...args: any[]) {
-          return vnode.props?.onTippyShow(...args);
-        };
-      }
+function applyLifecycleHooks(options: TippyOptions, vnode: VNode) {
+  if (hasVNodeHandler(vnode, 'onTippyShow')) {
+    options.onShow = (instance) =>
+      invokeVNodeHandler(vnode.props?.onTippyShow, instance) === false
+        ? false
+        : undefined;
+  }
+  if (hasVNodeHandler(vnode, 'onTippyShown')) {
+    options.onShown = (instance) => {
+      invokeVNodeHandler(vnode.props?.onTippyShown, instance);
+    };
+  }
+  if (hasVNodeHandler(vnode, 'onTippyHidden')) {
+    options.onHidden = (instance) => {
+      invokeVNodeHandler(vnode.props?.onTippyHidden, instance);
+    };
+  }
+  if (hasVNodeHandler(vnode, 'onTippyHide')) {
+    options.onHide = (instance) =>
+      invokeVNodeHandler(vnode.props?.onTippyHide, instance) === false
+        ? false
+        : undefined;
+  }
+  if (hasVNodeHandler(vnode, 'onTippyMount')) {
+    options.onMount = (instance) => {
+      invokeVNodeHandler(vnode.props?.onTippyMount, instance);
+    };
+  }
+}
 
-      if (vnode.props && vnode.props.onTippyShown) {
-        opts.onShown = function (...args: any[]) {
-          return vnode.props?.onTippyShown(...args);
-        };
-      }
+function applyAttributeContent(element: HTMLElement, options: TippyOptions) {
+  const title = element.getAttribute('title');
+  if (title) {
+    if (options.content === undefined) {
+      options.content = title;
+    }
+    element.removeAttribute('title');
+  }
+  const content = element.getAttribute('content');
+  if (content && options.content === undefined) {
+    options.content = content;
+  }
+}
 
-      if (vnode.props && vnode.props.onTippyHidden) {
-        opts.onHidden = function (...args: any[]) {
-          return vnode.props?.onTippyHidden(...args);
-        };
-      }
-
-      if (vnode.props && vnode.props.onTippyHide) {
-        opts.onHide = function (...args: any[]) {
-          return vnode.props?.onTippyHide(...args);
-        };
-      }
-
-      if (vnode.props && vnode.props.onTippyMount) {
-        opts.onMount = function (...args: any[]) {
-          return vnode.props?.onTippyMount(...args);
-        };
-      }
-
-      if (el.getAttribute('title') && !opts.content) {
-        opts.content = el.getAttribute('title');
-        el.removeAttribute('title');
-      }
-
-      if (el.getAttribute('content') && !opts.content) {
-        opts.content = el.getAttribute('content');
-      }
-
-      useTippy(el, opts);
+export default function useTippyDirective(
+  isDark: ComputedRef<boolean>,
+): Directive<HTMLElement, TippyDirectiveValue> {
+  return {
+    mounted(element, binding, vnode) {
+      const options = normalizeTippyOptions(
+        binding.value,
+        isDark.value ? '' : 'light',
+      );
+      applyModifiers(options, binding.modifiers);
+      applyLifecycleHooks(options, vnode);
+      applyAttributeContent(element, options);
+      tippyControllers.set(element, useTippy(element, options));
     },
-    unmounted(el) {
-      if (el.$tippy) {
-        el.$tippy.destroy();
-      } else if (el._tippy) {
-        el._tippy.destroy();
-      }
+    unmounted(element) {
+      tippyControllers.get(element)?.destroy();
+      tippyControllers.delete(element);
     },
-
-    updated(el, binding) {
-      const opts =
-        typeof binding.value === 'string'
-          ? { content: binding.value, theme: isDark.value ? '' : 'light' }
-          : Object.assign(
-              { theme: isDark.value ? '' : 'light' },
-              binding.value,
-            );
-
-      if (el.getAttribute('title') && !opts.content) {
-        opts.content = el.getAttribute('title');
-        el.removeAttribute('title');
-      }
-
-      if (el.getAttribute('content') && !opts.content) {
-        opts.content = el.getAttribute('content');
-      }
-
-      if (el.$tippy) {
-        el.$tippy.setProps(opts || {});
-      } else if (el._tippy) {
-        el._tippy.setProps(opts || {});
-      }
+    updated(element, binding) {
+      const options = normalizeTippyOptions(
+        binding.value,
+        isDark.value ? '' : 'light',
+      );
+      applyAttributeContent(element, options);
+      tippyControllers.get(element)?.setProps(options);
     },
   };
-  return directive;
 }

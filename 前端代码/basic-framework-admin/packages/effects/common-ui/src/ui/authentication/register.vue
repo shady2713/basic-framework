@@ -1,7 +1,5 @@
 <script setup lang="ts">
-import type { Recordable } from '@vben/types';
-
-import type { VbenFormSchema } from '@vben-core/form-ui';
+import type { FormValues, VbenFormSchema } from '@vben-core/form-ui';
 
 import { computed, reactive } from 'vue';
 import { useRouter } from 'vue-router';
@@ -51,7 +49,7 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const emit = defineEmits<{
-  submit: [Recordable<any>];
+  submit: [FormValues];
 }>();
 
 const [Form, formApi] = useVbenForm(
@@ -71,7 +69,7 @@ async function handleSubmit() {
   const { valid } = await formApi.validate();
   const values = await formApi.getValues();
   if (valid) {
-    emit('submit', values as { password: string; username: string });
+    emit('submit', values);
   }
 }
 
@@ -88,7 +86,7 @@ defineExpose({
   <div>
     <Title>
       <slot name="title">
-        {{ title || $t('authentication.createAnAccount') }} 🚀
+        {{ title || $t('authentication.createAnAccount') }}
       </slot>
       <template #desc>
         <slot name="subTitle">

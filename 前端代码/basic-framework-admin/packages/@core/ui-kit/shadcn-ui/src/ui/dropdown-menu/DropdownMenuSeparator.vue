@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { DropdownMenuSeparatorProps } from 'reka-ui';
 
+import type { HTMLAttributes } from 'vue';
+
 import { computed } from 'vue';
 
 import { cn } from '@vben-core/shared/utils';
@@ -9,7 +11,7 @@ import { DropdownMenuSeparator } from 'reka-ui';
 
 const props = defineProps<
   DropdownMenuSeparatorProps & {
-    class?: any;
+    class?: HTMLAttributes['class'];
   }
 >();
 

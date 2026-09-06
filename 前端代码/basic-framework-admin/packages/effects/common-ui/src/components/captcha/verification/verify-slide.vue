@@ -1,4 +1,8 @@
 <script lang="ts" setup>
+import type { ComponentPublicInstance } from 'vue';
+
+import type { CaptchaCheckRequest, CaptchaSuccessPayload } from '@vben/types';
+
 import type { VerificationProps } from './typing';
 
 /**
@@ -9,6 +13,7 @@ import {
   computed,
   getCurrentInstance,
   nextTick,
+  onBeforeUnmount,
   onMounted,
   reactive,
   ref,
@@ -18,8 +23,12 @@ import {
 import { IconifyIcon } from '@vben/icons';
 import { $t } from '@vben/locales';
 
-import { AES } from '@vben-core/shared/utils';
-
+import {
+  createCaptchaCheckRequest,
+  createCaptchaVerification,
+  parseCaptchaChallengeResponse,
+  parseCaptchaResponse,
+} from './contract';
 import { resetSize } from './utils/util';
 
 const props = withDefaults(defineProps<VerificationProps>(), {
@@ -42,7 +51,12 @@ const props = withDefaults(defineProps<VerificationProps>(), {
   space: 5,
 });
 
-const emit = defineEmits(['onSuccess', 'onError', 'onClose']);
+const emit = defineEmits<{
+  onClose: [];
+  onError: [instance: ComponentPublicInstance | null];
+  onReady: [instance: ComponentPublicInstance | null];
+  onSuccess: [payload: CaptchaSuccessPayload];
+}>();
 
 const {
   blockSize,
@@ -53,52 +67,62 @@ const {
   getCaptchaApi,
 } = toRefs(props);
 
-const { proxy } = getCurrentInstance()!;
-const secretKey = ref(); // 后端返回的ase加密秘钥
-const passFlag = ref(); // 是否通过的标识
-const backImgBase = ref(); // 验证码背景图片
-const blockBackImgBase = ref(); // 验证滑块的背景图片
-const backToken = ref(); // 后端返回的唯一token值
-const startMoveTime = ref(); // 移动开始的时间
-const endMovetime = ref(); // 移动结束的时间
-const tipWords = ref();
-const text = ref();
-const finishText = ref();
+const instance = getCurrentInstance()?.proxy ?? null;
+const rootElement = ref<HTMLElement | null>(null);
+const passFlag = ref(false); // 是否通过的标识
+const backImgBase = ref(''); // 验证码背景图片
+const blockBackImgBase = ref(''); // 验证滑块的背景图片
+const backToken = ref<string>(); // 后端返回的唯一token值
+const startMoveTime = ref(0); // 移动开始的时间
+const endMoveTime = ref(0); // 移动结束的时间
+const tipWords = ref('');
+const text = ref('');
+const finishText = ref('');
 const setSize = reactive({
   barHeight: '0px',
   barWidth: '0px',
   imgHeight: '0px',
   imgWidth: '0px',
 });
-const moveBlockLeft = ref();
-const leftBarWidth = ref();
+const moveBlockLeft = ref('0px');
+const leftBarWidth = ref<string>();
 // 移动中样式
-const moveBlockBackgroundColor = ref();
+const moveBlockBackgroundColor = ref('#fff');
 const leftBarBorderColor = ref('#ddd');
-const iconColor = ref();
+const iconColor = ref('#000');
 const iconClass = ref('icon-right');
 const status = ref(false); // 鼠标状态
 const isEnd = ref(false); // 是够验证完成
 const showRefresh = ref(true);
-const transitionLeft = ref();
-const transitionWidth = ref();
+const transitionLeft = ref('');
+const transitionWidth = ref('');
 const startLeft = ref(0);
+const timerIds = new Set<number>();
+let challengeVersion = 0;
 
 const barArea = computed(() => {
-  return proxy?.$el.querySelector('.verify-bar-area');
+  return rootElement.value?.querySelector<HTMLElement>('.verify-bar-area');
 });
+
+function schedule(callback: () => void, delay: number) {
+  const timerId = window.setTimeout(() => {
+    timerIds.delete(timerId);
+    callback();
+  }, delay);
+  timerIds.add(timerId);
+}
+
 function init() {
   text.value =
     explain.value === '' ? $t('ui.captcha.sliderDefaultText') : explain.value;
 
-  getPictrue();
+  void getPicture();
   nextTick(() => {
-    const { barHeight, barWidth, imgHeight, imgWidth } = resetSize(proxy);
-    setSize.imgHeight = imgHeight;
-    setSize.imgWidth = imgWidth;
-    setSize.barHeight = barHeight;
-    setSize.barWidth = barWidth;
-    proxy?.$parent?.$emit('ready', proxy);
+    Object.assign(
+      setSize,
+      resetSize(rootElement.value, props.barSize, props.imgSize),
+    );
+    emit('onReady', instance);
   });
 
   window.removeEventListener('touchmove', move);
@@ -119,18 +143,33 @@ function init() {
 onMounted(() => {
   // 禁止拖拽
   init();
-  proxy?.$el.addEventListener('selectstart', () => {
-    return false;
-  });
+  rootElement.value?.addEventListener('selectstart', preventSelection);
+});
+
+function preventSelection(event: Event) {
+  event.preventDefault();
+}
+
+onBeforeUnmount(() => {
+  challengeVersion += 1;
+  rootElement.value?.removeEventListener('selectstart', preventSelection);
+  window.removeEventListener('touchmove', move);
+  window.removeEventListener('mousemove', move);
+  window.removeEventListener('touchend', end);
+  window.removeEventListener('mouseup', end);
+  for (const timerId of timerIds) window.clearTimeout(timerId);
+  timerIds.clear();
 });
 
 // 鼠标按下
 function start(e: MouseEvent | TouchEvent) {
+  const area = barArea.value;
+  if (!area) return;
   const x =
     ((e as TouchEvent).touches
       ? (e as TouchEvent).touches[0]?.pageX
       : (e as MouseEvent).clientX) || 0;
-  startLeft.value = Math.floor(x - barArea.value.getBoundingClientRect().left);
+  startLeft.value = Math.floor(x - area.getBoundingClientRect().left);
   startMoveTime.value = Date.now(); // 开始滑动的时间
   if (isEnd.value === false) {
     text.value = '';
@@ -144,105 +183,106 @@ function start(e: MouseEvent | TouchEvent) {
 // 鼠标移动
 function move(e: MouseEvent | TouchEvent) {
   if (status.value && isEnd.value === false) {
+    const area = barArea.value;
+    if (!area) return;
     const x =
       ((e as TouchEvent).touches
         ? (e as TouchEvent).touches[0]?.pageX
         : (e as MouseEvent).clientX) || 0;
-    const bar_area_left = barArea.value.getBoundingClientRect().left;
-    let move_block_left = x - bar_area_left; // 小方块相对于父元素的left值
+    const barAreaLeft = area.getBoundingClientRect().left;
+    let moveBlockPosition = x - barAreaLeft;
     if (
-      move_block_left >=
-      barArea.value.offsetWidth - Number.parseInt(blockSize.value.width) / 2 - 2
+      moveBlockPosition >=
+      area.offsetWidth - Number.parseInt(blockSize.value.width) / 2 - 2
     )
-      move_block_left =
-        barArea.value.offsetWidth -
-        Number.parseInt(blockSize.value.width) / 2 -
-        2;
+      moveBlockPosition =
+        area.offsetWidth - Number.parseInt(blockSize.value.width) / 2 - 2;
 
-    if (move_block_left <= 0)
-      move_block_left = Number.parseInt(blockSize.value.width) / 2;
+    if (moveBlockPosition <= 0)
+      moveBlockPosition = Number.parseInt(blockSize.value.width) / 2;
 
-    // 拖动后小方块的left值
-    moveBlockLeft.value = `${move_block_left - startLeft.value}px`;
-    leftBarWidth.value = `${move_block_left - startLeft.value}px`;
+    moveBlockLeft.value = `${moveBlockPosition - startLeft.value}px`;
+    leftBarWidth.value = `${moveBlockPosition - startLeft.value}px`;
   }
 }
 
-// 鼠标松开
-function end() {
-  endMovetime.value = Date.now();
-  // 判断是否重合
-  if (status.value && isEnd.value === false) {
-    let moveLeftDistance = Number.parseInt(
-      (moveBlockLeft.value || '').replace('px', ''),
-    );
-    moveLeftDistance =
-      (moveLeftDistance * 310) / Number.parseInt(setSize.imgWidth);
-    const data = {
-      captchaType: captchaType.value,
-      pointJson: secretKey.value
-        ? AES.encrypt(
-            JSON.stringify({ x: moveLeftDistance, y: 5 }),
-            secretKey.value,
-          )
-        : JSON.stringify({ x: moveLeftDistance, y: 5 }),
-      token: backToken.value,
-    };
-    checkCaptchaApi?.value?.(data).then((response) => {
-      const res = response.data;
-      if (res.repCode === '0000') {
-        moveBlockBackgroundColor.value = '#5cb85c';
-        leftBarBorderColor.value = '#5cb85c';
-        iconColor.value = '#fff';
-        iconClass.value = 'icon-check';
-        showRefresh.value = false;
-        isEnd.value = true;
-        if (mode.value === 'pop') {
-          setTimeout(() => {
-            emit('onClose');
-            refresh();
-          }, 1500);
-        }
-        passFlag.value = true;
-        tipWords.value = `${((endMovetime.value - startMoveTime.value) / 1000).toFixed(2)}s
-            ${$t('ui.captcha.title')}`;
-        const captchaVerification = secretKey.value
-          ? AES.encrypt(
-              `${backToken.value}---${JSON.stringify({ x: moveLeftDistance, y: 5 })}`,
-              secretKey.value,
-            )
-          : `${backToken.value}---${JSON.stringify({ x: moveLeftDistance, y: 5 })}`;
-        setTimeout(() => {
-          tipWords.value = '';
-          emit('onSuccess', { captchaVerification });
-          emit('onClose');
-        }, 1000);
-      } else {
-        moveBlockBackgroundColor.value = '#d9534f';
-        leftBarBorderColor.value = '#d9534f';
-        iconColor.value = '#fff';
-        iconClass.value = 'icon-close';
-        passFlag.value = false;
-        setTimeout(() => {
-          refresh();
-        }, 1000);
-        emit('onError', proxy);
-        tipWords.value = $t('ui.captcha.sliderRotateFailTip');
-        setTimeout(() => {
-          tipWords.value = '';
-        }, 1000);
+function showVerificationFailure(message?: string) {
+  moveBlockBackgroundColor.value = '#d9534f';
+  leftBarBorderColor.value = '#d9534f';
+  iconColor.value = '#fff';
+  iconClass.value = 'icon-close';
+  passFlag.value = false;
+  tipWords.value = message || $t('ui.captcha.sliderRotateFailTip');
+  emit('onError', instance);
+  schedule(() => void refresh(), 1000);
+  schedule(() => {
+    tipWords.value = '';
+  }, 1000);
+}
+
+async function end() {
+  endMoveTime.value = Date.now();
+  if (!status.value || isEnd.value) return;
+  status.value = false;
+  const imageWidth = Number.parseFloat(setSize.imgWidth);
+  const token = backToken.value;
+  const rawDistance = Number.parseFloat(moveBlockLeft.value);
+  if (
+    !token ||
+    !Number.isFinite(imageWidth) ||
+    imageWidth <= 0 ||
+    !Number.isFinite(rawDistance)
+  ) {
+    showVerificationFailure();
+    return;
+  }
+
+  const moveLeftDistance = (rawDistance * 310) / imageWidth;
+  const pointJson = JSON.stringify({ x: moveLeftDistance, y: 5 });
+  const request: CaptchaCheckRequest = createCaptchaCheckRequest(
+    captchaType.value,
+    token,
+    pointJson,
+  );
+  const version = challengeVersion;
+  try {
+    const response = await checkCaptchaApi.value?.(request);
+    if (version !== challengeVersion) return;
+    const result = parseCaptchaResponse(response);
+    if (result?.code !== '0000') {
+      showVerificationFailure(result?.message);
+      return;
+    }
+
+    moveBlockBackgroundColor.value = '#5cb85c';
+    leftBarBorderColor.value = '#5cb85c';
+    iconColor.value = '#fff';
+    iconClass.value = 'icon-check';
+    showRefresh.value = false;
+    isEnd.value = true;
+    passFlag.value = true;
+    tipWords.value = `${((endMoveTime.value - startMoveTime.value) / 1000).toFixed(2)}s ${$t('ui.captcha.title')}`;
+    const captchaVerification = createCaptchaVerification(token, pointJson);
+    schedule(() => {
+      tipWords.value = '';
+      emit('onSuccess', { captchaVerification });
+      if (mode.value === 'pop') {
+        emit('onClose');
+        void refresh();
       }
-    });
-    status.value = false;
+    }, 1000);
+  } catch {
+    if (version === challengeVersion) showVerificationFailure();
   }
 }
 
 async function refresh() {
+  challengeVersion += 1;
   showRefresh.value = true;
   finishText.value = '';
 
   transitionLeft.value = 'left .3s';
-  moveBlockLeft.value = 0;
+  moveBlockLeft.value = '0px';
 
   leftBarWidth.value = undefined;
   transitionWidth.value = 'width .3s';
@@ -253,28 +293,37 @@ async function refresh() {
   iconClass.value = 'icon-right';
   isEnd.value = false;
 
-  await getPictrue();
-  setTimeout(() => {
+  await getPicture();
+  schedule(() => {
     transitionWidth.value = '';
     transitionLeft.value = '';
-    text.value = explain.value;
+    text.value =
+      explain.value === '' ? $t('ui.captcha.sliderDefaultText') : explain.value;
   }, 300);
 }
 
-// 请求背景图片和验证图片
-async function getPictrue() {
-  const data = {
-    captchaType: captchaType.value,
-  };
-  const res = await getCaptchaApi?.value?.(data);
-
-  if (res?.data?.repCode === '0000') {
-    backImgBase.value = `data:image/png;base64,${res?.data?.repData?.originalImageBase64}`;
-    blockBackImgBase.value = `data:image/png;base64,${res?.data?.repData?.jigsawImageBase64}`;
-    backToken.value = res.data.repData.token;
-    secretKey.value = res.data.repData.secretKey;
-  } else {
-    tipWords.value = res?.data?.repMsg;
+async function getPicture() {
+  const version = ++challengeVersion;
+  try {
+    const response = await getCaptchaApi.value?.({
+      captchaType: captchaType.value,
+    });
+    if (version !== challengeVersion) return;
+    const result = parseCaptchaChallengeResponse(response, captchaType.value);
+    const challenge = result?.data;
+    if (result?.code !== '0000' || !challenge?.jigsawImageBase64) {
+      tipWords.value = result?.message || $t('ui.captcha.sliderRotateFailTip');
+      emit('onError', instance);
+      return;
+    }
+    backImgBase.value = `data:image/png;base64,${challenge.originalImageBase64}`;
+    blockBackImgBase.value = `data:image/png;base64,${challenge.jigsawImageBase64}`;
+    backToken.value = challenge.token;
+  } catch {
+    if (version === challengeVersion) {
+      tipWords.value = $t('ui.captcha.sliderRotateFailTip');
+      emit('onError', instance);
+    }
   }
 }
 defineExpose({
@@ -284,7 +333,7 @@ defineExpose({
 </script>
 
 <template>
-  <div style="position: relative">
+  <div ref="rootElement" style="position: relative">
     <div
       v-if="type === '2'"
       :style="{ height: `${Number.parseInt(setSize.imgHeight) + space}px` }"

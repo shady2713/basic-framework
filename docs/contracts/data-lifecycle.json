@@ -4,9 +4,6 @@
     {
       "id": "soft-delete",
       "tables": [
-        "crm_customer",
-        "infra_codegen_column",
-        "infra_codegen_table",
         "infra_config",
         "infra_file_config",
         "infra_job",
@@ -72,7 +69,6 @@
     "FK_QRTZ_SIMPLE_TRIGGERS_TRIGGERS",
     "FK_QRTZ_SIMPROP_TRIGGERS_TRIGGERS",
     "FK_QRTZ_TRIGGERS_JOB_DETAILS",
-    "fk_codegen_column_table",
     "fk_dict_data_type",
     "fk_file_config",
     "fk_file_content_config",

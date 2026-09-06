@@ -21,6 +21,7 @@ import com.basicframework.module.system.enums.logger.LoginLogTypeEnum;
 import com.basicframework.module.system.enums.permission.RoleCodeEnum;
 import com.basicframework.module.system.service.auth.dto.AuthLoginResultDTO;
 import com.basicframework.module.system.service.auth.dto.MfaChallengeDTO;
+import com.basicframework.module.system.service.auth.dto.MfaTotpSetupDTO;
 import com.basicframework.module.system.service.auth.dto.MfaVerifiedPrincipalDTO;
 import com.basicframework.module.system.service.auth.dto.MfaWebAuthnOptionsDTO;
 import com.basicframework.module.system.service.logger.LoginLogService;
@@ -30,14 +31,12 @@ import java.util.OptionalLong;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class MfaServiceImplTest {
 
-    @InjectMocks
     private MfaServiceImpl service;
 
     @Mock
@@ -80,6 +79,20 @@ class MfaServiceImplTest {
     void setUp() {
         when(properties.isEnabled()).thenReturn(true);
         org.mockito.Mockito.lenient().when(properties.getWebauthn()).thenReturn(webAuthnProperties);
+        MfaChallengeManager challengeManager = new MfaChallengeManager(challengeRedisDAO);
+        MfaMethodPolicy methodPolicy = new MfaMethodPolicy(properties, factorMapper, permissionService);
+        MfaAuthenticationAudit authenticationAudit = new MfaAuthenticationAudit(loginLogService);
+        MfaCredentialVerifier credentialVerifier = new MfaCredentialVerifier(
+                factorMapper, recoveryCodeMapper, secretCrypto, totpAuthenticator, webAuthnService);
+        MfaRequiredEnrollmentCredentials enrollmentCredentials =
+                new MfaRequiredEnrollmentCredentials(factorMapper, secretCrypto, totpAuthenticator, webAuthnService);
+        MfaLoginFlow loginFlow =
+                new MfaLoginFlow(methodPolicy, challengeManager, credentialVerifier, authenticationAudit);
+        MfaRequiredEnrollmentFlow enrollmentFlow = new MfaRequiredEnrollmentFlow(
+                properties, challengeManager, enrollmentCredentials, recoveryCodeManager, authenticationAudit);
+        MfaStepUpFlow stepUpFlow = new MfaStepUpFlow(
+                methodPolicy, challengeManager, stepUpRedisDAO, credentialVerifier, authenticationAudit);
+        service = new MfaServiceImpl(loginFlow, enrollmentFlow, stepUpFlow, methodPolicy);
     }
 
     @Test
@@ -172,6 +185,27 @@ class MfaServiceImplTest {
         AuthLoginResultDTO result = service.beginAuthentication(user, "admin", LoginLogTypeEnum.LOGIN_USERNAME);
 
         assertThat(result.getMfaMethods()).containsExactly("WEBAUTHN", "TOTP");
+    }
+
+    @Test
+    void beginRequiredTotpEnrollment_rotatesChallengeAndBuildsEncodedOtpAuthUri() {
+        MfaChallengeDTO challenge = challenge(MfaChallengePurposeEnum.REQUIRED_ENROLLMENT);
+        when(challengeRedisDAO.getAndDelete("login-token")).thenReturn(challenge);
+        when(totpAuthenticator.generateSecret()).thenReturn("BASE32SECRET");
+        when(secretCrypto.encrypt("BASE32SECRET", 1L)).thenReturn("ciphertext");
+        when(properties.getIssuer()).thenReturn("Basic Framework");
+
+        MfaTotpSetupDTO result = service.beginRequiredTotpEnrollment("login-token");
+
+        assertThat(result.getSecret()).isEqualTo("BASE32SECRET");
+        assertThat(result.getOtpauthUri())
+                .startsWith("otpauth://totp/Basic%20Framework%3Aadmin")
+                .contains("secret=BASE32SECRET", "issuer=Basic%20Framework");
+        var challengeCaptor = org.mockito.ArgumentCaptor.forClass(MfaChallengeDTO.class);
+        verify(challengeRedisDAO).set(anyString(), challengeCaptor.capture());
+        assertThat(challengeCaptor.getValue())
+                .extracting(MfaChallengeDTO::getPurpose, MfaChallengeDTO::getEncryptedTotpSecret)
+                .containsExactly(MfaChallengePurposeEnum.TOTP_ENROLLMENT, "ciphertext");
     }
 
     @Test
@@ -282,6 +316,40 @@ class MfaServiceImplTest {
     }
 
     @Test
+    void verifyRecoveryCode_consumesNormalizedCodeAndReturnsBoundPrincipal() {
+        when(challengeRedisDAO.getAndDelete("login-token")).thenReturn(challenge(MfaChallengePurposeEnum.LOGIN));
+        when(secretCrypto.recoveryCodeHash("ABCD2345EFGH67YZ")).thenReturn("code-hash");
+        when(recoveryCodeMapper.consume(
+                        org.mockito.ArgumentMatchers.eq(1L), org.mockito.ArgumentMatchers.eq("code-hash"), any()))
+                .thenReturn(1);
+
+        MfaVerifiedPrincipalDTO result = service.verifyRecoveryCode("login-token", "ABCD-2345-EFGH-67YZ");
+
+        assertThat(result.getUserId()).isEqualTo(1L);
+        verify(recoveryCodeMapper)
+                .consume(org.mockito.ArgumentMatchers.eq(1L), org.mockito.ArgumentMatchers.eq("code-hash"), any());
+    }
+
+    @Test
+    void beginWebAuthnAuthentication_rotatesLoginChallengeIntoCeremony() {
+        when(webAuthnProperties.isEnabled()).thenReturn(true);
+        when(challengeRedisDAO.getAndDelete("login-token")).thenReturn(challenge(MfaChallengePurposeEnum.LOGIN));
+        when(factorMapper.selectEnabledByUserIdAndTypeList(1L, MfaFactorTypeEnum.WEBAUTHN.getType()))
+                .thenReturn(List.of(MfaFactorDO.builder().id(10L).userId(1L).build()));
+        when(webAuthnService.startAssertion(1L))
+                .thenReturn(new WebAuthnService.CeremonyOptions("browser-json", "server-json"));
+
+        MfaWebAuthnOptionsDTO result = service.beginWebAuthnAuthentication("login-token");
+
+        assertThat(result.getOptionsJson()).isEqualTo("browser-json");
+        var challengeCaptor = org.mockito.ArgumentCaptor.forClass(MfaChallengeDTO.class);
+        verify(challengeRedisDAO).set(anyString(), challengeCaptor.capture());
+        assertThat(challengeCaptor.getValue())
+                .extracting(MfaChallengeDTO::getPurpose, MfaChallengeDTO::getWebAuthnRequestJson)
+                .containsExactly(MfaChallengePurposeEnum.WEBAUTHN_AUTHENTICATION, "server-json");
+    }
+
+    @Test
     void beginStepUp_bindsChallengeToAccessTokenDigestAndOffersExistingFactors() {
         when(webAuthnProperties.isEnabled()).thenReturn(true);
         when(factorMapper.selectEnabledByUserId(1L))
@@ -345,6 +413,45 @@ class MfaServiceImplTest {
     }
 
     @Test
+    void webAuthnStepUp_preservesSessionBindingUntilSuccessfulCompletion() {
+        when(webAuthnProperties.isEnabled()).thenReturn(true);
+        MfaChallengeDTO stepUpChallenge = challenge(MfaChallengePurposeEnum.STEP_UP);
+        stepUpChallenge.setAccessTokenHash("token-hash");
+        when(challengeRedisDAO.getAndDelete("step-up-token")).thenReturn(stepUpChallenge);
+        when(factorMapper.selectEnabledByUserIdAndTypeList(1L, MfaFactorTypeEnum.WEBAUTHN.getType()))
+                .thenReturn(List.of(MfaFactorDO.builder().id(10L).userId(1L).build()));
+        when(webAuthnService.startAssertion(1L))
+                .thenReturn(new WebAuthnService.CeremonyOptions("browser-json", "server-json"));
+
+        MfaWebAuthnOptionsDTO options = service.beginStepUpWebAuthn("step-up-token");
+
+        assertThat(options.getOptionsJson()).isEqualTo("browser-json");
+        var challengeCaptor = org.mockito.ArgumentCaptor.forClass(MfaChallengeDTO.class);
+        verify(challengeRedisDAO).set(anyString(), challengeCaptor.capture());
+        MfaChallengeDTO ceremony = challengeCaptor.getValue();
+        assertThat(ceremony.getAccessTokenHash()).isEqualTo("token-hash");
+        when(challengeRedisDAO.getAndDelete("ceremony-token")).thenReturn(ceremony);
+        WebAuthnService.AssertionOutcome assertion =
+                new WebAuthnService.AssertionOutcome(true, true, true, "1", new byte[] {1}, 8L, true);
+        when(webAuthnService.finishAssertion("server-json", "credential-json")).thenReturn(assertion);
+        MfaFactorDO factor =
+                MfaFactorDO.builder().id(10L).userId(1L).signatureCount(7L).build();
+        when(factorMapper.selectEnabledByCredentialId(any(), org.mockito.ArgumentMatchers.eq(1)))
+                .thenReturn(factor);
+        when(factorMapper.updateWebAuthnUsage(
+                        org.mockito.ArgumentMatchers.eq(10L),
+                        org.mockito.ArgumentMatchers.eq(7L),
+                        org.mockito.ArgumentMatchers.eq(8L),
+                        org.mockito.ArgumentMatchers.eq(true),
+                        any()))
+                .thenReturn(1);
+
+        service.completeStepUpWebAuthn("ceremony-token", "credential-json");
+
+        verify(stepUpRedisDAO).setByHash("token-hash", 1L);
+    }
+
+    @Test
     void requireStepUp_rejectsMissingOrExpiredSessionMarker() {
         when(stepUpRedisDAO.matches("access-token", 1L)).thenReturn(false);
 
@@ -368,6 +475,22 @@ class MfaServiceImplTest {
         assertThat(service.getEnrollmentMethods()).isEmpty();
 
         verify(factorMapper, never()).selectEnabledByUserId(any());
+    }
+
+    @Test
+    void methodQueries_exposeConfiguredFactorsWithoutRecoveryCode() {
+        when(webAuthnProperties.isEnabled()).thenReturn(true);
+        when(factorMapper.selectEnabledByUserId(1L))
+                .thenReturn(List.of(
+                        MfaFactorDO.builder()
+                                .factorType(MfaFactorTypeEnum.WEBAUTHN.getType())
+                                .build(),
+                        MfaFactorDO.builder()
+                                .factorType(MfaFactorTypeEnum.TOTP.getType())
+                                .build()));
+
+        assertThat(service.getEnabledMethods(1L)).containsExactly("WEBAUTHN", "TOTP");
+        assertThat(service.getEnrollmentMethods()).containsExactly("WEBAUTHN", "TOTP");
     }
 
     @Test

@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import type { UploadFile } from 'element-plus';
+
 import { useVbenModal } from '@vben/common-ui';
 import { downloadFileFromBlobPart } from '@vben/utils';
 
@@ -12,6 +14,11 @@ import { showAlertDialog, showSuccessMessage } from '#/utils/feedback';
 import { useImportFormSchema } from '../data';
 
 const emit = defineEmits(['success']);
+
+interface ImportUserValues {
+  file: File;
+  updateSupport: boolean;
+}
 
 const [Form, formApi] = useVbenForm({
   commonConfig: {
@@ -46,7 +53,7 @@ const [Modal, modalApi] = useVbenModal({
     }
     modalApi.lock();
     // 提交表单
-    const data = await formApi.getValues();
+    const data = await formApi.getValues<ImportUserValues>();
     try {
       const result = await importUser(data.file, data.updateSupport);
       const createCount = result?.createUsernames?.length ?? 0;
@@ -90,7 +97,7 @@ const [Modal, modalApi] = useVbenModal({
 });
 
 /** 文件改变时 */
-function handleChange(file: any) {
+function handleChange(file: UploadFile) {
   if (file.raw) {
     formApi.setFieldValue('file', file.raw as File);
   }

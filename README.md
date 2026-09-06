@@ -26,7 +26,7 @@ scripts/                           仓库级校验脚本（CI 直接调用）
 - JDK 17（Maven 由 `./mvnw` 包裹，无需本机安装）
 - Node.js >= 20.19，pnpm 10.28.2（`corepack enable` 自动对齐）
 - MySQL 8、Redis 7（本地开发可用 Docker 起）
-- Docker（仅 `integration` profile 的 Testcontainers 集成测试需要）
+- Docker（`dependencies` 漏洞扫描和 `integration` 集成测试需要）
 
 ## 首次 bootstrap
 
@@ -37,9 +37,10 @@ mysql -uroot -p < 数据库文件/basic_framework.sql
 # 2. 后端：编译并跑通全部后端门禁
 cd 后端代码/basic-framework-boot && ./mvnw -q verify
 
-# 3. 前端：安装依赖并跑通全部前端门禁
+# 3. 前端：安装依赖并跑通全部前端门禁（check + lint + test:coverage，
+# test:coverage 包含单元测试与覆盖率棘轮）
 cd 前端代码/basic-framework-admin && corepack enable && pnpm install --frozen-lockfile
-pnpm check && pnpm lint && pnpm test:unit
+pnpm check && pnpm lint && pnpm test:coverage
 ```
 
 ## 本地 run
@@ -54,6 +55,9 @@ cd 后端代码/basic-framework-boot && ./mvnw -q install -DskipTests
 cd 前端代码/basic-framework-admin && pnpm dev:ele
 ```
 
+容器化部署与运维处置（compose 编排、健康检查、Flyway 修复、备份恢复演练）见
+`docs/deployment.md`。
+
 ## verify（提交前必跑，可直接映射为阻断 CI job）
 
 Windows 本地与 Linux GitHub Actions 使用同一组 Harness 命名门禁。Windows 完整门禁执行
@@ -65,7 +69,8 @@ Windows 本地与 Linux GitHub Actions 使用同一组 Harness 命名门禁。Wi
 | Harness `backend` | backend-build：编译、单测（JaCoCo 覆盖率棘轮）、Spotless、ArchUnit 模块边界（规则 A-D） |
 | Harness `integration`（需 Docker） | backend-integration：Testcontainers MySQL 8/Redis 7、Flyway 空库迁移、真实 SQL，以及生产配置下 packaged jar 的 HTTP 健康探测 |
 | Harness `frontend` | frontend-build：循环依赖、依赖完整性、typecheck、cspell、lint、vitest 覆盖率棘轮 |
-| Harness `contracts` | repo-contracts：字段目录、数据生命周期和工程例外到期日漂移检查 |
+| Harness `dependencies`（需 Docker） | dependency-scan：扫描 Maven 解析态 SBOM、pnpm 锁文件、容器配置和最终应用镜像，阻断 HIGH/CRITICAL；不需要 NVD API Key |
+| Harness `contracts` | repo-contracts：字段目录、敏感对象 `toString`、数据生命周期和工程例外到期日漂移检查 |
 | Harness `lockfile` | lockfile-integrity：冻结安装验证依赖图与已提交锁文件一致 |
 | `bash scripts/doctor.sh`（仓库根） | 本地环境体检（非 CI 门禁）：JDK≥17/Node/pnpm/wrapper/锁文件五查，MySQL 缺失仅告警 |
 | 提交时 lefthook 自动执行 | repo-hygiene：空白/换行、secret-scan、commitlint |

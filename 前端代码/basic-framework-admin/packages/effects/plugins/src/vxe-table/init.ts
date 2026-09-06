@@ -1,29 +1,22 @@
+import type { BaseFormComponentType, VbenFormProps } from '@vben-core/form-ui';
+
 import type { SetupVxeTable } from './types';
 
 import { defineComponent, watch } from 'vue';
 
 import { usePreferences } from '@vben/preferences';
 
-import { useVbenForm } from '@vben-core/form-ui';
+import { useVbenForm as defaultUseVbenForm } from '@vben-core/form-ui';
 
 import {
   VxeButton,
   VxeCheckbox,
-
-  // VxeFormGather,
-  // VxeForm,
-  // VxeFormItem,
   VxeIcon,
   VxeInput,
   VxeLoading,
   VxeModal,
   VxeNumberInput,
   VxePager,
-  // VxeList,
-  // VxeModal,
-  // VxeOptgroup,
-  // VxeOption,
-  // VxePulldown,
   VxeRadio,
   VxeRadioButton,
   VxeRadioGroup,
@@ -31,11 +24,8 @@ import {
   VxeTooltip,
   VxeUI,
   VxeUpload,
-  // VxeSwitch,
-  // VxeTextarea,
 } from 'vxe-pc-ui';
 import enUS from 'vxe-pc-ui/lib/language/en-US';
-// 导入默认的语言
 import zhCN from 'vxe-pc-ui/lib/language/zh-CN';
 import {
   VxeColgroup,
@@ -47,23 +37,34 @@ import {
 
 import { extendsDefaultFormatter } from './extends';
 
-// 是否加载过
-let isInit = false;
+const LOCALES = {
+  'en-US': enUS,
+  'zh-CN': zhCN,
+};
 
-// eslint-disable-next-line import/no-mutable-exports
-export let useTableForm: typeof useVbenForm;
+let componentsRegistered = false;
+let setupCompleted = false;
+let tableFormFactory: typeof defaultUseVbenForm | undefined;
 
-// 部分组件，如果没注册，vxe-table 会报错，这里实际没用组件，只是为了不报错，同时可以减少打包体积
-const createVirtualComponent = (name = '') => {
+function createVirtualComponent(name: string) {
   return defineComponent({
     name,
   });
-};
+}
+
+export function useTableForm<
+  T extends BaseFormComponentType = BaseFormComponentType,
+>(options: VbenFormProps<T>) {
+  if (!tableFormFactory) {
+    throw new Error(
+      'VXE table is not configured: call setupVbenVxeTable before rendering grids',
+    );
+  }
+  return tableFormFactory(options);
+}
 
 export function initVxeTable() {
-  if (isInit) {
-    return;
-  }
+  if (componentsRegistered) return;
 
   VxeUI.component(VxeTable);
   VxeUI.component(VxeColumn);
@@ -72,52 +73,40 @@ export function initVxeTable() {
   VxeUI.component(VxeToolbar);
 
   VxeUI.component(VxeButton);
-  // VxeUI.component(VxeButtonGroup);
   VxeUI.component(VxeCheckbox);
-  // VxeUI.component(VxeCheckboxGroup);
   VxeUI.component(createVirtualComponent('VxeForm'));
-  // VxeUI.component(VxeFormGather);
-  // VxeUI.component(VxeFormItem);
   VxeUI.component(VxeIcon);
   VxeUI.component(VxeInput);
-  // VxeUI.component(VxeList);
   VxeUI.component(VxeLoading);
   VxeUI.component(VxeModal);
   VxeUI.component(VxeNumberInput);
-  // VxeUI.component(VxeOptgroup);
-  // VxeUI.component(VxeOption);
   VxeUI.component(VxePager);
-  // VxeUI.component(VxePulldown);
   VxeUI.component(VxeRadio);
   VxeUI.component(VxeRadioButton);
   VxeUI.component(VxeRadioGroup);
   VxeUI.component(VxeSelect);
-  // VxeUI.component(VxeSwitch);
-  // VxeUI.component(VxeTextarea);
   VxeUI.component(VxeTooltip);
   VxeUI.component(VxeUpload);
 
-  isInit = true;
+  componentsRegistered = true;
 }
 
 export function setupVbenVxeTable(setupOptions: SetupVxeTable) {
-  const { configVxeTable, useVbenForm } = setupOptions;
+  if (setupCompleted) {
+    throw new Error('VXE table has already been configured');
+  }
+  const { configVxeTable, useVbenForm: formFactory } = setupOptions;
 
   initVxeTable();
-  useTableForm = useVbenForm;
+  tableFormFactory = formFactory;
 
   const { isDark, locale } = usePreferences();
-
-  const localMap = {
-    'zh-CN': zhCN,
-    'en-US': enUS,
-  };
 
   watch(
     [() => isDark.value, () => locale.value],
     ([isDarkValue, localeValue]) => {
       VxeUI.setTheme(isDarkValue ? 'dark' : 'light');
-      VxeUI.setI18n(localeValue, localMap[localeValue]);
+      VxeUI.setI18n(localeValue, LOCALES[localeValue]);
       VxeUI.setLanguage(localeValue);
     },
     {
@@ -128,4 +117,5 @@ export function setupVbenVxeTable(setupOptions: SetupVxeTable) {
   extendsDefaultFormatter(VxeUI);
 
   configVxeTable(VxeUI);
+  setupCompleted = true;
 }

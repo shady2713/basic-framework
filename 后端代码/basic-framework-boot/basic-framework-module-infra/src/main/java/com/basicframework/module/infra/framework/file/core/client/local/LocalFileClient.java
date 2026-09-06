@@ -7,7 +7,6 @@ import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.IORuntimeException;
 import cn.hutool.core.util.StrUtil;
 import com.basicframework.module.infra.framework.file.core.client.AbstractFileClient;
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
@@ -53,7 +52,12 @@ public class LocalFileClient extends AbstractFileClient<LocalFileClientConfig> {
     }
 
     /**
-     * 解析规范路径；结果必须仍位于 basePath 内，拦截 ../ 和符号链接穿越。
+     * 解析规范路径；结果必须仍位于 basePath 内，拦截 ../、绝对路径和符号链接穿越。
+     *
+     * <p>必须使用 NIO {@link Path#resolve} 做拼接：其语义跨平台一致（绝对 path 直接
+     * 替换 base，归一化后落在 base 之外被拦截）；{@code new File(base, path)} 在
+     * Unix 上会把绝对 path 拼接进 base 目录（{@code /base + /abs -> /base/abs/...}），
+     * 绝对路径穿越会在 Linux 部署上绕过校验。
      *
      * @param path 相对文件路径
      * @return 归一化后的绝对文件路径
@@ -63,12 +67,14 @@ public class LocalFileClient extends AbstractFileClient<LocalFileClientConfig> {
             throw exception(FILE_PATH_INVALID);
         }
         try {
-            File canonicalBase = Paths.get(config.getBasePath()).toFile().getCanonicalFile();
-            File canonicalFile = new File(canonicalBase, path).getCanonicalFile();
-            if (!canonicalFile.toPath().startsWith(canonicalBase.toPath())) {
+            Path canonicalBase =
+                    Paths.get(config.getBasePath()).toFile().getCanonicalFile().toPath();
+            Path resolved =
+                    canonicalBase.resolve(path).toFile().getCanonicalFile().toPath();
+            if (!resolved.startsWith(canonicalBase)) {
                 throw exception(FILE_PATH_INVALID);
             }
-            return canonicalFile.toPath();
+            return resolved;
         } catch (IOException ex) {
             throw new IORuntimeException(ex);
         }

@@ -5,9 +5,11 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 
 /** Redis 中的短期一次性 MFA 挑战。 */
 @Data
+@ToString(exclude = {"encryptedTotpSecret", "accessTokenHash"})
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor

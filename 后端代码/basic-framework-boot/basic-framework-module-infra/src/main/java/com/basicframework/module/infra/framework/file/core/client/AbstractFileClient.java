@@ -34,7 +34,7 @@ public abstract class AbstractFileClient<Config extends FileClientConfig> implem
     /**
      * 初始化
      */
-    public final void init() {
+    public final synchronized void init() {
         doInit();
         log.debug("[init][配置摘要({}) 初始化完成]", summarizeConfig(config));
     }
@@ -44,16 +44,22 @@ public abstract class AbstractFileClient<Config extends FileClientConfig> implem
      */
     protected abstract void doInit();
 
-    public final void refresh(Config config) {
+    public final synchronized void refresh(Config config) {
         // 判断是否更新
         if (config.equals(this.originalConfig)) {
             return;
         }
         log.info("[refresh][配置摘要({}) 发生变化，重新初始化]", summarizeConfig(config));
+        Config previousConfig = this.config;
         this.config = config;
-        this.originalConfig = config;
-        // 初始化
-        this.init();
+        try {
+            // 先完成初始化再提交配置版本；初始化失败时继续保留上一份可用配置。
+            this.init();
+            this.originalConfig = config;
+        } catch (RuntimeException | Error exception) {
+            this.config = previousConfig;
+            throw exception;
+        }
     }
 
     @Override

@@ -14,7 +14,7 @@ basic-framework 是一个基于 Spring Boot 3 / Java 17 的多模块后端基础
 
 - JDK 17+
 - 使用仓库内 Maven Wrapper（所有构建命令只运行 `./mvnw`）
-- MySQL 8.x（或按配置切换到其它数据库）
+- MySQL 8.x（仓库唯一随附驱动、迁移与集成验证的数据库）
 - Redis
 
 ## 本地启动
@@ -24,6 +24,9 @@ basic-framework 是一个基于 Spring Boot 3 / Java 17 的多模块后端基础
 3. 执行 `./mvnw -q verify` 验证工程。
 4. 运行 `basic-framework-server` 模块中的 `BasicFrameworkServerApplication` 启动项目。
 
+IntelliJ HTTP Client 的非敏感地址模板位于根目录 `http-client.env.json`；令牌只在本机
+私有环境文件中维护，不写回仓库。
+
 ## MFA 配置
 
 生产 profile 强制启用 MFA，并要求通过 `CREDENTIAL_ENCRYPTION_KEY` 提供 Base64 编码的 32 字节随机主密钥。该密钥统一保护 MFA 秘密、短信渠道密钥和文件存储凭据；缺失或长度错误会阻断启动。可使用 `openssl rand -base64 32` 生成，密钥只进入部署环境的 Secret 管理，不写入配置文件或日志。
@@ -32,7 +35,9 @@ basic-framework 是一个基于 Spring Boot 3 / Java 17 的多模块后端基础
 
 可选配置为 `MFA_ISSUER`（认证器展示名称，默认 `basic-framework`）、`MFA_CHALLENGE_TTL`（一次性登录挑战有效期，默认 `5m`）和 `MFA_STEP_UP_TTL`（当前 access token 完成二次验证后的高风险操作窗口，默认 `5m`）。生产环境还必须配置 `MFA_WEBAUTHN_RP_ID` 与 `MFA_WEBAUTHN_ALLOWED_ORIGIN`；Origin 必须是 RP ID 范围内的精确 HTTPS Origin。本地开发可通过 `MFA_WEBAUTHN_ENABLED=true`、`MFA_WEBAUTHN_RP_ID=localhost` 和实际前端 Origin 启用浏览器安全密钥。
 
-## 说明
+## 容器镜像
 
-- 仓库中的初始化 SQL 与上游演示资料已移除。
-- Docker、脚本与配置均已切换为 `basic-framework` 命名。
+`basic-framework-server/Dockerfile` 将已构建 JAR 打包为非 root 运行镜像；根目录
+`docker-compose.yaml` 提供 MySQL、Redis 与后端的最小生产形态。所有外部镜像同时锁定
+补丁版本和 OCI 摘要，更新时必须同步通过仓库的容器镜像契约测试。生产 Secret 只由部署
+环境注入，完整步骤见 `docs/deployment.md`。

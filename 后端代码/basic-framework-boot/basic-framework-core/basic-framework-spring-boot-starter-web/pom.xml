@@ -80,7 +80,7 @@
 
     <build>
         <plugins>
-            <!-- 覆盖率棘轮门禁：精简无效 OpenAPI 元数据后 reactor 行覆盖率 38.69%，取 38.6%，只升不降 -->
+            <!-- 覆盖率棘轮门禁：补齐异常传输语义与严格 JSON 字符串契约测试后行覆盖率 87.69%，取 87.6%，只升不降 -->
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
@@ -99,7 +99,7 @@
                                         <limit>
                                             <counter>LINE</counter>
                                             <value>COVEREDRATIO</value>
-                                            <minimum>0.386</minimum>
+                                            <minimum>0.876</minimum>
                                         </limit>
                                     </limits>
                                 </rule>

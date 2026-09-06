@@ -4,12 +4,10 @@ import com.basicframework.framework.common.pojo.PageParam;
 import com.basicframework.framework.common.pojo.PageResult;
 import com.basicframework.framework.common.util.object.BeanUtils;
 import com.basicframework.module.system.api.logger.dto.OperateLogCreateReqDTO;
-import com.basicframework.module.system.api.logger.dto.OperateLogPageReqDTO;
 import com.basicframework.module.system.dal.dataobject.logger.OperateLogDO;
 import com.basicframework.module.system.dal.mysql.logger.OperateLogMapper;
 import com.basicframework.module.system.dal.mysql.logger.OperateLogQuery;
-import jakarta.annotation.Resource;
-import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.validation.annotation.Validated;
 
@@ -19,11 +17,10 @@ import org.springframework.validation.annotation.Validated;
  */
 @Service
 @Validated
-@Slf4j
+@RequiredArgsConstructor
 public class OperateLogServiceImpl implements OperateLogService {
 
-    @Resource
-    private OperateLogMapper operateLogMapper;
+    private final OperateLogMapper operateLogMapper;
 
     @Override
     public void createOperateLog(OperateLogCreateReqDTO createReqDTO) {
@@ -39,10 +36,5 @@ public class OperateLogServiceImpl implements OperateLogService {
     @Override
     public PageResult<OperateLogDO> getOperateLogPage(PageParam pageParam, OperateLogQuery query) {
         return operateLogMapper.selectPage(pageParam, query);
-    }
-
-    @Override
-    public PageResult<OperateLogDO> getOperateLogPage(OperateLogPageReqDTO pageReqDTO) {
-        return operateLogMapper.selectPage(pageReqDTO);
     }
 }

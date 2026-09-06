@@ -3,7 +3,6 @@ export * from './date';
 export * from './diff';
 export * from './dom';
 export * from './download';
-export * from './encrypt';
 export * from './error';
 export * from './formatNumber';
 export * from './inference';
@@ -20,7 +19,6 @@ export * from './unique';
 export * from './update-css-variables';
 export * from './upload';
 export * from './util';
-export * from './uuid'; // Shared uuid helpers
 export * from './window';
 export { get, isEqual, set } from 'es-toolkit/compat';
 export { default as cloneDeep } from 'lodash.clonedeep';

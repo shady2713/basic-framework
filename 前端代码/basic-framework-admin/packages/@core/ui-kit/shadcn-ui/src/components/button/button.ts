@@ -1,6 +1,6 @@
 import type { AsTag } from 'reka-ui';
 
-import type { Component } from 'vue';
+import type { Component, HTMLAttributes } from 'vue';
 
 import type { ButtonVariants, ButtonVariantSize } from '../../ui';
 
@@ -16,7 +16,7 @@ export interface VbenButtonProps {
    * Read our [Composition](https://www.reka-ui.com/docs/guides/composition) guide for more details.
    */
   asChild?: boolean;
-  class?: any;
+  class?: HTMLAttributes['class'];
   disabled?: boolean;
   loading?: boolean;
   size?: ButtonVariantSize;
@@ -39,7 +39,7 @@ export interface VbenButtonGroupProps extends Pick<
     isChecked: boolean,
   ) => boolean | PromiseLike<boolean | undefined> | undefined;
   /** 按钮样式 */
-  btnClass?: any;
+  btnClass?: HTMLAttributes['class'];
   /** 按钮间隔距离 */
   gap?: number;
   /** 多选模式下限制最多选择的数量。0表示不限制 */
@@ -47,7 +47,10 @@ export interface VbenButtonGroupProps extends Pick<
   /** 是否允许多选 */
   multiple?: boolean;
   /** 选项 */
-  options?: { [key: string]: any; label: CustomRenderType; value: ValueType }[];
+  options?: {
+    label: CustomRenderType;
+    value: ValueType;
+  }[];
   /** 显示图标 */
   showIcon?: boolean;
   /** 尺寸 */

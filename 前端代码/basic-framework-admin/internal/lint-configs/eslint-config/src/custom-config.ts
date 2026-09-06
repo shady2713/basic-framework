@@ -103,12 +103,9 @@ const customConfig: Linter.Config[] = [
     // - utils/feedback.ts：统一反馈封装自身，是唯一直调出口
     // - adapter/component/index.ts：向 vben globalShareState 注册全局通知，
     //   属框架适配层胶水
-    // - plugins/form-create/index.ts：form-create 要求全局注册 ElMessage
-    //   组件，属插件注册胶水
     files: [
       'apps/web-ele/src/utils/feedback.ts',
       'apps/web-ele/src/adapter/component/index.ts',
-      'apps/web-ele/src/plugins/form-create/index.ts',
     ],
     rules: {
       'no-restricted-imports': [
@@ -193,14 +190,6 @@ const customConfig: Linter.Config[] = [
       'n/prefer-global/process': 'off',
       'no-console': 'off',
       'unicorn/prefer-module': 'off',
-    },
-  },
-  {
-    files: ['**/**/playwright.config.ts'],
-    rules: {
-      'n/prefer-global/buffer': 'off',
-      'n/prefer-global/process': 'off',
-      'no-console': 'off',
     },
   },
   {

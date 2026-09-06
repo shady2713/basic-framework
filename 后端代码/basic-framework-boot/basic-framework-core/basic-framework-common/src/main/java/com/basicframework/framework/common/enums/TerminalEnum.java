@@ -16,7 +16,8 @@ public enum TerminalEnum implements ArrayValuable<Integer> {
     WECHAT_MINI_PROGRAM(10, "微信小程序"),
     WECHAT_WAP(11, "微信公众号"),
     H5(20, "H5 网页"),
-    APP(31, "手机 App"),
+    IOS_APP(31, "苹果 App"),
+    ANDROID_APP(32, "安卓 App"),
     ;
 
     public static final Integer[] ARRAYS =

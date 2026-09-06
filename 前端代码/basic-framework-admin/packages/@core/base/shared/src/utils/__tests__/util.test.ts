@@ -77,6 +77,28 @@ describe('bindMethods', () => {
     // Getter 和 setter 不应被绑定
     expect(value).toBe('test');
   });
+
+  it('does not evaluate getters while binding methods', () => {
+    class TestWithFailLoudGetter {
+      get unavailable(): never {
+        throw new Error('unavailable');
+      }
+
+      constructor() {
+        bindMethods(this);
+      }
+
+      getValue(): string {
+        return 'value';
+      }
+    }
+
+    const instance = new TestWithFailLoudGetter();
+    const { getValue } = instance;
+
+    expect(getValue()).toBe('value');
+    expect(() => instance.unavailable).toThrow('unavailable');
+  });
 });
 
 describe('getNestedValue', () => {
@@ -138,8 +160,10 @@ describe('getNestedValue', () => {
     expect(result).toBe(2);
   });
 
-  it('should return the entire object if path is empty', () => {
-    expect(() => getNestedValue(data, '')()).toThrow();
+  it('should reject an empty path', () => {
+    expect(() => getNestedValue(data, '')).toThrow(
+      'Path must be a non-empty string',
+    );
   });
 
   it('should handle paths with array indexes', () => {
@@ -152,5 +176,10 @@ describe('getNestedValue', () => {
     const complexData = { list: [{ name: 'Item1' }] };
     const result = getNestedValue(complexData, 'list.2.name');
     expect(result).toBeUndefined();
+  });
+
+  it('should reject prototype-chain traversal', () => {
+    expect(getNestedValue({}, 'toString')).toBeUndefined();
+    expect(getNestedValue({}, '__proto__.polluted')).toBeUndefined();
   });
 });

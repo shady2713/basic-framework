@@ -1,6 +1,7 @@
 package com.basicframework.module.system.controller.admin.permission;
 
 import static com.basicframework.framework.common.pojo.CommonResult.success;
+import static com.basicframework.framework.security.core.util.SecurityFrameworkUtils.getLoginUserId;
 
 import com.basicframework.framework.common.pojo.CommonResult;
 import com.basicframework.framework.security.core.annotation.MfaStepUp;
@@ -11,9 +12,9 @@ import com.basicframework.module.system.service.permission.PermissionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import java.util.Set;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -25,10 +26,10 @@ import org.springframework.web.bind.annotation.*;
 @Tag(name = "管理后台 - 权限")
 @RestController
 @RequestMapping("/system/permission")
+@RequiredArgsConstructor
 public class PermissionController {
 
-    @Resource
-    private PermissionService permissionService;
+    private final PermissionService permissionService;
 
     @Operation(summary = "获得角色拥有的菜单编号")
     @Parameter(name = "roleId", description = "角色编号", required = true)
@@ -44,7 +45,7 @@ public class PermissionController {
     @MfaStepUp
     public CommonResult<Boolean> assignRoleMenu(@Validated @RequestBody PermissionAssignRoleMenuReqVO reqVO) {
         // 执行菜单的分配
-        permissionService.assignRoleMenu(reqVO.getRoleId(), reqVO.getMenuIds());
+        permissionService.assignRoleMenu(getLoginUserId(), reqVO.getRoleId(), reqVO.getMenuIds());
         return success(true);
     }
 
@@ -53,7 +54,8 @@ public class PermissionController {
     @PreAuthorize("@ss.hasPermission('system:permission:assign-role-data-scope')")
     @MfaStepUp
     public CommonResult<Boolean> assignRoleDataScope(@Valid @RequestBody PermissionAssignRoleDataScopeReqVO reqVO) {
-        permissionService.assignRoleDataScope(reqVO.getRoleId(), reqVO.getDataScope(), reqVO.getDataScopeDeptIds());
+        permissionService.assignRoleDataScope(
+                getLoginUserId(), reqVO.getRoleId(), reqVO.getDataScope(), reqVO.getDataScopeDeptIds());
         return success(true);
     }
 
@@ -70,7 +72,7 @@ public class PermissionController {
     @PreAuthorize("@ss.hasPermission('system:permission:assign-user-role')")
     @MfaStepUp
     public CommonResult<Boolean> assignUserRole(@Validated @RequestBody PermissionAssignUserRoleReqVO reqVO) {
-        permissionService.assignUserRole(reqVO.getUserId(), reqVO.getRoleIds());
+        permissionService.assignUserRole(getLoginUserId(), reqVO.getUserId(), reqVO.getRoleIds());
         return success(true);
     }
 }

@@ -64,6 +64,7 @@ public class ColumnWidthMatchStyleStrategy extends AbstractColumnWidthStyleStrat
         }
         switch (type) {
             case STRING:
+            case DIRECT_STRING:
                 return cellData.getStringValue().getBytes().length;
             case BOOLEAN:
                 return cellData.getBooleanValue().toString().getBytes().length;
@@ -71,7 +72,13 @@ public class ColumnWidthMatchStyleStrategy extends AbstractColumnWidthStyleStrat
                 return cellData.getNumberValue().toString().getBytes().length;
             case DATE:
                 return cellData.getDateValue().toString().getBytes().length;
+            case RICH_TEXT_STRING:
+                return cellData.getRichTextStringDataValue() == null
+                        ? -1
+                        : cellData.getRichTextStringDataValue().getTextString().getBytes().length;
             default:
+                // EMPTY/ERROR 等无可测量内容，以及未来新增的单元格类型：跳过列宽计算，
+                // 保持 Excel 默认宽度。不抛错：这是第三方枚举的兼容性缺口，不是编程错误。
                 return -1;
         }
     }

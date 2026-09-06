@@ -1,5 +1,7 @@
+import type { HTMLAttributes } from 'vue';
+
 interface PinInputProps {
-  class?: any;
+  class?: HTMLAttributes['class'];
   /**
    * 验证码长度
    */

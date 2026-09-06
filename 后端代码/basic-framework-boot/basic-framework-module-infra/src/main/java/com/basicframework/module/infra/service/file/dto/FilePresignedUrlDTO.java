@@ -30,4 +30,6 @@ public class FilePresignedUrlDTO {
      * 前端上传完文件后，需要调用 createFile 记录下 path 路径
      */
     private final String path;
+    /** 一次性上传完成凭据；服务端只保存摘要。 */
+    private final String uploadToken;
 }

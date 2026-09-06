@@ -25,6 +25,7 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   appName: '',
+  clickLogo: undefined,
   copyright: true,
   logo: '',
   logoDark: '',
@@ -33,7 +34,6 @@ const props = withDefaults(defineProps<Props>(), {
   sloganImage: '',
   toolbar: true,
   toolbarList: () => ['color', 'layout', 'theme'],
-  clickLogo: () => {},
 });
 
 const { authPanelCenter, authPanelLeft, authPanelRight, isDark } =
@@ -50,6 +50,12 @@ const logoSrc = computed(() => {
   // 否则使用默认的 logo
   return props.logo;
 });
+
+const logoTag = computed(() => (props.clickLogo ? 'button' : 'div'));
+
+function handleLogoClick() {
+  props.clickLogo?.();
+}
 </script>
 
 <template>
@@ -80,10 +86,12 @@ const logoSrc = computed(() => {
 
     <slot name="logo">
       <!-- 头部 Logo 响应式布局 -->
-      <div
+      <component
+        :is="logoTag"
         v-if="logoSrc || appName"
-        class="absolute left-0 top-0 z-10 flex flex-1"
-        @click="clickLogo"
+        :type="clickLogo ? 'button' : undefined"
+        class="absolute left-0 top-0 z-10 flex flex-1 border-0 bg-transparent p-0 text-left"
+        @click="handleLogoClick"
       >
         <div
           class="text-foreground lg:text-foreground ml-4 mt-4 flex flex-1 items-center sm:left-6 sm:top-6"
@@ -100,7 +108,7 @@ const logoSrc = computed(() => {
             {{ appName }}
           </p>
         </div>
-      </div>
+      </component>
     </slot>
 
     <!-- 系统口号 -->
