@@ -10,9 +10,10 @@ const WORKSPACE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(
   join(WORKSPACE_ROOT, 'internal/lint-configs/eslint-config/package.json'),
 );
+const vueEslintParser = require('vue-eslint-parser');
+
 const typescriptEslintPlugin = require('@typescript-eslint/eslint-plugin');
 const typescriptEslintParser = require('@typescript-eslint/parser');
-const vueEslintParser = require('vue-eslint-parser');
 
 const REPO_ROOT = resolve(WORKSPACE_ROOT, '../..');
 const FRONTEND_RELATIVE_ROOT = normalizePath(

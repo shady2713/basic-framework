@@ -106,6 +106,8 @@ gate_dependencies() {
     -t basic-framework-server:dependency-scan \
     "$repo_root/后端代码/basic-framework-boot/basic-framework-server"
   docker save basic-framework-server:dependency-scan -o "$image_archive"
+  # docker save 由守护进程以 root 落盘（0600），容器内非 root 的 Trivy 需要可读
+  sudo chmod 644 "$image_archive"
 
   docker run --rm \
     --cap-drop ALL \
