@@ -108,6 +108,10 @@ gate_dependencies() {
   docker save basic-framework-server:dependency-scan -o "$image_archive"
   # docker save 由守护进程以 root 落盘（0600），容器内非 root 的 Trivy 需要可读
   sudo chmod 644 "$image_archive"
+  # Trivy 容器以非 root 用户运行，无法在 runner 属主的目录里创建报告文件：
+  # 预建报告文件并放开写权限
+  touch "$image_report"
+  sudo chmod 666 "$image_report"
 
   docker run --rm \
     --cap-drop ALL \

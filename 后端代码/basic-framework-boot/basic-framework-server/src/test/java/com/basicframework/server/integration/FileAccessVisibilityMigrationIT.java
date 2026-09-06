@@ -33,7 +33,8 @@ class FileAccessVisibilityMigrationIT {
         DataSource dataSource =
                 new DriverManagerDataSource(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword());
         assertThat(flyway(dataSource, MigrationVersion.fromVersion("36")).migrate().migrationsExecuted)
-                .isEqualTo(36);
+                // 迁移序列无 V7：到 36 为止共执行 6 + (36-7) = 35 个迁移，与其他 IT 的计数口径一致
+                .isEqualTo(35);
 
         JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
         long configId = 9_037_001L;
