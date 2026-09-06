@@ -91,15 +91,11 @@ basic-framework:
   info:
     version: 1.0.0
     base-package: com.basicframework
-  web:
-    admin-ui:
-      url: http://127.0.0.1:3000
   xss:
     enable: true
     exclude-urls:
       - ${management.endpoints.web.base-path}/**
   security:
-    permit-all_urls: []
     credential-encryption-key: ${CREDENTIAL_ENCRYPTION_KEY:}
     login-protection:
       max-failed-attempts: ${LOGIN_MAX_FAILED_ATTEMPTS:5}

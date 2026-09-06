@@ -1,14 +1,13 @@
 package com.basicframework.module.system.service.dept;
 
+import static com.basicframework.module.system.testutil.ServiceExceptionAssert.assertServiceException;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.basicframework.framework.common.enums.CommonStatusEnum;
-import com.basicframework.framework.common.exception.ServiceException;
 import com.basicframework.module.system.dal.dataobject.dept.PostDO;
 import com.basicframework.module.system.dal.dataobject.dept.UserPostDO;
 import com.basicframework.module.system.dal.mysql.dept.PostMapper;
@@ -189,12 +188,5 @@ class PostServiceImplTest {
         other.setName(name);
         other.setCode(code);
         return other;
-    }
-
-    private static void assertServiceException(Integer code, Runnable action) {
-        assertThatThrownBy(action::run)
-                .isInstanceOf(ServiceException.class)
-                .extracting(ex -> ((ServiceException) ex).getCode())
-                .isEqualTo(code);
     }
 }

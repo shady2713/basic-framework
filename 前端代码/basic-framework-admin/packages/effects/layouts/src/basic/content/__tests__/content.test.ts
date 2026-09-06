@@ -1,3 +1,5 @@
+import type { RouteLocationNormalizedLoaded } from 'vue-router';
+
 import { mount } from '@vue/test-utils';
 import { defineComponent } from 'vue';
 
@@ -146,6 +148,6 @@ describe('layoutContent (effects)', () => {
   });
 });
 
-// 类型引用，保持 RouteLocationNormalizedLoaded 导入用于编译检查
-
-export { type RouteLocationNormalizedLoaded } from 'vue-router';
+// 编译检查：钉住路由类型与布局 content 的契约关系
+type ContentRoute = RouteLocationNormalizedLoaded;
+void (null as unknown as ContentRoute | undefined);

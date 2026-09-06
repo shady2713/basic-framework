@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "policy": "Only TypeScript modules that compile to no runtime JavaScript may be excluded.",
+  "policy": "Only TypeScript modules that compile to no runtime JavaScript may be excluded via this contract. Application entry assembly files (apps/web-ele/src/main.ts and bootstrap.ts: pure wiring, no testable logic) are separately excluded in vitest.config.ts and are not eligible for this contract.",
   "files": [
     "apps/web-ele/src/components/description/typing.ts",
     "apps/web-ele/src/components/table-action/typing.ts",

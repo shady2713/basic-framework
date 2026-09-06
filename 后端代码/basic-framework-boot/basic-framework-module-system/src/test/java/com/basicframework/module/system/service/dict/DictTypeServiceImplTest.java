@@ -1,8 +1,8 @@
 package com.basicframework.module.system.service.dict;
 
+import static com.basicframework.module.system.testutil.ServiceExceptionAssert.assertServiceException;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -11,7 +11,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.basicframework.framework.common.enums.CommonStatusEnum;
-import com.basicframework.framework.common.exception.ServiceException;
 import com.basicframework.framework.common.pojo.PageParam;
 import com.basicframework.framework.common.pojo.PageResult;
 import com.basicframework.module.system.dal.dataobject.dict.DictTypeDO;
@@ -273,12 +272,5 @@ class DictTypeServiceImplTest {
         dictType.setType(type);
         dictType.setStatus(status);
         return dictType;
-    }
-
-    private static void assertServiceException(Integer code, Runnable action) {
-        assertThatThrownBy(action::run)
-                .isInstanceOf(ServiceException.class)
-                .extracting(ex -> ((ServiceException) ex).getCode())
-                .isEqualTo(code);
     }
 }

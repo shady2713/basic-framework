@@ -4,14 +4,6 @@ import { $t } from '#/locales';
 
 const routes: RouteRecordRaw[] = [
   {
-    path: '/analytics',
-    redirect: '/dashboard',
-    meta: {
-      hideInMenu: true,
-      title: $t('page.dashboard.title'),
-    },
-  },
-  {
     name: 'Dashboard',
     path: '/dashboard',
     component: () => import('#/views/dashboard/analytics/index.vue'),

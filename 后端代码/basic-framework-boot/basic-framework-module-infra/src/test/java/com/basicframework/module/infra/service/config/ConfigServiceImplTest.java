@@ -3,13 +3,12 @@ package com.basicframework.module.infra.service.config;
 import static com.basicframework.module.infra.enums.ErrorCodeConstants.CONFIG_CAN_NOT_DELETE_SYSTEM_TYPE;
 import static com.basicframework.module.infra.enums.ErrorCodeConstants.CONFIG_KEY_DUPLICATE;
 import static com.basicframework.module.infra.enums.ErrorCodeConstants.CONFIG_NOT_EXISTS;
+import static com.basicframework.module.infra.testutil.ServiceExceptionAssert.assertServiceException;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.basicframework.framework.common.exception.ServiceException;
 import com.basicframework.framework.common.pojo.PageParam;
 import com.basicframework.framework.common.pojo.PageResult;
 import com.basicframework.module.infra.dal.dataobject.config.ConfigDO;
@@ -129,12 +128,5 @@ class ConfigServiceImplTest {
 
     private static ConfigDO config(Long id, String key, Integer type) {
         return new ConfigDO().setId(id).setConfigKey(key).setType(type);
-    }
-
-    private static void assertServiceException(Integer code, Runnable action) {
-        assertThatThrownBy(action::run)
-                .isInstanceOf(ServiceException.class)
-                .extracting(exception -> ((ServiceException) exception).getCode())
-                .isEqualTo(code);
     }
 }

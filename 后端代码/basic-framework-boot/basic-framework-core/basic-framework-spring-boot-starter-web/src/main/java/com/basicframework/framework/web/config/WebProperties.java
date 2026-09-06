@@ -28,10 +28,6 @@ public class WebProperties {
     @Valid
     private Api adminApi = new Api("/admin-api", "**.controller.admin.**");
 
-    @NotNull(message = "Admin UI 不能为空")
-    @Valid
-    private Ui adminUi;
-
     /**
      * CORS 允许的源地址列表。生产环境仅允许精确 HTTPS Origin，不允许 Ant 通配符、路径或本机地址。
      * 例如：https://admin.example.com
@@ -76,14 +72,5 @@ public class WebProperties {
          */
         @NotEmpty(message = "Controller 所在包不能为空")
         private String controller;
-    }
-
-    @Data
-    public static class Ui {
-
-        /**
-         * 访问地址
-         */
-        private String url;
     }
 }

@@ -6,8 +6,8 @@ import static com.basicframework.module.system.enums.ErrorCodeConstants.SMS_CODE
 import static com.basicframework.module.system.enums.ErrorCodeConstants.SMS_CODE_SCENE_NOT_EXISTS;
 import static com.basicframework.module.system.enums.ErrorCodeConstants.SMS_CODE_SEND_TOO_FAST;
 import static com.basicframework.module.system.enums.ErrorCodeConstants.SMS_CODE_USED;
+import static com.basicframework.module.system.testutil.ServiceExceptionAssert.assertServiceException;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -20,7 +20,6 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.baomidou.lock.annotation.Lock4j;
-import com.basicframework.framework.common.exception.ServiceException;
 import com.basicframework.module.system.dal.dataobject.sms.SmsCodeDO;
 import com.basicframework.module.system.dal.mysql.sms.SmsCodeMapper;
 import com.basicframework.module.system.dal.redis.sms.SmsCodeAttemptRedisDAO;
@@ -266,12 +265,5 @@ class SmsCodeServiceImplTest {
         reqDTO.setScene(scene);
         reqDTO.setCreateIp("127.0.0.1");
         return reqDTO;
-    }
-
-    private static void assertServiceException(
-            Integer expectedCode, org.junit.jupiter.api.function.Executable operation) {
-        assertThatThrownBy(operation::execute)
-                .isInstanceOfSatisfying(ServiceException.class, exception -> assertThat(exception.getCode())
-                        .isEqualTo(expectedCode));
     }
 }

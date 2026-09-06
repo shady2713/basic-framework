@@ -40,18 +40,14 @@ describe('vite environment loading', () => {
   it('converts validated application settings', async () => {
     await writeFile(
       join(root, '.env'),
-      [
-        'VITE_APP_CAPTCHA_ENABLE=true',
-        'VITE_APP_TITLE=Admin',
-        'VITE_BASE=/console/',
-        'VITE_PORT=5174',
-      ].join('\n'),
+      ['VITE_APP_TITLE=Admin', 'VITE_BASE=/console/', 'VITE_PORT=5174'].join(
+        '\n',
+      ),
     );
 
     await expect(loadAndConvertEnv(root)).resolves.toEqual(
       expect.objectContaining({
-        VITE_APP_CAPTCHA_ENABLE: true,
-        appTitle: 'Admin',
+        VITE_APP_TITLE: 'Admin',
         base: '/console/',
         port: 5174,
       }),
@@ -59,10 +55,6 @@ describe('vite environment loading', () => {
   });
 
   it.each([
-    [
-      'VITE_APP_CAPTCHA_ENABLE=yes',
-      'VITE_APP_CAPTCHA_ENABLE 必须为 true 或 false',
-    ],
     ['VITE_PORT=0', 'VITE_PORT 必须为 1-65535 的整数'],
     ['VITE_PORT=65536', 'VITE_PORT 必须为 1-65535 的整数'],
   ])(

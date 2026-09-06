@@ -77,12 +77,6 @@
             <artifactId>basic-framework-spring-boot-starter-job</artifactId>
         </dependency>
 
-        <!-- 消息队列相关 -->
-        <dependency>
-            <groupId>com.basicframework</groupId>
-            <artifactId>basic-framework-spring-boot-starter-mq</artifactId>
-        </dependency>
-
         <!-- Test 测试相关 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

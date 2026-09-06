@@ -1,15 +1,14 @@
 package com.basicframework.module.system.service.permission;
 
+import static com.basicframework.module.system.testutil.ServiceExceptionAssert.assertServiceException;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.basicframework.framework.common.enums.CommonStatusEnum;
-import com.basicframework.framework.common.exception.ServiceException;
 import com.basicframework.module.system.dal.dataobject.permission.RoleDO;
 import com.basicframework.module.system.dal.dataobject.permission.UserRoleDO;
 import com.basicframework.module.system.dal.mysql.permission.RoleMapper;
@@ -391,12 +390,5 @@ class RoleServiceImplTest {
         role.setCode(code);
         role.setStatus(status);
         return role;
-    }
-
-    private static void assertServiceException(Integer code, Runnable action) {
-        assertThatThrownBy(action::run)
-                .isInstanceOf(ServiceException.class)
-                .extracting(ex -> ((ServiceException) ex).getCode())
-                .isEqualTo(code);
     }
 }

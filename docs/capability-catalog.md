@@ -159,7 +159,7 @@ module-system / module-infra 的对外契约（CommonApi 接口 + DTO）由
 见 ModuleBoundaryArchitectureTest）。
 
 - system 侧（`basic-framework-module-system-api`）：Permission /
-  MenuReference / UserSession / OperateLog / DictData / Mfa
+  UserSession / OperateLog / DictData / Mfa
 - infra 侧（`basic-framework-module-infra-api`）：ApiAccessLog / ApiErrorLog
 
 业务模块之间也只消费上述薄 API 契约，不得直接访问对方 Mapper、DO 或 ServiceImpl；

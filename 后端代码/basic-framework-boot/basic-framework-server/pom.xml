@@ -91,6 +91,12 @@
             <artifactId>basic-framework-spring-boot-starter-protection</artifactId>
         </dependency>
 
+        <!-- 消息队列相关：MQ 为交付接缝，业务模块不直接依赖，由装配层统一引入 -->
+        <dependency>
+            <groupId>com.basicframework</groupId>
+            <artifactId>basic-framework-spring-boot-starter-mq</artifactId>
+        </dependency>
+
     </dependencies>
 
     <build>

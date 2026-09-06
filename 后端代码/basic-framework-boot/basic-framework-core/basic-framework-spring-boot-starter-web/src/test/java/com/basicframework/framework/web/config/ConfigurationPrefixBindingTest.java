@@ -16,14 +16,14 @@ class ConfigurationPrefixBindingTest {
             .withConfiguration(AutoConfigurations.of(
                     ConfigurationPropertiesAutoConfiguration.class, ValidationAutoConfiguration.class))
             .withUserConfiguration(TestConfiguration.class)
-            .withPropertyValues("basic-framework.web.admin-ui.url=http://127.0.0.1:3000");
+            .withPropertyValues("basic-framework.web.admin-api.prefix=/admin-api");
 
     @Test
     void bindsKebabCaseConfigurationPrefixes() {
         contextRunner.run(context -> {
             assertThat(context).hasNotFailed();
-            assertThat(context.getBean(WebProperties.class).getAdminUi().getUrl())
-                    .isEqualTo("http://127.0.0.1:3000");
+            assertThat(context.getBean(WebProperties.class).getAdminApi().getPrefix())
+                    .isEqualTo("/admin-api");
         });
     }
 

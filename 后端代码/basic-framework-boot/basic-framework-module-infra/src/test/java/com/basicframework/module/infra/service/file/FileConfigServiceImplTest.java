@@ -3,6 +3,7 @@ package com.basicframework.module.infra.service.file;
 import static com.basicframework.module.infra.enums.ErrorCodeConstants.FILE_CONFIG_DELETE_FAIL_MASTER;
 import static com.basicframework.module.infra.enums.ErrorCodeConstants.FILE_CONFIG_IN_USE;
 import static com.basicframework.module.infra.enums.ErrorCodeConstants.FILE_CONFIG_NOT_EXISTS;
+import static com.basicframework.module.infra.testutil.ServiceExceptionAssert.assertServiceException;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.any;
@@ -257,13 +258,6 @@ class FileConfigServiceImplTest {
                 .extracting(FileDO::getConfigId, FileDO::getName, FileDO::getUrl, FileDO::getType)
                 .containsExactly(14L, "erweima.jpg", "http://localhost/test.jpg", "image/jpeg");
         assertThat(fileCaptor.getValue().getSize()).isPositive();
-    }
-
-    private static void assertServiceException(Integer code, Runnable action) {
-        assertThatThrownBy(action::run)
-                .isInstanceOf(ServiceException.class)
-                .extracting(exception -> ((ServiceException) exception).getCode())
-                .isEqualTo(code);
     }
 
     private static Map<String, Object> s3ConfigMap(String accessSecret) {

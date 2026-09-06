@@ -90,12 +90,7 @@ async function loadAndConvertEnv(root: string, mode?: string) {
   const env = await loadEnv(root, mode);
   return {
     ...env,
-    VITE_APP_CAPTCHA_ENABLE: getBoolean(
-      'VITE_APP_CAPTCHA_ENABLE',
-      env.VITE_APP_CAPTCHA_ENABLE,
-    ),
     VITE_VISUALIZER: getBoolean('VITE_VISUALIZER', env.VITE_VISUALIZER),
-    appTitle: getString(env.VITE_APP_TITLE, 'Basic Framework'),
     base: getString(env.VITE_BASE, '/'),
     port: getPort(env.VITE_PORT, 5173),
   };

@@ -1,5 +1,6 @@
 package com.basicframework.module.system.service.sms;
 
+import static com.basicframework.module.system.testutil.ServiceExceptionAssert.assertServiceException;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -11,7 +12,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.basicframework.framework.common.enums.CommonStatusEnum;
-import com.basicframework.framework.common.exception.ErrorCode;
 import com.basicframework.framework.common.exception.ServiceException;
 import com.basicframework.module.system.dal.dataobject.sms.SmsChannelDO;
 import com.basicframework.module.system.dal.dataobject.sms.SmsTemplateDO;
@@ -184,12 +184,5 @@ class SmsTemplateServiceImplTest {
                 .setCode("login")
                 .setContent("验证码 {code}")
                 .setApiTemplateId("api-template");
-    }
-
-    private static void assertServiceException(ErrorCode errorCode, Runnable action) {
-        assertThatThrownBy(action::run)
-                .isInstanceOf(ServiceException.class)
-                .extracting(ex -> ((ServiceException) ex).getCode())
-                .isEqualTo(errorCode.getCode());
     }
 }

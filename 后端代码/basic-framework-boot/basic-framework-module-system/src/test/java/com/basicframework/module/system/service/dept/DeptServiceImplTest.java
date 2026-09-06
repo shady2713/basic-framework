@@ -1,5 +1,6 @@
 package com.basicframework.module.system.service.dept;
 
+import static com.basicframework.module.system.testutil.ServiceExceptionAssert.assertServiceException;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -45,7 +46,7 @@ class DeptServiceImplTest {
         DeptDO dept = dept(1L, 999L);
         when(userMapper.selectById(999L)).thenReturn(null);
 
-        assertServiceException(() -> deptService.createDept(dept));
+        assertServiceException(ErrorCodeConstants.USER_NOT_EXISTS.getCode(), () -> deptService.createDept(dept));
 
         verify(deptMapper, never()).insert(any(DeptDO.class));
     }
@@ -233,12 +234,5 @@ class DeptServiceImplTest {
 
     private static DeptDO enabledDept(Long id) {
         return dept(id, null).setStatus(CommonStatusEnum.ENABLE.getStatus());
-    }
-
-    private static void assertServiceException(Runnable action) {
-        assertThatThrownBy(action::run)
-                .isInstanceOf(ServiceException.class)
-                .extracting(ex -> ((ServiceException) ex).getCode())
-                .isEqualTo(ErrorCodeConstants.USER_NOT_EXISTS.getCode());
     }
 }

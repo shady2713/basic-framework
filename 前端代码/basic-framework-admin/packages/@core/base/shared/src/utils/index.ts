@@ -9,7 +9,6 @@ export * from './inference';
 export * from './letter';
 export * from './merge';
 export * from './nprogress';
-export * from './resources';
 export * from './stack';
 export * from './state-handler';
 export * from './time';

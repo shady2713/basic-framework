@@ -34,7 +34,6 @@ class ModuleBoundaryArchitectureTest {
             "com.basicframework.module.system.api.dict.dto.DictDataRespDTO",
             "com.basicframework.module.system.api.logger.OperateLogCommonApi",
             "com.basicframework.module.system.api.logger.dto.OperateLogCreateReqDTO",
-            "com.basicframework.module.system.api.permission.MenuReferenceCommonApi",
             "com.basicframework.module.system.api.permission.PermissionCommonApi",
             "com.basicframework.module.system.api.permission.dto.DeptDataPermissionRespDTO",
             "com.basicframework.module.system.api.session.UserSessionCommonApi",
