@@ -137,8 +137,14 @@ function Invoke-DependenciesGate {
     Invoke-External 'docker' @(
         'buildx', 'build',
         '--pull=false',
-        '--output', "type=docker,dest=$imageArchive",
+        '--load',
+        '-t', 'basic-framework-server:dependency-scan',
         (Join-Path $RepoRoot '后端代码/basic-framework-boot/basic-framework-server')
+    )
+    Invoke-External 'docker' @(
+        'save',
+        'basic-framework-server:dependency-scan',
+        '-o', $imageArchive
     )
 
     $containerArguments = @(

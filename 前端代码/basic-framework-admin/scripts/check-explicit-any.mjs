@@ -11,6 +11,8 @@ const require = createRequire(
   join(WORKSPACE_ROOT, 'internal/lint-configs/eslint-config/package.json'),
 );
 const typescriptEslintPlugin = require('@typescript-eslint/eslint-plugin');
+const typescriptEslintParser = require('@typescript-eslint/parser');
+const vueEslintParser = require('vue-eslint-parser');
 
 const REPO_ROOT = resolve(WORKSPACE_ROOT, '../..');
 const FRONTEND_RELATIVE_ROOT = normalizePath(
@@ -102,11 +104,18 @@ function baseContent(sourcePath) {
   }
 }
 
+/**
+ * 独立于项目 eslint 配置构造计数实例：CI 与本地的 pnpm 解析差异会让同一插件键
+ * 指向不同实例，合并项目配置时触发 "Cannot redefine plugin" 崩溃。这里的配置
+ * 完全自包含（parser/插件/规则都显式声明），不与项目配置发生合并。
+ */
 function createEslint() {
   return new ESLint({
+    overrideConfigFile: true,
     overrideConfig: [
       {
-        files: SOURCE_PATTERNS,
+        files: ['**/*.{cts,mts,ts,tsx}'],
+        languageOptions: { parser: typescriptEslintParser },
         plugins: {
           '@typescript-eslint': typescriptEslintPlugin,
         },
@@ -114,6 +123,25 @@ function createEslint() {
           [RULE_ID]: 'error',
         },
       },
+      {
+        files: ['**/*.vue'],
+        languageOptions: {
+          parser: vueEslintParser,
+          parserOptions: { parser: typescriptEslintParser, ecmaVersion: 'latest', sourceType: 'module' },
+        },
+        plugins: {
+          '@typescript-eslint': typescriptEslintPlugin,
+        },
+        rules: {
+          [RULE_ID]: 'error',
+        },
+      },
+    ],
+    ignorePatterns: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/coverage/**',
+      '**/.turbo/**',
     ],
     warnIgnored: false,
   });

@@ -102,8 +102,10 @@ gate_dependencies() {
   image_report="$backend_target/trivy-image-report.txt"
   docker buildx build \
     --pull=false \
-    --output "type=docker,dest=$image_archive" \
+    --load \
+    -t basic-framework-server:dependency-scan \
     "$repo_root/后端代码/basic-framework-boot/basic-framework-server"
+  docker save basic-framework-server:dependency-scan -o "$image_archive"
 
   docker run --rm \
     --cap-drop ALL \
