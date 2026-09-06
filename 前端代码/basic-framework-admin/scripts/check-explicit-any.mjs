@@ -127,7 +127,11 @@ function createEslint() {
         files: ['**/*.vue'],
         languageOptions: {
           parser: vueEslintParser,
-          parserOptions: { parser: typescriptEslintParser, ecmaVersion: 'latest', sourceType: 'module' },
+          parserOptions: {
+            parser: typescriptEslintParser,
+            ecmaVersion: 'latest',
+            sourceType: 'module',
+          },
         },
         plugins: {
           '@typescript-eslint': typescriptEslintPlugin,

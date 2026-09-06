@@ -114,6 +114,25 @@
                 <scope>import</scope>
             </dependency>
 
+            <!-- Boot 管理的 Tomcat 10.1.55 携带 CVE-2026-65182 等多个 HIGH/CRITICAL，
+                 三个 embed 工件统一钉到官方修复线 10.1.59（Central 上 10.1.58 未发布）；
+                 dependency-scan 的 Trivy 阈值阻断回退 -->
+            <dependency>
+                <groupId>org.apache.tomcat.embed</groupId>
+                <artifactId>tomcat-embed-core</artifactId>
+                <version>10.1.59</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.tomcat.embed</groupId>
+                <artifactId>tomcat-embed-el</artifactId>
+                <version>10.1.59</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.tomcat.embed</groupId>
+                <artifactId>tomcat-embed-websocket</artifactId>
+                <version>10.1.59</version>
+            </dependency>
+
             <!-- 业务组件 -->
             <dependency>
                 <groupId>io.github.mouzt</groupId>
