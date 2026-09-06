@@ -49,7 +49,7 @@
 
 ## MFA 短时窗口
 
-- 一次性登录、注册与 WebAuthn ceremony 挑战由 `basic-framework.security.mfa.challenge-ttl` 控制，只允许 1 秒至 10 分钟。
+- 一次性登录与注册挑战由 `basic-framework.security.mfa.challenge-ttl` 控制，只允许 1 秒至 10 分钟。
 - 已完成 MFA 的高风险操作状态由 `basic-framework.security.mfa.step-up-ttl` 控制，只允许 1 秒至 15 分钟，且始终绑定当前 access token；超出范围的部署配置在启动期失败。
 
 ## 超级管理员授权边界

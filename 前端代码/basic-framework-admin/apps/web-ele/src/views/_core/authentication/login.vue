@@ -27,20 +27,12 @@ import {
 import {
   checkCaptcha,
   finishRequiredTotpEnrollmentApi,
-  finishRequiredWebAuthnEnrollmentApi,
-  finishWebAuthnAuthenticationApi,
   getCaptcha,
   startRequiredTotpEnrollmentApi,
-  startRequiredWebAuthnEnrollmentApi,
-  startWebAuthnAuthenticationApi,
   verifyRecoveryCodeApi,
   verifyTotpApi,
 } from '#/api/core/auth';
 import { useAuthStore } from '#/store';
-import {
-  createWebAuthnCredential,
-  getWebAuthnCredential,
-} from '#/utils/webauthn';
 
 defineOptions({ name: 'Login' });
 
@@ -51,7 +43,7 @@ const loginRef = ref();
 const verifyRef = ref();
 const mfaVisible = ref(false);
 const mfaLoading = ref(false);
-type MfaMethod = 'RECOVERY_CODE' | 'TOTP' | 'WEBAUTHN';
+type MfaMethod = 'RECOVERY_CODE' | 'TOTP';
 
 const mfaMode = ref<MfaMethod>('TOTP');
 const mfaCode = ref('');
@@ -71,12 +63,7 @@ const canSubmitMfa = computed(() => {
   if (totpSetup.value || mfaMode.value === 'TOTP') {
     return isTotpCodeValid.value;
   }
-  if (mfaMode.value === 'RECOVERY_CODE') {
-    return /^[A-Z0-9]{4}(?:-[A-Z0-9]{4}){3}$/.test(
-      normalizedRecoveryCode.value,
-    );
-  }
-  return true;
+  return /^[A-Z0-9]{4}(?:-[A-Z0-9]{4}){3}$/.test(normalizedRecoveryCode.value);
 });
 
 const captchaType = 'blockPuzzle';
@@ -111,13 +98,10 @@ async function submitCredentials(values: AuthApi.LoginParams) {
   }
   const methods = normalizeMfaMethods(loginResult.mfaMethods);
   const defaultMethod = selectDefaultMfaMethod(methods);
-  const supportsEnrollment = methods.some(
-    (method) => method === 'TOTP' || method === 'WEBAUTHN',
-  );
   if (
     !loginResult.mfaToken ||
     !defaultMethod ||
-    (loginResult.mfaEnrollmentRequired && !supportsEnrollment)
+    (loginResult.mfaEnrollmentRequired && !methods.includes('TOTP'))
   ) {
     throw new Error('MFA login challenge is incomplete');
   }
@@ -150,28 +134,6 @@ async function startTotpEnrollmentFromLogin() {
   await startTotpEnrollment(mfaToken);
 }
 
-async function startWebAuthnEnrollment() {
-  const mfaToken = pendingLogin.value?.mfaToken;
-  if (!mfaToken) return;
-  mfaLoading.value = true;
-  try {
-    const options = await startRequiredWebAuthnEnrollmentApi(mfaToken);
-    const credentialJson = await createWebAuthnCredential(options.optionsJson);
-    const result = await finishRequiredWebAuthnEnrollmentApi(
-      options.ceremonyToken,
-      credentialJson,
-    );
-    assertCompletedLoginResult(result);
-    recoveryCodes.value = result.recoveryCodes ?? [];
-    pendingLogin.value = result;
-  } catch (error) {
-    resetMfaDialog();
-    throw error;
-  } finally {
-    mfaLoading.value = false;
-  }
-}
-
 async function submitMfa() {
   if (!pendingLogin.value || !canSubmitMfa.value) return;
   mfaLoading.value = true;
@@ -189,21 +151,10 @@ async function submitMfa() {
     }
     const mfaToken = pendingLogin.value.mfaToken;
     if (!mfaToken) return;
-    if (mfaMode.value === 'WEBAUTHN') {
-      const options = await startWebAuthnAuthenticationApi(mfaToken);
-      const credentialJson = await getWebAuthnCredential(options.optionsJson);
-      result = await finishWebAuthnAuthenticationApi(
-        options.ceremonyToken,
-        credentialJson,
-      );
-    } else if (mfaMode.value === 'TOTP') {
-      result = await verifyTotpApi(mfaToken, mfaCode.value);
-    } else {
-      result = await verifyRecoveryCodeApi(
-        mfaToken,
-        normalizedRecoveryCode.value,
-      );
-    }
+    result =
+      mfaMode.value === 'TOTP'
+        ? await verifyTotpApi(mfaToken, mfaCode.value)
+        : await verifyRecoveryCodeApi(mfaToken, normalizedRecoveryCode.value);
     assertCompletedLoginResult(result);
     mfaVisible.value = false;
     await authStore.completeMfaLogin(result);
@@ -219,14 +170,13 @@ function normalizeMfaMethods(methods: readonly unknown[] | undefined) {
   if (!Array.isArray(methods)) return [];
   return methods.filter(
     (method): method is MfaMethod =>
-      method === 'RECOVERY_CODE' || method === 'TOTP' || method === 'WEBAUTHN',
+      method === 'RECOVERY_CODE' || method === 'TOTP',
   );
 }
 
 function selectDefaultMfaMethod(
   methods: readonly MfaMethod[],
 ): MfaMethod | undefined {
-  if (methods.includes('WEBAUTHN')) return 'WEBAUTHN';
   if (methods.includes('TOTP')) return 'TOTP';
   if (methods.includes('RECOVERY_CODE')) return 'RECOVERY_CODE';
   return undefined;
@@ -239,9 +189,7 @@ function assertCompletedLoginResult(result: AuthApi.LoginResult) {
 }
 
 function mfaMethodLabel(method: MfaMethod) {
-  if (method === 'WEBAUTHN') return '安全密钥';
-  if (method === 'TOTP') return '动态验证码';
-  return '恢复码';
+  return method === 'TOTP' ? '动态验证码' : '恢复码';
 }
 
 async function continueAfterRecoveryCodes() {
@@ -380,21 +328,13 @@ const formSchema = computed((): VbenFormSchema[] => {
           title="超级管理员必须启用多因素认证"
           type="warning"
         >
-          推荐使用设备通行密钥或安全密钥；如果当前浏览器不支持，可使用动态验证码。
+          请使用身份验证器绑定动态验证码，绑定后即可完成登录。
         </ElAlert>
         <ElButton
-          v-if="availableMfaMethods.includes('WEBAUTHN')"
-          class="w-full"
-          :loading="mfaLoading"
-          type="primary"
-          @click="startWebAuthnEnrollment"
-        >
-          使用安全密钥（推荐）
-        </ElButton>
-        <ElButton
           v-if="availableMfaMethods.includes('TOTP')"
-          class="mt-3 w-full"
+          class="w-full"
           :disabled="mfaLoading"
+          type="primary"
           @click="startTotpEnrollmentFromLogin"
         >
           使用动态验证码
@@ -442,7 +382,7 @@ const formSchema = computed((): VbenFormSchema[] => {
           type="primary"
           @click="submitMfa"
         >
-          {{ mfaMode === 'WEBAUTHN' ? '使用安全密钥验证' : '验证并登录' }}
+          验证并登录
         </ElButton>
         <ElButton class="mt-2 w-full" @click="resetMfaDialog">
           返回重新登录

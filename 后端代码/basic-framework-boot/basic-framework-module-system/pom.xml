@@ -55,10 +55,6 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
-        <dependency>
-            <groupId>com.yubico</groupId>
-            <artifactId>webauthn-server-core</artifactId>
-        </dependency>
 
         <!-- DB 相关 -->
         <dependency>

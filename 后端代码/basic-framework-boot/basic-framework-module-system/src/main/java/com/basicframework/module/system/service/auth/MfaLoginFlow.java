@@ -11,7 +11,6 @@ import com.basicframework.module.system.enums.logger.LoginLogTypeEnum;
 import com.basicframework.module.system.service.auth.dto.AuthLoginResultDTO;
 import com.basicframework.module.system.service.auth.dto.MfaChallengeDTO;
 import com.basicframework.module.system.service.auth.dto.MfaVerifiedPrincipalDTO;
-import com.basicframework.module.system.service.auth.dto.MfaWebAuthnOptionsDTO;
 import java.util.List;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -74,31 +73,6 @@ public class MfaLoginFlow {
         methodPolicy.requireEnabled();
         MfaChallengeDTO challenge = challengeManager.consume(mfaToken, MfaChallengePurposeEnum.LOGIN);
         verify(challenge, () -> credentialVerifier.consumeRecoveryCode(challenge.getUserId(), recoveryCode));
-        return principal(challenge);
-    }
-
-    public MfaWebAuthnOptionsDTO beginWebAuthn(String mfaToken) {
-        methodPolicy.requireWebAuthnEnabled();
-        MfaChallengeDTO challenge = challengeManager.consume(mfaToken, MfaChallengePurposeEnum.LOGIN);
-        WebAuthnService.CeremonyOptions options = credentialVerifier.beginWebAuthn(challenge.getUserId());
-        String ceremonyToken = challengeManager.save(MfaChallengeDTO.builder()
-                .userId(challenge.getUserId())
-                .username(challenge.getUsername())
-                .loginLogType(challenge.getLoginLogType())
-                .purpose(MfaChallengePurposeEnum.WEBAUTHN_AUTHENTICATION)
-                .webAuthnRequestJson(options.requestJson())
-                .build());
-        return MfaWebAuthnOptionsDTO.builder()
-                .ceremonyToken(ceremonyToken)
-                .optionsJson(options.browserOptionsJson())
-                .build();
-    }
-
-    public MfaVerifiedPrincipalDTO verifyWebAuthn(String ceremonyToken, String credentialJson) {
-        methodPolicy.requireWebAuthnEnabled();
-        MfaChallengeDTO challenge =
-                challengeManager.consume(ceremonyToken, MfaChallengePurposeEnum.WEBAUTHN_AUTHENTICATION);
-        verify(challenge, () -> credentialVerifier.verifyWebAuthn(challenge, credentialJson));
         return principal(challenge);
     }
 

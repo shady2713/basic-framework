@@ -4,7 +4,6 @@ import static com.basicframework.module.system.enums.LogRecordConstants.*;
 
 import com.basicframework.module.system.service.auth.dto.MfaFactorDTO;
 import com.basicframework.module.system.service.auth.dto.MfaTotpSetupDTO;
-import com.basicframework.module.system.service.auth.dto.MfaWebAuthnOptionsDTO;
 import com.mzt.logapi.starter.annotation.LogRecord;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -16,17 +15,14 @@ import org.springframework.transaction.annotation.Transactional;
 public class MfaFactorManagementServiceImpl implements MfaFactorManagementService {
 
     private final MfaTotpEnrollmentManager totpEnrollmentManager;
-    private final MfaWebAuthnEnrollmentManager webAuthnEnrollmentManager;
     private final MfaFactorLifecycleManager factorLifecycleManager;
     private final MfaRecoveryCodeManager recoveryCodeManager;
 
     public MfaFactorManagementServiceImpl(
             MfaTotpEnrollmentManager totpEnrollmentManager,
-            MfaWebAuthnEnrollmentManager webAuthnEnrollmentManager,
             MfaFactorLifecycleManager factorLifecycleManager,
             MfaRecoveryCodeManager recoveryCodeManager) {
         this.totpEnrollmentManager = totpEnrollmentManager;
-        this.webAuthnEnrollmentManager = webAuthnEnrollmentManager;
         this.factorLifecycleManager = factorLifecycleManager;
         this.recoveryCodeManager = recoveryCodeManager;
     }
@@ -51,22 +47,6 @@ public class MfaFactorManagementServiceImpl implements MfaFactorManagementServic
     public List<String> completeTotpEnrollment(Long userId, String enrollmentToken, String code) {
         LocalDateTime completedAt = totpEnrollmentManager.complete(userId, enrollmentToken, code);
         return recoveryCodeManager.replace(userId, completedAt);
-    }
-
-    @Override
-    public MfaWebAuthnOptionsDTO beginWebAuthnEnrollment(Long userId, String username) {
-        return webAuthnEnrollmentManager.begin(userId, username);
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    @LogRecord(
-            type = SYSTEM_USER_TYPE,
-            subType = SYSTEM_USER_MFA_ADD_SUB_TYPE,
-            bizNo = "{{#userId}}",
-            success = SYSTEM_USER_MFA_WEBAUTHN_ADD_SUCCESS)
-    public void completeWebAuthnEnrollment(Long userId, String ceremonyToken, String credentialJson) {
-        webAuthnEnrollmentManager.complete(userId, ceremonyToken, credentialJson);
     }
 
     @Override

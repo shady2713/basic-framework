@@ -17,8 +17,6 @@ import com.basicframework.framework.common.pojo.CommonResult;
 import com.basicframework.framework.security.core.util.SecurityFrameworkUtils;
 import com.basicframework.module.system.controller.admin.auth.vo.AuthMfaTotpSetupRespVO;
 import com.basicframework.module.system.controller.admin.auth.vo.AuthMfaTotpVerifyReqVO;
-import com.basicframework.module.system.controller.admin.auth.vo.AuthMfaWebAuthnFinishReqVO;
-import com.basicframework.module.system.controller.admin.auth.vo.AuthMfaWebAuthnOptionsRespVO;
 import com.basicframework.module.system.controller.admin.user.vo.profile.UserProfileMfaEnrollmentStartReqVO;
 import com.basicframework.module.system.controller.admin.user.vo.profile.UserProfileMfaFactorRespVO;
 import com.basicframework.module.system.controller.admin.user.vo.profile.UserProfileMfaRecoveryCodesRespVO;
@@ -34,7 +32,6 @@ import com.basicframework.module.system.service.auth.MfaService;
 import com.basicframework.module.system.service.auth.dto.MfaFactorDTO;
 import com.basicframework.module.system.service.auth.dto.MfaTotpSetupDTO;
 import com.basicframework.module.system.service.auth.dto.MfaVerifiedPrincipalDTO;
-import com.basicframework.module.system.service.auth.dto.MfaWebAuthnOptionsDTO;
 import com.basicframework.module.system.service.dept.DeptService;
 import com.basicframework.module.system.service.dept.PostService;
 import com.basicframework.module.system.service.permission.PermissionService;
@@ -141,12 +138,12 @@ class UserProfileControllerTest {
     void mfaReadEndpoints_returnOnlyConfiguredMethodsAndSafeFactorSummaries() {
         MfaFactorDTO factor = MfaFactorDTO.builder()
                 .id(8L)
-                .type("WEBAUTHN")
-                .name("MacBook Touch ID")
+                .type("TOTP")
+                .name("动态验证码")
                 .createTime(LocalDateTime.of(2026, 8, 31, 9, 0))
                 .build();
-        when(mfaService.getEnabledMethods(USER_ID)).thenReturn(List.of("totp", "webauthn"));
-        when(mfaService.getEnrollmentMethods()).thenReturn(List.of("totp", "webauthn"));
+        when(mfaService.getEnabledMethods(USER_ID)).thenReturn(List.of("totp"));
+        when(mfaService.getEnrollmentMethods()).thenReturn(List.of("totp"));
         when(mfaFactorManagementService.getFactors(USER_ID)).thenReturn(List.of(factor));
 
         CommonResult<List<String>> methodsResult;
@@ -158,12 +155,12 @@ class UserProfileControllerTest {
             factorsResult = controller.getMfaFactors();
         }
 
-        assertThat(methodsResult.getData()).containsExactly("totp", "webauthn");
-        assertThat(enrollmentMethodsResult.getData()).containsExactly("totp", "webauthn");
+        assertThat(methodsResult.getData()).containsExactly("totp");
+        assertThat(enrollmentMethodsResult.getData()).containsExactly("totp");
         assertThat(factorsResult.getData())
                 .singleElement()
                 .extracting(UserProfileMfaFactorRespVO::getName)
-                .isEqualTo("MacBook Touch ID");
+                .isEqualTo("动态验证码");
     }
 
     @Test
@@ -230,46 +227,15 @@ class UserProfileControllerTest {
                 .build();
         when(mfaService.completeSelfTotpEnrollment(USER_ID, "mfa-token", "123456"))
                 .thenReturn(principal);
-        when(mfaService.completeSelfWebAuthnEnrollment(USER_ID, "ceremony-token", "{\"id\":\"credential\"}"))
-                .thenReturn(principal);
         MockHttpServletResponse totpResponse = new MockHttpServletResponse();
-        MockHttpServletResponse webAuthnResponse = new MockHttpServletResponse();
 
         CommonResult<UserProfileMfaRecoveryCodesRespVO> totpResult;
-        CommonResult<UserProfileMfaRecoveryCodesRespVO> webAuthnResult;
         try (MockedStatic<SecurityFrameworkUtils> securityUtils = mockCurrentUser()) {
             totpResult = controller.finishMfaTotpEnrollment(totpRequest("mfa-token", "123456"), totpResponse);
-            webAuthnResult = controller.finishMfaWebAuthnEnrollment(
-                    webAuthnFinishRequest("ceremony-token", "{\"id\":\"credential\"}"), webAuthnResponse);
         }
 
         assertThat(totpResult.getData().getRecoveryCodes()).containsExactly("ABCD-EFGH-IJKL-MNOP");
-        assertThat(webAuthnResult.getData().getRecoveryCodes()).containsExactly("ABCD-EFGH-IJKL-MNOP");
         assertSensitiveResponseCachingDisabled(totpResponse);
-        assertSensitiveResponseCachingDisabled(webAuthnResponse);
-    }
-
-    @Test
-    void selfWebAuthnEnrollment_requiresCurrentPasswordAndMapsBrowserOptions() {
-        AdminUserDO user = user();
-        MfaWebAuthnOptionsDTO options = MfaWebAuthnOptionsDTO.builder()
-                .ceremonyToken("ceremony-token")
-                .optionsJson("{\"challenge\":\"example\"}")
-                .build();
-        when(userService.getUser(USER_ID)).thenReturn(user);
-        when(userService.isPasswordMatch(CURRENT_PASSWORD, user.getPassword())).thenReturn(true);
-        when(mfaService.beginSelfEnrollment(USER_ID, "admin")).thenReturn("enrollment-challenge");
-        when(mfaService.beginRequiredWebAuthnEnrollment("enrollment-challenge")).thenReturn(options);
-        MockHttpServletResponse response = new MockHttpServletResponse();
-
-        CommonResult<AuthMfaWebAuthnOptionsRespVO> result;
-        try (MockedStatic<SecurityFrameworkUtils> securityUtils = mockCurrentUser()) {
-            result = controller.startMfaWebAuthnEnrollment(enrollmentStartRequest(), response);
-        }
-
-        assertThat(result.getData().getCeremonyToken()).isEqualTo("ceremony-token");
-        assertThat(result.getData().getOptionsJson()).isEqualTo("{\"challenge\":\"example\"}");
-        assertSensitiveResponseCachingDisabled(response);
     }
 
     @Test
@@ -303,39 +269,20 @@ class UserProfileControllerTest {
     }
 
     @Test
-    void managedWebAuthnEnrollmentAndFactorMaintenanceUseTheCurrentUser() {
-        AdminUserDO user = user();
-        MfaWebAuthnOptionsDTO options = MfaWebAuthnOptionsDTO.builder()
-                .ceremonyToken("ceremony-token")
-                .optionsJson("{\"challenge\":\"example\"}")
-                .build();
-        when(userService.getUser(USER_ID)).thenReturn(user);
-        when(mfaFactorManagementService.beginWebAuthnEnrollment(USER_ID, "admin"))
-                .thenReturn(options);
+    void managedFactorMaintenanceDelegatesToTheCurrentUser() {
         when(mfaFactorManagementService.resetRecoveryCodes(USER_ID)).thenReturn(List.of("ABCD-EFGH-IJKL-MNOP"));
-        MockHttpServletResponse startResponse = new MockHttpServletResponse();
         MockHttpServletResponse resetResponse = new MockHttpServletResponse();
 
-        CommonResult<AuthMfaWebAuthnOptionsRespVO> startResult;
-        CommonResult<Boolean> finishResult;
         CommonResult<Boolean> removeResult;
         CommonResult<UserProfileMfaRecoveryCodesRespVO> resetResult;
         try (MockedStatic<SecurityFrameworkUtils> securityUtils = mockCurrentUser()) {
-            startResult = controller.startManagedWebAuthnEnrollment(startResponse);
-            finishResult = controller.finishManagedWebAuthnEnrollment(
-                    webAuthnFinishRequest("ceremony-token", "{\"id\":\"credential\"}"));
             removeResult = controller.removeMfaFactor(8L);
             resetResult = controller.resetMfaRecoveryCodes(resetResponse);
         }
 
-        assertThat(startResult.getData().getCeremonyToken()).isEqualTo("ceremony-token");
-        assertThat(finishResult.getData()).isTrue();
         assertThat(removeResult.getData()).isTrue();
         assertThat(resetResult.getData().getRecoveryCodes()).containsExactly("ABCD-EFGH-IJKL-MNOP");
-        assertSensitiveResponseCachingDisabled(startResponse);
         assertSensitiveResponseCachingDisabled(resetResponse);
-        verify(mfaFactorManagementService)
-                .completeWebAuthnEnrollment(USER_ID, "ceremony-token", "{\"id\":\"credential\"}");
         verify(mfaFactorManagementService).removeFactor(USER_ID, 8L);
         verify(mfaFactorManagementService).resetRecoveryCodes(USER_ID);
     }
@@ -354,13 +301,6 @@ class UserProfileControllerTest {
         AuthMfaTotpVerifyReqVO request = new AuthMfaTotpVerifyReqVO();
         request.setMfaToken(mfaToken);
         request.setCode(code);
-        return request;
-    }
-
-    private static AuthMfaWebAuthnFinishReqVO webAuthnFinishRequest(String ceremonyToken, String credentialJson) {
-        AuthMfaWebAuthnFinishReqVO request = new AuthMfaWebAuthnFinishReqVO();
-        request.setCeremonyToken(ceremonyToken);
-        request.setCredentialJson(credentialJson);
         return request;
     }
 

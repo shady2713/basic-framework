@@ -2,9 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   finishManagedUserTotpEnrollment,
-  finishManagedUserWebAuthnEnrollment,
   finishUserTotpEnrollment,
-  finishUserWebAuthnEnrollment,
   getUserMfaEnrollmentMethods,
   getUserMfaFactors,
   getUserMfaMethods,
@@ -12,9 +10,7 @@ import {
   removeUserMfaFactor,
   resetUserMfaRecoveryCodes,
   startManagedUserTotpEnrollment,
-  startManagedUserWebAuthnEnrollment,
   startUserTotpEnrollment,
-  startUserWebAuthnEnrollment,
   updateUserPassword,
   updateUserProfile,
 } from './index';
@@ -59,8 +55,6 @@ describe('user profile API contracts', () => {
   it('maps self-service enrollment to password-bound start endpoints', async () => {
     await startUserTotpEnrollment('password');
     await finishUserTotpEnrollment('mfa-token', '123456');
-    await startUserWebAuthnEnrollment('password');
-    await finishUserWebAuthnEnrollment('ceremony', 'credential');
 
     expect(requestClient.post.mock.calls).toEqual([
       ['/system/user/profile/mfa/totp/enroll/start', { password: 'password' }],
@@ -68,22 +62,12 @@ describe('user profile API contracts', () => {
         '/system/user/profile/mfa/totp/enroll/finish',
         { code: '123456', mfaToken: 'mfa-token' },
       ],
-      [
-        '/system/user/profile/mfa/webauthn/enroll/start',
-        { password: 'password' },
-      ],
-      [
-        '/system/user/profile/mfa/webauthn/enroll/finish',
-        { ceremonyToken: 'ceremony', credentialJson: 'credential' },
-      ],
     ]);
   });
 
   it('maps step-up-protected factor management endpoints', async () => {
     await startManagedUserTotpEnrollment();
     await finishManagedUserTotpEnrollment('mfa-token', '123456');
-    await startManagedUserWebAuthnEnrollment();
-    await finishManagedUserWebAuthnEnrollment('ceremony', 'credential');
     await removeUserMfaFactor(42);
     await resetUserMfaRecoveryCodes();
 
@@ -92,11 +76,6 @@ describe('user profile API contracts', () => {
       [
         '/system/user/profile/mfa/manage/totp/enroll/finish',
         { code: '123456', mfaToken: 'mfa-token' },
-      ],
-      ['/system/user/profile/mfa/manage/webauthn/enroll/start'],
-      [
-        '/system/user/profile/mfa/manage/webauthn/enroll/finish',
-        { ceremonyToken: 'ceremony', credentialJson: 'credential' },
       ],
       ['/system/user/profile/mfa/recovery-codes/reset'],
     ]);

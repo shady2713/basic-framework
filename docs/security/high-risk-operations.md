@@ -22,7 +22,7 @@ POST/PUT/DELETE 就自动升级，仍由专用权限、参数校验、操作确�
 | 风险边界 | Controller | 受保护方法 |
 | --- | --- | --- |
 | 账号创建、认证标识变更、禁用、重置、解除登录锁定、删除、批量导入和敏感导出 | `UserController` | `createUser`、`updateUser`、`deleteUser`、`deleteUserList`、`updateUserPassword`、`updateUserStatus`、`unlockLogin`、`exportUserList`、`importExcel` |
-| 本人联系方式/密码与 MFA 因子管理 | `UserProfileController` | `updateUserProfile`、`updateUserProfilePassword`、`startManagedTotpEnrollment`、`finishManagedTotpEnrollment`、`startManagedWebAuthnEnrollment`、`finishManagedWebAuthnEnrollment`、`removeMfaFactor`、`resetMfaRecoveryCodes` |
+| 本人联系方式/密码与 MFA 因子管理 | `UserProfileController` | `updateUserProfile`、`updateUserProfilePassword`、`startManagedTotpEnrollment`、`finishManagedTotpEnrollment`、`removeMfaFactor`、`resetMfaRecoveryCodes` |
 | 角色、菜单权限和数据范围分配 | `PermissionController` | `assignRoleMenu`、`assignRoleDataScope`、`assignUserRole` |
 | 权限资源定义 | `MenuController` | `createMenu`、`updateMenu`、`deleteMenu`、`deleteMenuList` |
 | 角色定义 | `RoleController` | `createRole`、`updateRole`、`deleteRole`、`deleteRoleList` |

@@ -25,7 +25,7 @@ export namespace AuthApi {
     mfaRequired?: boolean;
     mfaEnrollmentRequired?: boolean;
     mfaToken?: string;
-    mfaMethods?: Array<'RECOVERY_CODE' | 'TOTP' | 'WEBAUTHN'>;
+    mfaMethods?: Array<'RECOVERY_CODE' | 'TOTP'>;
     recoveryCodes?: string[];
   }
 
@@ -33,11 +33,6 @@ export namespace AuthApi {
     enrollmentToken: string;
     otpauthUri: string;
     secret: string;
-  }
-
-  export interface WebAuthnOptionsResult {
-    ceremonyToken: string;
-    optionsJson: string;
   }
 
   /** 手机验证码获取接口参数 */
@@ -97,44 +92,6 @@ export async function verifyRecoveryCodeApi(
   );
 }
 
-/** 开始强制 WebAuthn 注册 */
-export async function startRequiredWebAuthnEnrollmentApi(mfaToken: string) {
-  return requestClient.post<AuthApi.WebAuthnOptionsResult>(
-    '/system/auth/mfa/webauthn/enroll/start',
-    { mfaToken },
-  );
-}
-
-/** 完成强制 WebAuthn 注册 */
-export async function finishRequiredWebAuthnEnrollmentApi(
-  ceremonyToken: string,
-  credentialJson: string,
-) {
-  return requestClient.post<AuthApi.LoginResult>(
-    '/system/auth/mfa/webauthn/enroll/finish',
-    { ceremonyToken, credentialJson },
-  );
-}
-
-/** 开始 WebAuthn 登录认证 */
-export async function startWebAuthnAuthenticationApi(mfaToken: string) {
-  return requestClient.post<AuthApi.WebAuthnOptionsResult>(
-    '/system/auth/mfa/webauthn/authenticate/start',
-    { mfaToken },
-  );
-}
-
-/** 完成 WebAuthn 登录认证 */
-export async function finishWebAuthnAuthenticationApi(
-  ceremonyToken: string,
-  credentialJson: string,
-) {
-  return requestClient.post<AuthApi.LoginResult>(
-    '/system/auth/mfa/webauthn/authenticate/finish',
-    { ceremonyToken, credentialJson },
-  );
-}
-
 /** 开始当前会话的 MFA 二次验证 */
 export async function startMfaStepUpApi() {
   return requestClient.post<AuthApi.LoginResult>(
@@ -158,25 +115,6 @@ export async function finishMfaStepUpRecoveryApi(
   return requestClient.post('/system/auth/mfa/step-up/recovery/finish', {
     mfaToken,
     recoveryCode,
-  });
-}
-
-/** 开始当前会话的 WebAuthn 二次验证 */
-export async function startMfaStepUpWebAuthnApi(mfaToken: string) {
-  return requestClient.post<AuthApi.WebAuthnOptionsResult>(
-    '/system/auth/mfa/step-up/webauthn/start',
-    { mfaToken },
-  );
-}
-
-/** 完成当前会话的 WebAuthn 二次验证 */
-export async function finishMfaStepUpWebAuthnApi(
-  ceremonyToken: string,
-  credentialJson: string,
-) {
-  return requestClient.post('/system/auth/mfa/step-up/webauthn/finish', {
-    ceremonyToken,
-    credentialJson,
   });
 }
 

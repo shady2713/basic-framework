@@ -29,9 +29,6 @@ import org.testcontainers.utility.DockerImageName;
             "spring.task.scheduling.enabled=false",
             "basic-framework.security.mfa.enabled=true",
             "basic-framework.security.credential-encryption-key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-            "basic-framework.security.mfa.webauthn.enabled=true",
-            "basic-framework.security.mfa.webauthn.rp-id=localhost",
-            "basic-framework.security.mfa.webauthn.allowed-origins[0]=http://localhost",
             "logging.level.com.basicframework.module.system.dal.mysql.auth=INFO",
             "logging.level.com.basicframework.module.system.dal.mysql.session=INFO",
             "logging.level.com.basicframework.module.system.dal.mysql.user.AdminUserMapper=INFO"

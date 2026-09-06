@@ -33,17 +33,12 @@ export namespace SystemUserProfileApi {
     avatar?: string;
   }
 
-  export type MfaMethod = 'TOTP' | 'WEBAUTHN';
+  export type MfaMethod = 'TOTP';
 
   export interface MfaTotpSetupResult {
     enrollmentToken: string;
     otpauthUri: string;
     secret: string;
-  }
-
-  export interface MfaWebAuthnOptionsResult {
-    ceremonyToken: string;
-    optionsJson: string;
   }
 
   export interface MfaRecoveryCodesResult {
@@ -116,25 +111,6 @@ export function finishUserTotpEnrollment(mfaToken: string, code: string) {
   );
 }
 
-/** 开始当前用户 WebAuthn 自助注册 */
-export function startUserWebAuthnEnrollment(password: string) {
-  return requestClient.post<SystemUserProfileApi.MfaWebAuthnOptionsResult>(
-    '/system/user/profile/mfa/webauthn/enroll/start',
-    { password },
-  );
-}
-
-/** 完成当前用户 WebAuthn 自助注册 */
-export function finishUserWebAuthnEnrollment(
-  ceremonyToken: string,
-  credentialJson: string,
-) {
-  return requestClient.post<SystemUserProfileApi.MfaRecoveryCodesResult>(
-    '/system/user/profile/mfa/webauthn/enroll/finish',
-    { ceremonyToken, credentialJson },
-  );
-}
-
 /** 开始新增或轮换当前用户 TOTP 因子 */
 export function startManagedUserTotpEnrollment() {
   return requestClient.post<SystemUserProfileApi.MfaTotpSetupResult>(
@@ -150,24 +126,6 @@ export function finishManagedUserTotpEnrollment(
   return requestClient.post<SystemUserProfileApi.MfaRecoveryCodesResult>(
     '/system/user/profile/mfa/manage/totp/enroll/finish',
     { code, mfaToken },
-  );
-}
-
-/** 开始新增当前用户 WebAuthn 因子 */
-export function startManagedUserWebAuthnEnrollment() {
-  return requestClient.post<SystemUserProfileApi.MfaWebAuthnOptionsResult>(
-    '/system/user/profile/mfa/manage/webauthn/enroll/start',
-  );
-}
-
-/** 完成新增当前用户 WebAuthn 因子 */
-export function finishManagedUserWebAuthnEnrollment(
-  ceremonyToken: string,
-  credentialJson: string,
-) {
-  return requestClient.post<boolean>(
-    '/system/user/profile/mfa/manage/webauthn/enroll/finish',
-    { ceremonyToken, credentialJson },
   );
 }
 

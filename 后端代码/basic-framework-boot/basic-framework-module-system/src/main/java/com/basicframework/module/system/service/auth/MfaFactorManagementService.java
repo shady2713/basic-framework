@@ -2,7 +2,6 @@ package com.basicframework.module.system.service.auth;
 
 import com.basicframework.module.system.service.auth.dto.MfaFactorDTO;
 import com.basicframework.module.system.service.auth.dto.MfaTotpSetupDTO;
-import com.basicframework.module.system.service.auth.dto.MfaWebAuthnOptionsDTO;
 import java.util.List;
 
 /** 已登录用户的 MFA 因子管理服务。调用方必须先执行近期二次验证。 */
@@ -34,24 +33,6 @@ public interface MfaFactorManagementService {
      * @return 仅展示一次的新恢复码
      */
     List<String> completeTotpEnrollment(Long userId, String enrollmentToken, String code);
-
-    /**
-     * 开始新增 WebAuthn 因子。
-     *
-     * @param userId 当前用户编号
-     * @param username 当前用户名
-     * @return 浏览器注册选项与一次性 ceremony 令牌
-     */
-    MfaWebAuthnOptionsDTO beginWebAuthnEnrollment(Long userId, String username);
-
-    /**
-     * 完成新增 WebAuthn 因子。
-     *
-     * @param userId 当前用户编号
-     * @param ceremonyToken 一次性 ceremony 令牌
-     * @param credentialJson 浏览器 WebAuthn 注册响应
-     */
-    void completeWebAuthnEnrollment(Long userId, String ceremonyToken, String credentialJson);
 
     /**
      * 移除当前用户的一个因子。

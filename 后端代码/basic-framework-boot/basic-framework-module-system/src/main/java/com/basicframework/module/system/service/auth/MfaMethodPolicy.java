@@ -9,7 +9,6 @@ import com.basicframework.module.system.dal.mysql.auth.MfaFactorMapper;
 import com.basicframework.module.system.enums.auth.MfaFactorTypeEnum;
 import com.basicframework.module.system.enums.permission.RoleCodeEnum;
 import com.basicframework.module.system.service.permission.PermissionService;
-import java.util.ArrayList;
 import java.util.List;
 import org.springframework.stereotype.Component;
 
@@ -17,7 +16,6 @@ import org.springframework.stereotype.Component;
 @Component
 public class MfaMethodPolicy {
 
-    private static final String WEB_AUTHN_METHOD = "WEBAUTHN";
     private static final String TOTP_METHOD = "TOTP";
     private static final String RECOVERY_METHOD = "RECOVERY_CODE";
 
@@ -42,13 +40,6 @@ public class MfaMethodPolicy {
         }
     }
 
-    public void requireWebAuthnEnabled() {
-        requireEnabled();
-        if (!properties.getWebauthn().isEnabled()) {
-            throw exception(AUTH_MFA_DISABLED);
-        }
-    }
-
     public List<MfaFactorDO> enabledFactors(Long userId) {
         return factorMapper.selectEnabledByUserId(userId);
     }
@@ -58,23 +49,16 @@ public class MfaMethodPolicy {
     }
 
     public List<String> availableMethods(List<MfaFactorDO> factors) {
-        boolean webAuthnAvailable = factors.stream()
-                .anyMatch(factor -> MfaFactorTypeEnum.WEBAUTHN.getType().equals(factor.getFactorType()));
         boolean totpAvailable = factors.stream()
                 .anyMatch(factor -> MfaFactorTypeEnum.TOTP.getType().equals(factor.getFactorType()));
-        List<String> methods = new ArrayList<>(3);
-        if (webAuthnAvailable && properties.getWebauthn().isEnabled()) {
-            methods.add(WEB_AUTHN_METHOD);
-        }
         if (totpAvailable) {
-            methods.add(TOTP_METHOD);
+            return List.of(TOTP_METHOD, RECOVERY_METHOD);
         }
-        methods.add(RECOVERY_METHOD);
-        return List.copyOf(methods);
+        return List.of(RECOVERY_METHOD);
     }
 
     public List<String> enrollmentMethods() {
-        return properties.getWebauthn().isEnabled() ? List.of(WEB_AUTHN_METHOD, TOTP_METHOD) : List.of(TOTP_METHOD);
+        return List.of(TOTP_METHOD);
     }
 
     public List<String> enabledMethods(Long userId) {

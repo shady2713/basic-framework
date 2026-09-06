@@ -114,9 +114,7 @@ class PackagedJarBootSmokeIT {
                 "--spring.data.redis.port=" + REDIS.getMappedPort(6379),
                 "--spring.data.redis.password=" + REDIS_PASSWORD,
                 "--basic-framework.web.cors-allowed-origins[0]=https://admin.boot-smoke.invalid",
-                "--basic-framework.security.credential-encryption-key=" + CREDENTIAL_ENCRYPTION_KEY,
-                "--basic-framework.security.mfa.webauthn.rp-id=boot-smoke.invalid",
-                "--basic-framework.security.mfa.webauthn.allowed-origins[0]=https://admin.boot-smoke.invalid");
+                "--basic-framework.security.credential-encryption-key=" + CREDENTIAL_ENCRYPTION_KEY);
         Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
         processOutput.capture(process);
         return process;

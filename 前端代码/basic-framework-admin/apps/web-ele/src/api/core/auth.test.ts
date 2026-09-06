@@ -4,10 +4,7 @@ import {
   checkCaptcha,
   finishMfaStepUpRecoveryApi,
   finishMfaStepUpTotpApi,
-  finishMfaStepUpWebAuthnApi,
   finishRequiredTotpEnrollmentApi,
-  finishRequiredWebAuthnEnrollmentApi,
-  finishWebAuthnAuthenticationApi,
   getAuthPermissionInfoApi,
   getCaptcha,
   loginApi,
@@ -16,10 +13,7 @@ import {
   sendSmsCode,
   smsResetPassword,
   startMfaStepUpApi,
-  startMfaStepUpWebAuthnApi,
   startRequiredTotpEnrollmentApi,
-  startRequiredWebAuthnEnrollmentApi,
-  startWebAuthnAuthenticationApi,
   verifyRecoveryCodeApi,
   verifyTotpApi,
 } from './auth';
@@ -47,10 +41,6 @@ describe('auth API contracts', () => {
     await finishRequiredTotpEnrollmentApi('mfa-token', '123456');
     await verifyTotpApi('mfa-token', '654321');
     await verifyRecoveryCodeApi('mfa-token', 'recovery-code');
-    await startRequiredWebAuthnEnrollmentApi('mfa-token');
-    await finishRequiredWebAuthnEnrollmentApi('ceremony', 'credential');
-    await startWebAuthnAuthenticationApi('mfa-token');
-    await finishWebAuthnAuthenticationApi('ceremony', 'assertion');
 
     expect(requestClient.post.mock.calls).toEqual([
       ['/system/auth/login', login],
@@ -67,19 +57,6 @@ describe('auth API contracts', () => {
         '/system/auth/mfa/recovery/verify',
         { mfaToken: 'mfa-token', recoveryCode: 'recovery-code' },
       ],
-      ['/system/auth/mfa/webauthn/enroll/start', { mfaToken: 'mfa-token' }],
-      [
-        '/system/auth/mfa/webauthn/enroll/finish',
-        { ceremonyToken: 'ceremony', credentialJson: 'credential' },
-      ],
-      [
-        '/system/auth/mfa/webauthn/authenticate/start',
-        { mfaToken: 'mfa-token' },
-      ],
-      [
-        '/system/auth/mfa/webauthn/authenticate/finish',
-        { ceremonyToken: 'ceremony', credentialJson: 'assertion' },
-      ],
     ]);
   });
 
@@ -87,8 +64,6 @@ describe('auth API contracts', () => {
     await startMfaStepUpApi();
     await finishMfaStepUpTotpApi('mfa-token', '123456');
     await finishMfaStepUpRecoveryApi('mfa-token', 'recovery-code');
-    await startMfaStepUpWebAuthnApi('mfa-token');
-    await finishMfaStepUpWebAuthnApi('ceremony', 'assertion');
 
     expect(requestClient.post.mock.calls).toEqual([
       ['/system/auth/mfa/step-up/start'],
@@ -99,11 +74,6 @@ describe('auth API contracts', () => {
       [
         '/system/auth/mfa/step-up/recovery/finish',
         { mfaToken: 'mfa-token', recoveryCode: 'recovery-code' },
-      ],
-      ['/system/auth/mfa/step-up/webauthn/start', { mfaToken: 'mfa-token' }],
-      [
-        '/system/auth/mfa/step-up/webauthn/finish',
-        { ceremonyToken: 'ceremony', credentialJson: 'assertion' },
       ],
     ]);
   });

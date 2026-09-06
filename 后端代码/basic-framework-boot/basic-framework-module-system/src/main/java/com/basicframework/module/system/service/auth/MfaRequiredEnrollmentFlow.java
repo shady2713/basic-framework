@@ -9,7 +9,6 @@ import com.basicframework.module.system.enums.auth.MfaChallengePurposeEnum;
 import com.basicframework.module.system.service.auth.dto.MfaChallengeDTO;
 import com.basicframework.module.system.service.auth.dto.MfaTotpSetupDTO;
 import com.basicframework.module.system.service.auth.dto.MfaVerifiedPrincipalDTO;
-import com.basicframework.module.system.service.auth.dto.MfaWebAuthnOptionsDTO;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
@@ -70,38 +69,6 @@ public class MfaRequiredEnrollmentFlow {
         }
     }
 
-    public MfaWebAuthnOptionsDTO beginWebAuthn(String mfaToken) {
-        requireWebAuthnEnabled();
-        MfaChallengeDTO challenge = challengeManager.consume(mfaToken, MfaChallengePurposeEnum.REQUIRED_ENROLLMENT);
-        MfaRequiredEnrollmentCredentials.WebAuthnMaterial material =
-                credentials.beginWebAuthn(challenge.getUserId(), challenge.getUsername());
-        String ceremonyToken = challengeManager.save(MfaChallengeDTO.builder()
-                .userId(challenge.getUserId())
-                .username(challenge.getUsername())
-                .loginLogType(challenge.getLoginLogType())
-                .purpose(MfaChallengePurposeEnum.WEBAUTHN_ENROLLMENT)
-                .webAuthnUserHandle(material.userHandle())
-                .webAuthnRequestJson(material.requestJson())
-                .build());
-        return MfaWebAuthnOptionsDTO.builder()
-                .ceremonyToken(ceremonyToken)
-                .optionsJson(material.browserOptionsJson())
-                .build();
-    }
-
-    public MfaVerifiedPrincipalDTO completeWebAuthn(Long expectedUserId, String ceremonyToken, String credentialJson) {
-        requireWebAuthnEnabled();
-        MfaChallengeDTO challenge =
-                consumeOwnedWhenPresent(ceremonyToken, MfaChallengePurposeEnum.WEBAUTHN_ENROLLMENT, expectedUserId);
-        try {
-            LocalDateTime now = credentials.completeWebAuthn(challenge, credentialJson);
-            return principal(challenge, recoveryCodeManager.replace(challenge.getUserId(), now));
-        } catch (RuntimeException failure) {
-            authenticationAudit.recordFailure(challenge);
-            throw failure;
-        }
-    }
-
     private MfaChallengeDTO consumeOwnedWhenPresent(
             String token, MfaChallengePurposeEnum purpose, Long expectedUserId) {
         MfaChallengeDTO challenge = challengeManager.consume(token, purpose);
@@ -113,13 +80,6 @@ public class MfaRequiredEnrollmentFlow {
 
     private void requireEnabled() {
         if (!properties.isEnabled()) {
-            throw exception(AUTH_MFA_DISABLED);
-        }
-    }
-
-    private void requireWebAuthnEnabled() {
-        requireEnabled();
-        if (!properties.getWebauthn().isEnabled()) {
             throw exception(AUTH_MFA_DISABLED);
         }
     }

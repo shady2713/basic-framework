@@ -5,7 +5,6 @@ import com.basicframework.module.system.enums.logger.LoginLogTypeEnum;
 import com.basicframework.module.system.service.auth.dto.AuthLoginResultDTO;
 import com.basicframework.module.system.service.auth.dto.MfaTotpSetupDTO;
 import com.basicframework.module.system.service.auth.dto.MfaVerifiedPrincipalDTO;
-import com.basicframework.module.system.service.auth.dto.MfaWebAuthnOptionsDTO;
 
 /** 管理后台 MFA 登录与强制注册服务。 */
 public interface MfaService {
@@ -66,50 +65,6 @@ public interface MfaService {
     MfaVerifiedPrincipalDTO verifyRecoveryCode(String mfaToken, String recoveryCode);
 
     /**
-     * 为必须注册 MFA 的登录主体开始 WebAuthn 注册。
-     *
-     * @param mfaToken 一次性登录挑战
-     * @return 浏览器注册选项与一次性 ceremony 令牌
-     */
-    MfaWebAuthnOptionsDTO beginRequiredWebAuthnEnrollment(String mfaToken);
-
-    /**
-     * 完成强制 WebAuthn 注册。
-     *
-     * @param ceremonyToken 一次性注册 ceremony 令牌
-     * @param credentialJson 浏览器 WebAuthn 注册响应
-     * @return 已验证主体及仅展示一次的恢复码
-     */
-    MfaVerifiedPrincipalDTO completeRequiredWebAuthnEnrollment(String ceremonyToken, String credentialJson);
-
-    /**
-     * 完成当前登录用户的首次 WebAuthn 自助注册，并校验挑战归属。
-     *
-     * @param userId 当前用户编号
-     * @param ceremonyToken 一次性注册 ceremony 令牌
-     * @param credentialJson 浏览器 WebAuthn 注册响应
-     * @return 已验证主体及仅展示一次的恢复码
-     */
-    MfaVerifiedPrincipalDTO completeSelfWebAuthnEnrollment(Long userId, String ceremonyToken, String credentialJson);
-
-    /**
-     * 开始 WebAuthn 登录认证。
-     *
-     * @param mfaToken 一次性登录挑战
-     * @return 浏览器认证选项与一次性 ceremony 令牌
-     */
-    MfaWebAuthnOptionsDTO beginWebAuthnAuthentication(String mfaToken);
-
-    /**
-     * 使用 WebAuthn 完成登录认证。
-     *
-     * @param ceremonyToken 一次性认证 ceremony 令牌
-     * @param credentialJson 浏览器 WebAuthn 认证响应
-     * @return 已验证主体
-     */
-    MfaVerifiedPrincipalDTO verifyWebAuthn(String ceremonyToken, String credentialJson);
-
-    /**
      * 为当前登录会话创建 MFA 二次验证挑战。
      *
      * @param userId 当前用户编号
@@ -133,22 +88,6 @@ public interface MfaService {
      * @param recoveryCode 一次性恢复码
      */
     void completeStepUpRecoveryCode(String mfaToken, String recoveryCode);
-
-    /**
-     * 开始当前会话的 WebAuthn 二次验证。
-     *
-     * @param mfaToken 一次性二次验证挑战
-     * @return 浏览器认证选项与一次性 ceremony 令牌
-     */
-    MfaWebAuthnOptionsDTO beginStepUpWebAuthn(String mfaToken);
-
-    /**
-     * 完成当前会话的 WebAuthn 二次验证。
-     *
-     * @param ceremonyToken 一次性认证 ceremony 令牌
-     * @param credentialJson 浏览器 WebAuthn 认证响应
-     */
-    void completeStepUpWebAuthn(String ceremonyToken, String credentialJson);
 
     /**
      * 校验当前会话是否处于二次验证有效窗口。

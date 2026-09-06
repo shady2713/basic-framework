@@ -14,17 +14,14 @@ import {
 import {
   finishMfaStepUpRecoveryApi,
   finishMfaStepUpTotpApi,
-  finishMfaStepUpWebAuthnApi,
   startMfaStepUpApi,
-  startMfaStepUpWebAuthnApi,
 } from '#/api/core/auth';
 import {
   MfaStepUpCancelledError,
   registerMfaStepUpHandler,
 } from '#/utils/mfa-step-up';
-import { getWebAuthnCredential } from '#/utils/webauthn';
 
-type StepUpMethod = 'RECOVERY_CODE' | 'TOTP' | 'WEBAUTHN';
+type StepUpMethod = 'RECOVERY_CODE' | 'TOTP';
 
 const challenge = ref<AuthApi.LoginResult>();
 const code = ref('');
@@ -37,16 +34,15 @@ let resolvePrompt: (() => void) | undefined;
 let unregisterHandler: (() => void) | undefined;
 
 const methods = computed(() => challenge.value?.mfaMethods ?? []);
-const canVerify = computed(() => {
-  if (method.value === 'WEBAUTHN') return true;
-  if (method.value === 'TOTP') return /^\d{6}$/.test(code.value);
-  return code.value.trim().length > 0;
-});
+const canVerify = computed(() =>
+  method.value === 'TOTP'
+    ? /^\d{6}$/.test(code.value)
+    : code.value.trim().length > 0,
+);
 
 function selectDefaultMethod(
   availableMethods: readonly unknown[],
 ): StepUpMethod | undefined {
-  if (availableMethods.includes('WEBAUTHN')) return 'WEBAUTHN';
   if (availableMethods.includes('TOTP')) return 'TOTP';
   if (availableMethods.includes('RECOVERY_CODE')) return 'RECOVERY_CODE';
   return undefined;
@@ -102,15 +98,9 @@ async function finishPrompt() {
   if (!mfaToken || !canVerify.value) return;
   loading.value = true;
   try {
-    if (method.value === 'WEBAUTHN') {
-      const options = await startMfaStepUpWebAuthnApi(mfaToken);
-      const credentialJson = await getWebAuthnCredential(options.optionsJson);
-      await finishMfaStepUpWebAuthnApi(options.ceremonyToken, credentialJson);
-    } else if (method.value === 'TOTP') {
-      await finishMfaStepUpTotpApi(mfaToken, code.value);
-    } else {
-      await finishMfaStepUpRecoveryApi(mfaToken, code.value);
-    }
+    await (method.value === 'TOTP'
+      ? finishMfaStepUpTotpApi(mfaToken, code.value)
+      : finishMfaStepUpRecoveryApi(mfaToken, code.value));
     const resolve = resolvePrompt;
     visible.value = false;
     clearPrompt();
@@ -147,9 +137,6 @@ onBeforeUnmount(() => {
       为保护账号与系统配置，请使用已绑定的验证因子确认本次操作。
     </p>
     <ElRadioGroup v-model="method" class="mb-4">
-      <ElRadioButton v-if="methods.includes('WEBAUTHN')" value="WEBAUTHN">
-        安全密钥
-      </ElRadioButton>
       <ElRadioButton v-if="methods.includes('TOTP')" value="TOTP">
         动态验证码
       </ElRadioButton>
@@ -161,7 +148,6 @@ onBeforeUnmount(() => {
       </ElRadioButton>
     </ElRadioGroup>
     <ElInput
-      v-if="method !== 'WEBAUTHN'"
       v-model="code"
       :maxlength="method === 'TOTP' ? 6 : 19"
       :placeholder="method === 'TOTP' ? '6 位动态验证码' : '一次性恢复码'"

@@ -27,14 +27,14 @@ class SmsCallbackControllerTest {
     }
 
     @Test
-    void tencentCallbackUsesQueryFallbackAndReturnsProviderContract() throws Throwable {
-        SmsCallbackController.TencentCallbackResponse response =
-                controller.receiveTencentSmsStatus(null, "query-token", "[]");
+    void aliyunCallbackUsesQueryFallbackAndReturnsProviderContract() throws Throwable {
+        SmsCallbackController.AliyunCallbackResponse response =
+                controller.receiveAliyunSmsStatus(null, "query-token", "[]");
 
         verify(authenticator).authenticate("query-token");
         verify(authenticator).validatePayload("[]");
-        verify(smsSendService).receiveSmsStatus("TENCENT", "[]");
-        assertThat(response.result()).isZero();
-        assertThat(response.errmsg()).isEqualTo("OK");
+        verify(smsSendService).receiveSmsStatus("ALIYUN", "[]");
+        assertThat(response.code()).isZero();
+        assertThat(response.msg()).isEqualTo("success");
     }
 }

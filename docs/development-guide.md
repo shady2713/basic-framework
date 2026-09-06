@@ -11,7 +11,7 @@
 - 错误协议走语义化 HTTP 状态码（ADR 0003，双端已同步）；新代码不得退回 HTTP 200 + `code/msg` 裸返回。
 - VO 命名：存量 `SaveReqVO` 属技术债，随 service 层治理逐步消解；新增功能一律 Create/Update 分离。
 - 资源 ID：现状为 `NumberSerializer` 仅对超出 2^53 的 Long 转字符串；"一律十进制字符串"的目标契约尚未落地，新接口暂维持现状，待字段目录层面统一决策。
-- 当前产品范围按 ADR 0006：单租户、无富文本、无外部开放 API、基础框架不收集身份证/银行卡。会话支持分级撤销，MQ 使用有限重试和 DLQ。MFA 覆盖超级管理员强制注册、普通用户首次自助注册、WebAuthn/TOTP/一次性恢复码两阶段登录、绑定当前 access token 的短时 step-up，以及个人中心的因子管理；超级管理员的最后一个因子受数据库行锁保护，不允许移除。
+- 当前产品范围按 ADR 0006：单租户、无富文本、无外部开放 API、基础框架不收集身份证/银行卡。会话支持分级撤销，MQ 使用有限重试和 DLQ。MFA 覆盖超级管理员强制注册、普通用户首次自助注册、TOTP/一次性恢复码两阶段登录、绑定当前 access token 的短时 step-up，以及个人中心的因子管理；超级管理员的最后一个因子受数据库行锁保护，不允许移除。
 
 ## 1. 新增一个业务实体（标准 CRUD）的完整路径
 
@@ -48,7 +48,7 @@
 | 前端文件命名 | kebab-case；composable 用 `use-*.ts` |
 | 新配置项 | 进所属 starter 的 `@ConfigurationProperties` + `@Validated`，禁止代码里散落默认值 |
 | 新表、删除或关联 | 先更新 [`docs/data-lifecycle.md`](data-lifecycle.md) 及机器台账；逐表声明软删、硬删、追加保留或平台托管，物理 FK 与逻辑引用均不得隐式新增 |
-| MFA 登录、管理与 step-up | 第一因子成功后只接收服务端一次性 `mfaToken`，不得提前签发或持久化 access/refresh Token；WebAuthn 注册/认证还必须使用服务端一次性 ceremony、精确 RP ID/Origin 和 REQUIRED user verification，TOTP/恢复码沿同一状态机完成后再建会话。首次自助注册的完成挑战必须绑定当前用户；已有因子的新增、轮换、移除和恢复码重置全部标记 `@MfaStepUp`。高风险分级以 [`docs/security/high-risk-operations.md`](security/high-risk-operations.md) 为准。客户端统一承接 HTTP 403 + `1_002_000_016`，完成 `/system/auth/mfa/step-up/*` 后只重试原请求一次，业务页面不得复制挑战弹窗。短时状态只绑定当前 access token，刷新不继承；WebAuthn 多凭据复用同一 opaque user handle，TOTP 轮换与最后因子检查使用条件更新/行锁，业务端点不得自行比较验证码或读 Redis |
+| MFA 登录、管理与 step-up | 第一因子成功后只接收服务端一次性 `mfaToken`，不得提前签发或持久化 access/refresh Token；TOTP/恢复码沿同一状态机完成后再建会话。首次自助注册的完成挑战必须绑定当前用户；已有因子的新增、轮换、移除和恢复码重置全部标记 `@MfaStepUp`。高风险分级以 [`docs/security/high-risk-operations.md`](security/high-risk-operations.md) 为准。客户端统一承接 HTTP 403 + `1_002_000_016`，完成 `/system/auth/mfa/step-up/*` 后只重试原请求一次，业务页面不得复制挑战弹窗。短时状态只绑定当前 access token，刷新不继承；TOTP 轮换与最后因子检查使用条件更新/行锁，业务端点不得自行比较验证码或读 Redis |
 | 浏览器会话 | access token 仅保存在页面内存并通过 `Authorization` 发送；refresh token 仅存在于 host-only、`HttpOnly`、`SameSite=Strict` Cookie，生产环境强制 `Secure`。刷新端点只读 Cookie，每次成功刷新必须轮换 refresh token 且旧值立即失效；refresh token 绝不能作为 access token 认证。前端请求客户端统一启用 credentials，页面重载最多尝试恢复一次会话；登出同时撤销 token family 并清除 Cookie。任何业务模块不得自行持久化、读取或转发 refresh token |
 | 文件上传 | 统一走文件服务；元数据列宽、相对路径和失败补偿遵循 ADR 0012。新文件默认私有，公开展示必须显式传 `publicRead=true`；私有文件必须记录业务所有者并使用受控读取的存储配置，业务代码不得把不可猜路径当作授权。ZIP 在存储前校验条目路径、条目数、总展开量和压缩比，阈值由 `basic-framework.file.archive.*` 配置拥有；业务代码不得自行解压不可信压缩包 |
 | Redis Stream 消费 | 按 at-least-once 设计；以消息 `messageId` 建 inbox/唯一约束后再产生业务副作用；确定性业务错误覆盖监听器 `isRetryable` 返回 `false`，DLQ 人工回放/丢弃统一走 `RedisStreamDeadLetterService`，禁止直接改 Redis；管理入口必须校验专用权限/MFA，`operator` 只取服务端认证身份 |

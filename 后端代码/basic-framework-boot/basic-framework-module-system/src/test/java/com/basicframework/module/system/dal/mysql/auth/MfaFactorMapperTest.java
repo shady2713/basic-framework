@@ -36,17 +36,12 @@ class MfaFactorMapperTest {
         doReturn(List.of(factor)).when(mapper).selectList(any(Wrapper.class));
 
         assertThat(mapper.selectEnabledByUserId(7L)).containsExactly(factor);
-        assertThat(mapper.selectEnabledByUserIdAndTypeList(7L, 2)).containsExactly(factor);
 
         ArgumentCaptor<Wrapper<MfaFactorDO>> captor = wrapperCaptor();
-        verify(mapper, times(2)).selectList(captor.capture());
-        List<LambdaQueryWrapper<MfaFactorDO>> wrappers = captor.getAllValues().stream()
-                .map(MfaFactorMapperTest::asLambdaWrapper)
-                .toList();
-        assertThat(wrappers.get(0).getSqlSegment()).contains("user_id", "enabled");
-        assertThat(parameterValues(wrappers.get(0))).contains(7L, true);
-        assertThat(wrappers.get(1).getSqlSegment()).contains("user_id", "factor_type", "enabled");
-        assertThat(parameterValues(wrappers.get(1))).contains(7L, 2, true);
+        verify(mapper).selectList(captor.capture());
+        LambdaQueryWrapper<MfaFactorDO> wrapper = asLambdaWrapper(captor.getValue());
+        assertThat(wrapper.getSqlSegment()).contains("user_id", "enabled");
+        assertThat(parameterValues(wrapper)).contains(7L, true);
     }
 
     @Test
@@ -81,40 +76,6 @@ class MfaFactorMapperTest {
         assertThat(parameterValues(wrappers.get(0))).contains(7L, 2, true);
         assertThat(wrappers.get(1).getSqlSegment()).contains("id", "user_id", "enabled");
         assertThat(parameterValues(wrappers.get(1))).contains(31L, 7L, true);
-    }
-
-    @Test
-    void credentialLookupRequiresTypeAndEnabledState() {
-        MfaFactorMapper mapper = mock(MfaFactorMapper.class, CALLS_REAL_METHODS);
-        byte[] credentialId = {1, 2, 3};
-        MfaFactorDO factor = new MfaFactorDO().setId(31L);
-        doReturn(factor).when(mapper).selectOne(any(Wrapper.class));
-
-        assertThat(mapper.selectEnabledByCredentialId(credentialId, 3)).isSameAs(factor);
-
-        ArgumentCaptor<Wrapper<MfaFactorDO>> captor = wrapperCaptor();
-        verify(mapper).selectOne(captor.capture());
-        LambdaQueryWrapper<MfaFactorDO> wrapper = asLambdaWrapper(captor.getValue());
-        assertThat(wrapper.getSqlSegment()).contains("credential_id", "factor_type", "enabled");
-        assertThat(parameterValues(wrapper)).contains(credentialId, 3, true);
-    }
-
-    @Test
-    void userHandleLookupLimitsResultsAndReturnsNullWhenNoFactorExists() {
-        MfaFactorMapper mapper = mock(MfaFactorMapper.class, CALLS_REAL_METHODS);
-        byte[] userHandle = {4, 5, 6};
-        MfaFactorDO factor = new MfaFactorDO().setId(31L);
-        doReturn(List.of(factor), List.of()).when(mapper).selectList(any(Wrapper.class));
-
-        assertThat(mapper.selectFirstEnabledByUserHandle(userHandle, 3)).isSameAs(factor);
-        assertThat(mapper.selectFirstEnabledByUserHandle(userHandle, 3)).isNull();
-
-        ArgumentCaptor<Wrapper<MfaFactorDO>> captor = wrapperCaptor();
-        verify(mapper, times(2)).selectList(captor.capture());
-        LambdaQueryWrapper<MfaFactorDO> wrapper =
-                asLambdaWrapper(captor.getAllValues().get(0));
-        assertThat(parameterValues(wrapper)).contains(userHandle, 3, true);
-        assertThat(wrapper.getSqlSegment()).endsWith("LIMIT 1");
     }
 
     @Test

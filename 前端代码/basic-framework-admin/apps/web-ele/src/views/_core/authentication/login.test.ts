@@ -9,13 +9,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   finishRequiredTotpEnrollmentApi,
-  finishWebAuthnAuthenticationApi,
   startRequiredTotpEnrollmentApi,
-  startWebAuthnAuthenticationApi,
   verifyRecoveryCodeApi,
   verifyTotpApi,
 } from '#/api/core/auth';
-import { getWebAuthnCredential } from '#/utils/webauthn';
 
 import Login from './login.vue';
 
@@ -45,19 +42,10 @@ vi.mock('#/adapter/form', () => ({
 vi.mock('#/api/core/auth', () => ({
   checkCaptcha: vi.fn(),
   finishRequiredTotpEnrollmentApi: vi.fn(),
-  finishRequiredWebAuthnEnrollmentApi: vi.fn(),
-  finishWebAuthnAuthenticationApi: vi.fn(),
   getCaptcha: vi.fn(),
   startRequiredTotpEnrollmentApi: vi.fn(),
-  startRequiredWebAuthnEnrollmentApi: vi.fn(),
-  startWebAuthnAuthenticationApi: vi.fn(),
   verifyRecoveryCodeApi: vi.fn(),
   verifyTotpApi: vi.fn(),
-}));
-
-vi.mock('#/utils/webauthn', () => ({
-  createWebAuthnCredential: vi.fn(),
-  getWebAuthnCredential: vi.fn(),
 }));
 
 vi.mock('qrcode', () => ({ default: qrCode }));
@@ -219,14 +207,9 @@ describe('login MFA flow', () => {
     expect(wrapper.find('[data-test="mfa-dialog"]').exists()).toBe(false);
   });
 
-  it('优先使用 WebAuthn 并拒绝缺少访问令牌的完成响应', async () => {
-    mockMfaChallenge({ mfaMethods: ['TOTP', 'WEBAUTHN'] });
-    vi.mocked(startWebAuthnAuthenticationApi).mockResolvedValue({
-      ceremonyToken: 'ceremony-token',
-      optionsJson: '{"publicKey":{}}',
-    });
-    vi.mocked(getWebAuthnCredential).mockResolvedValue('{"id":"credential"}');
-    vi.mocked(finishWebAuthnAuthenticationApi).mockResolvedValue({ userId: 1 });
+  it('拒绝缺少访问令牌的 TOTP 完成响应', async () => {
+    mockMfaChallenge();
+    vi.mocked(verifyTotpApi).mockResolvedValue({ userId: 1 });
     const wrapper = mountLogin();
     const component = loginComponent(wrapper);
     await component.submitCredentials({
@@ -234,15 +217,12 @@ describe('login MFA flow', () => {
       username: 'admin',
     });
 
+    await wrapper.find('input[aria-label="6 位动态验证码"]').setValue('123456');
     await expect(component.submitMfa()).rejects.toThrow(
       'MFA verification result did not include an access token',
     );
 
-    expect(startWebAuthnAuthenticationApi).toHaveBeenCalledWith('mfa-token');
-    expect(finishWebAuthnAuthenticationApi).toHaveBeenCalledWith(
-      'ceremony-token',
-      '{"id":"credential"}',
-    );
+    expect(verifyTotpApi).toHaveBeenCalledWith('mfa-token', '123456');
     expect(authStore.completeMfaLogin).not.toHaveBeenCalled();
     expect(wrapper.find('[data-test="mfa-dialog"]').exists()).toBe(false);
   });

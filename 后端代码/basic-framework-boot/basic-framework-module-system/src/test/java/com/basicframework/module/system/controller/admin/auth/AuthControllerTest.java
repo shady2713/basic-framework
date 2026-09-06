@@ -20,8 +20,6 @@ import com.basicframework.module.system.controller.admin.auth.vo.AuthMfaRecovery
 import com.basicframework.module.system.controller.admin.auth.vo.AuthMfaTokenReqVO;
 import com.basicframework.module.system.controller.admin.auth.vo.AuthMfaTotpSetupRespVO;
 import com.basicframework.module.system.controller.admin.auth.vo.AuthMfaTotpVerifyReqVO;
-import com.basicframework.module.system.controller.admin.auth.vo.AuthMfaWebAuthnFinishReqVO;
-import com.basicframework.module.system.controller.admin.auth.vo.AuthMfaWebAuthnOptionsRespVO;
 import com.basicframework.module.system.controller.admin.auth.vo.AuthPermissionInfoRespVO;
 import com.basicframework.module.system.controller.admin.auth.vo.AuthResetPasswordReqVO;
 import com.basicframework.module.system.controller.admin.auth.vo.AuthSmsLoginReqVO;
@@ -38,7 +36,6 @@ import com.basicframework.module.system.service.auth.dto.AuthLoginDTO;
 import com.basicframework.module.system.service.auth.dto.AuthLoginResultDTO;
 import com.basicframework.module.system.service.auth.dto.MfaTotpSetupDTO;
 import com.basicframework.module.system.service.auth.dto.MfaVerifiedPrincipalDTO;
-import com.basicframework.module.system.service.auth.dto.MfaWebAuthnOptionsDTO;
 import com.basicframework.module.system.service.permission.MenuService;
 import com.basicframework.module.system.service.permission.PermissionService;
 import com.basicframework.module.system.service.permission.RoleService;
@@ -134,51 +131,9 @@ class AuthControllerTest {
     }
 
     @Test
-    void webAuthnEndpoints_delegateCeremonyTokensAndCredentialPayloads() {
-        MfaWebAuthnOptionsDTO options = MfaWebAuthnOptionsDTO.builder()
-                .ceremonyToken("ceremony-token")
-                .optionsJson("{\"challenge\":\"example\"}")
-                .build();
-        MfaVerifiedPrincipalDTO principal =
-                MfaVerifiedPrincipalDTO.builder().userId(USER_ID).build();
-        when(mfaService.beginRequiredWebAuthnEnrollment("mfa-token")).thenReturn(options);
-        when(mfaService.completeRequiredWebAuthnEnrollment("ceremony-token", "{\"id\":\"credential\"}"))
-                .thenReturn(principal);
-        when(mfaService.beginWebAuthnAuthentication("mfa-token")).thenReturn(options);
-        when(mfaService.verifyWebAuthn("ceremony-token", "{\"id\":\"credential\"}"))
-                .thenReturn(principal);
-        when(authService.completeMfaLogin(principal)).thenReturn(mfaChallengeResult());
-
-        MockHttpServletResponse enrollStartResponse = new MockHttpServletResponse();
-        CommonResult<AuthMfaWebAuthnOptionsRespVO> enrollStartResult =
-                controller.startRequiredWebAuthnEnrollment(tokenRequest("mfa-token"), enrollStartResponse);
-        CommonResult<AuthLoginRespVO> enrollFinishResult = controller.finishRequiredWebAuthnEnrollment(
-                webAuthnFinishRequest("ceremony-token", "{\"id\":\"credential\"}"), new MockHttpServletResponse());
-        CommonResult<AuthMfaWebAuthnOptionsRespVO> authenticationStartResult =
-                controller.startWebAuthnAuthentication(tokenRequest("mfa-token"), new MockHttpServletResponse());
-        CommonResult<AuthLoginRespVO> authenticationFinishResult = controller.finishWebAuthnAuthentication(
-                webAuthnFinishRequest("ceremony-token", "{\"id\":\"credential\"}"), new MockHttpServletResponse());
-
-        assertThat(enrollStartResult.getData().getCeremonyToken()).isEqualTo("ceremony-token");
-        assertThat(enrollFinishResult.getData().getMfaToken()).isEqualTo("next-mfa-token");
-        assertThat(authenticationStartResult.getData().getOptionsJson()).isEqualTo("{\"challenge\":\"example\"}");
-        assertThat(authenticationFinishResult.getData().getMfaRequired()).isTrue();
-        assertAuthenticationCachingDisabled(enrollStartResponse);
-        verify(mfaService).beginRequiredWebAuthnEnrollment("mfa-token");
-        verify(mfaService).completeRequiredWebAuthnEnrollment("ceremony-token", "{\"id\":\"credential\"}");
-        verify(mfaService).beginWebAuthnAuthentication("mfa-token");
-        verify(mfaService).verifyWebAuthn("ceremony-token", "{\"id\":\"credential\"}");
-    }
-
-    @Test
     void stepUpEndpoints_bindTheChallengeToCurrentAccessToken() {
         MockHttpServletRequest request = new MockHttpServletRequest();
-        MfaWebAuthnOptionsDTO options = MfaWebAuthnOptionsDTO.builder()
-                .ceremonyToken("ceremony-token")
-                .optionsJson("{\"challenge\":\"example\"}")
-                .build();
         when(mfaService.beginStepUp(USER_ID, ACCESS_TOKEN)).thenReturn(mfaChallengeResult());
-        when(mfaService.beginStepUpWebAuthn("mfa-token")).thenReturn(options);
 
         try (MockedStatic<SecurityFrameworkUtils> securityUtils = mockStatic(SecurityFrameworkUtils.class)) {
             securityUtils.when(SecurityFrameworkUtils::getLoginUserId).thenReturn(USER_ID);
@@ -193,24 +148,16 @@ class AuthControllerTest {
                     controller.finishStepUpTotp(totpRequest("mfa-token", "123456"), new MockHttpServletResponse());
             CommonResult<Boolean> recoveryResult = controller.finishStepUpRecoveryCode(
                     recoveryRequest("mfa-token", "ABCD-EFGH-IJKL-MNOP"), new MockHttpServletResponse());
-            CommonResult<AuthMfaWebAuthnOptionsRespVO> webAuthnStartResult =
-                    controller.startStepUpWebAuthn(tokenRequest("mfa-token"), new MockHttpServletResponse());
-            CommonResult<Boolean> webAuthnFinishResult = controller.finishStepUpWebAuthn(
-                    webAuthnFinishRequest("ceremony-token", "{\"id\":\"credential\"}"), new MockHttpServletResponse());
 
             assertThat(startResult.getData().getMfaToken()).isEqualTo("next-mfa-token");
             assertThat(totpResult.getData()).isTrue();
             assertThat(recoveryResult.getData()).isTrue();
-            assertThat(webAuthnStartResult.getData().getCeremonyToken()).isEqualTo("ceremony-token");
-            assertThat(webAuthnFinishResult.getData()).isTrue();
             assertAuthenticationCachingDisabled(startResponse);
         }
 
         verify(mfaService).beginStepUp(USER_ID, ACCESS_TOKEN);
         verify(mfaService).completeStepUpTotp("mfa-token", "123456");
         verify(mfaService).completeStepUpRecoveryCode("mfa-token", "ABCD-EFGH-IJKL-MNOP");
-        verify(mfaService).beginStepUpWebAuthn("mfa-token");
-        verify(mfaService).completeStepUpWebAuthn("ceremony-token", "{\"id\":\"credential\"}");
     }
 
     @Test
@@ -386,7 +333,7 @@ class AuthControllerTest {
                 .mfaRequired(true)
                 .mfaEnrollmentRequired(false)
                 .mfaToken("next-mfa-token")
-                .mfaMethods(List.of("totp", "webauthn"))
+                .mfaMethods(List.of("totp"))
                 .build();
     }
 
@@ -407,13 +354,6 @@ class AuthControllerTest {
         AuthMfaRecoveryVerifyReqVO request = new AuthMfaRecoveryVerifyReqVO();
         request.setMfaToken(token);
         request.setRecoveryCode(recoveryCode);
-        return request;
-    }
-
-    private static AuthMfaWebAuthnFinishReqVO webAuthnFinishRequest(String ceremonyToken, String credentialJson) {
-        AuthMfaWebAuthnFinishReqVO request = new AuthMfaWebAuthnFinishReqVO();
-        request.setCeremonyToken(ceremonyToken);
-        request.setCredentialJson(credentialJson);
         return request;
     }
 

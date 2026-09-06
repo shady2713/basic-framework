@@ -11,7 +11,7 @@ public class UserProfileMfaFactorRespVO {
     @Schema(description = "因子编号", requiredMode = Schema.RequiredMode.REQUIRED)
     private Long id;
 
-    @Schema(description = "因子类型", example = "WEBAUTHN", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "因子类型", example = "TOTP", requiredMode = Schema.RequiredMode.REQUIRED)
     private String type;
 
     @Schema(description = "安全展示名称", requiredMode = Schema.RequiredMode.REQUIRED)

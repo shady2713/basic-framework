@@ -10,22 +10,17 @@ import QRCode from 'qrcode';
 
 import {
   finishManagedUserTotpEnrollment,
-  finishManagedUserWebAuthnEnrollment,
   finishUserTotpEnrollment,
-  finishUserWebAuthnEnrollment,
   getUserMfaEnrollmentMethods,
   getUserMfaFactors,
   getUserMfaMethods,
   removeUserMfaFactor,
   resetUserMfaRecoveryCodes,
   startManagedUserTotpEnrollment,
-  startManagedUserWebAuthnEnrollment,
   startUserTotpEnrollment,
-  startUserWebAuthnEnrollment,
 } from '#/api/system/user/profile';
 import { showConfirmDialog, showSuccessMessage } from '#/utils/feedback';
 import { isMfaStepUpCancelled, requestMfaStepUp } from '#/utils/mfa-step-up';
-import { createWebAuthnCredential } from '#/utils/webauthn';
 
 const loading = ref(false);
 const methods = ref<SystemUserProfileApi.MfaMethod[]>([]);
@@ -47,26 +42,6 @@ async function loadMethods() {
     getUserMfaEnrollmentMethods(),
     getUserMfaFactors(),
   ]);
-}
-
-async function enrollWebAuthn() {
-  if (!password.value) return;
-  loading.value = true;
-  try {
-    const options = await startUserWebAuthnEnrollment(password.value);
-    const credentialJson = await createWebAuthnCredential(options.optionsJson);
-    const result = await finishUserWebAuthnEnrollment(
-      options.ceremonyToken,
-      credentialJson,
-    );
-    recoveryCodes.value = result.recoveryCodes;
-    password.value = '';
-    await loadMethods();
-  } catch (error) {
-    logError('profile:mfa:enroll-webauthn', error);
-  } finally {
-    loading.value = false;
-  }
 }
 
 async function startTotp() {
@@ -136,19 +111,6 @@ async function startManagedTotp() {
       margin: 1,
       width: 220,
     });
-  });
-}
-
-async function enrollManagedWebAuthn() {
-  await withStepUp('profile:mfa:enroll-managed-webauthn', async () => {
-    const options = await startManagedUserWebAuthnEnrollment();
-    const credentialJson = await createWebAuthnCredential(options.optionsJson);
-    await finishManagedUserWebAuthnEnrollment(
-      options.ceremonyToken,
-      credentialJson,
-    );
-    showSuccessMessage('安全密钥已添加');
-    await loadMethods();
   });
 }
 
@@ -245,14 +207,6 @@ onMounted(loadMethods);
         </div>
       </div>
       <div class="flex flex-wrap gap-3">
-        <ElButton
-          v-if="enrollmentMethods.includes('WEBAUTHN')"
-          :loading="loading"
-          type="primary"
-          @click="enrollManagedWebAuthn"
-        >
-          添加安全密钥
-        </ElButton>
         <ElButton :loading="loading" @click="startManagedTotp">
           {{ methods.includes('TOTP') ? '轮换动态验证码' : '添加动态验证码' }}
         </ElButton>
@@ -269,7 +223,7 @@ onMounted(loadMethods);
         title="当前部署未启用多因素认证"
         type="info"
       >
-        启用后可在此注册设备通行密钥、安全密钥或动态验证码。
+        启用后可在此注册动态验证码，并使用恢复码作为备用验证方式。
       </ElAlert>
     </template>
 
@@ -280,8 +234,7 @@ onMounted(loadMethods);
         title="建议启用多因素认证"
         type="info"
       >
-        首次启用需要重新输入当前密码。推荐设备通行密钥或安全密钥，TOTP
-        可作为兼容方案。
+        首次启用需要重新输入当前密码，然后使用身份验证器扫描二维码绑定动态验证码。
       </ElAlert>
       <ElInput
         v-model="password"
@@ -292,17 +245,9 @@ onMounted(loadMethods);
       />
       <div class="flex gap-3">
         <ElButton
-          v-if="enrollmentMethods.includes('WEBAUTHN')"
-          :disabled="!password"
-          :loading="loading"
-          type="primary"
-          @click="enrollWebAuthn"
-        >
-          使用安全密钥（推荐）
-        </ElButton>
-        <ElButton
           v-if="enrollmentMethods.includes('TOTP')"
           :disabled="!password || loading"
+          type="primary"
           @click="startTotp"
         >
           使用动态验证码

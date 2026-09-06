@@ -6,12 +6,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   finishMfaStepUpRecoveryApi,
   finishMfaStepUpTotpApi,
-  finishMfaStepUpWebAuthnApi,
   startMfaStepUpApi,
-  startMfaStepUpWebAuthnApi,
 } from '#/api/core/auth';
 import { MfaStepUpCancelledError } from '#/utils/mfa-step-up';
-import { getWebAuthnCredential } from '#/utils/webauthn';
 
 import MfaStepUpDialog from './mfa-step-up-dialog.vue';
 
@@ -23,9 +20,7 @@ const coordinator = vi.hoisted(() => ({
 vi.mock('#/api/core/auth', () => ({
   finishMfaStepUpRecoveryApi: vi.fn(),
   finishMfaStepUpTotpApi: vi.fn(),
-  finishMfaStepUpWebAuthnApi: vi.fn(),
   startMfaStepUpApi: vi.fn(),
-  startMfaStepUpWebAuthnApi: vi.fn(),
 }));
 
 vi.mock('#/utils/mfa-step-up', async (importOriginal) => ({
@@ -34,10 +29,6 @@ vi.mock('#/utils/mfa-step-up', async (importOriginal) => ({
     coordinator.handler = handler;
     return coordinator.unregister;
   }),
-}));
-
-vi.mock('#/utils/webauthn', () => ({
-  getWebAuthnCredential: vi.fn(),
 }));
 
 vi.mock('element-plus', async () => {
@@ -127,33 +118,6 @@ describe('mfa step-up dialog', () => {
     await expect(prompt).rejects.toBeInstanceOf(MfaStepUpCancelledError);
     expect(wrapper.find('[data-test="dialog"]').exists()).toBe(false);
     expect(finishMfaStepUpRecoveryApi).not.toHaveBeenCalled();
-  });
-
-  it('优先使用 WebAuthn 并只在服务端确认后放行', async () => {
-    vi.mocked(startMfaStepUpApi).mockResolvedValue({
-      mfaMethods: ['TOTP', 'WEBAUTHN'],
-      mfaToken: 'step-up-token',
-      userId: 1,
-    });
-    vi.mocked(startMfaStepUpWebAuthnApi).mockResolvedValue({
-      ceremonyToken: 'ceremony-token',
-      optionsJson: '{"publicKey":{}}',
-    });
-    vi.mocked(getWebAuthnCredential).mockResolvedValue('{"id":"credential"}');
-    const wrapper = mountDialog();
-
-    const prompt = requirePromptHandler()();
-    await flushPromises();
-    await findButton(wrapper, '验证并继续').trigger('click');
-    await expect(prompt).resolves.toBeUndefined();
-
-    expect(startMfaStepUpWebAuthnApi).toHaveBeenCalledWith('step-up-token');
-    expect(finishMfaStepUpWebAuthnApi).toHaveBeenCalledWith(
-      'ceremony-token',
-      '{"id":"credential"}',
-    );
-    expect(finishMfaStepUpTotpApi).not.toHaveBeenCalled();
-    expect(wrapper.find('[data-test="dialog"]').exists()).toBe(false);
   });
 
   it('只提交格式正确的六位 TOTP', async () => {

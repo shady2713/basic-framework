@@ -94,8 +94,6 @@ public class SmsClientFactoryImpl implements SmsClientFactory {
         switch (channelEnum) {
             case ALIYUN:
                 return new AliyunSmsClient(properties);
-            case TENCENT:
-                return new TencentSmsClient(properties);
         }
         // 创建失败，错误日志 + 抛出异常
         String configSummary = summarizeProperties(properties);

@@ -154,9 +154,7 @@ public class ProductionConfigurationEnvironmentPostProcessor implements Environm
         boolean enabled = environment.getProperty("basic-framework.security.mfa.enabled", Boolean.class, false);
         if (!enabled) {
             errors.add("basic-framework.security.mfa.enabled 在生产环境必须启用");
-            return;
         }
-        validateWebAuthn(environment, errors);
     }
 
     private static void validateCredentialEncryptionKey(ConfigurableEnvironment environment, List<String> errors) {
@@ -172,51 +170,6 @@ public class ProductionConfigurationEnvironmentPostProcessor implements Environm
             }
         } catch (IllegalArgumentException exception) {
             errors.add(property + " 必须是合法 Base64 值");
-        }
-    }
-
-    private static void validateWebAuthn(ConfigurableEnvironment environment, List<String> errors) {
-        String prefix = "basic-framework.security.mfa.webauthn.";
-        if (!environment.getProperty(prefix + "enabled", Boolean.class, false)) {
-            errors.add(prefix + "enabled 在生产环境必须启用");
-            return;
-        }
-        String rpId = environment.getProperty(prefix + "rp-id");
-        if (isUnsafeValue(rpId) || rpId.contains("example") || rpId.contains("localhost")) {
-            errors.add(prefix + "rp-id 必须配置为生产域名");
-            return;
-        }
-        List<String> origins = Binder.get(environment)
-                .bind(prefix + "allowed-origins", Bindable.listOf(String.class))
-                .orElseGet(List::of);
-        if (origins.isEmpty()) {
-            errors.add(prefix + "allowed-origins 必须配置为 RP ID 范围内的精确 HTTPS Origin");
-            return;
-        }
-        for (int index = 0; index < origins.size(); index++) {
-            if (!isSafeWebAuthnOrigin(origins.get(index), rpId)) {
-                errors.add(prefix + "allowed-origins[" + index + "] 必须是 RP ID 范围内的精确 HTTPS Origin");
-            }
-        }
-    }
-
-    private static boolean isSafeWebAuthnOrigin(String origin, String rpId) {
-        if (isUnsafeValue(origin) || !origin.equals(origin.trim())) {
-            return false;
-        }
-        try {
-            URI uri = URI.create(origin);
-            String host = uri.getHost();
-            return "https".equalsIgnoreCase(uri.getScheme())
-                    && host != null
-                    && (host.equalsIgnoreCase(rpId)
-                            || host.toLowerCase(Locale.ROOT).endsWith("." + rpId.toLowerCase(Locale.ROOT)))
-                    && uri.getUserInfo() == null
-                    && (uri.getPath() == null || uri.getPath().isEmpty())
-                    && uri.getQuery() == null
-                    && uri.getFragment() == null;
-        } catch (RuntimeException invalidOrigin) {
-            return false;
         }
     }
 

@@ -42,26 +42,10 @@ public class SmsCallbackController {
         return new AliyunCallbackResponse(0, "success");
     }
 
-    @PostMapping("/tencent")
-    @PermitAll
-    @RateLimiter(time = 60, count = 300, message = "短信回调请求过于频繁", keyResolver = ClientIpRateLimiterKeyResolver.class)
-    @Operation(summary = "腾讯云短信的回调", description = "参见 https://cloud.tencent.com/document/product/382/52077 文档")
-    public TencentCallbackResponse receiveTencentSmsStatus(
-            @RequestHeader(value = SmsCallbackAuthenticator.TOKEN_HEADER, required = false) String headerToken,
-            @RequestParam(value = "callbackToken", required = false) String queryToken,
-            @RequestBody String text)
-            throws Exception {
-        authenticateAndValidate(headerToken, queryToken, text);
-        smsSendService.receiveSmsStatus(SmsChannelEnum.TENCENT.getCode(), text);
-        return new TencentCallbackResponse(0, "OK");
-    }
-
     private void authenticateAndValidate(String headerToken, String queryToken, String text) {
         smsCallbackAuthenticator.authenticate(StrUtil.blankToDefault(headerToken, queryToken));
         smsCallbackAuthenticator.validatePayload(text);
     }
 
     public record AliyunCallbackResponse(int code, String msg) {}
-
-    public record TencentCallbackResponse(int result, String errmsg) {}
 }

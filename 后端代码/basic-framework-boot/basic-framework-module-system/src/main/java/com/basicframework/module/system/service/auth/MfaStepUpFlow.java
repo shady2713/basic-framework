@@ -11,7 +11,6 @@ import com.basicframework.module.system.enums.auth.MfaChallengePurposeEnum;
 import com.basicframework.module.system.enums.logger.LoginLogTypeEnum;
 import com.basicframework.module.system.service.auth.dto.AuthLoginResultDTO;
 import com.basicframework.module.system.service.auth.dto.MfaChallengeDTO;
-import com.basicframework.module.system.service.auth.dto.MfaWebAuthnOptionsDTO;
 import java.util.List;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -75,31 +74,6 @@ public class MfaStepUpFlow {
         methodPolicy.requireEnabled();
         MfaChallengeDTO challenge = challengeManager.consume(mfaToken, MfaChallengePurposeEnum.STEP_UP);
         verify(challenge, () -> credentialVerifier.consumeRecoveryCode(challenge.getUserId(), recoveryCode));
-        mark(challenge);
-    }
-
-    public MfaWebAuthnOptionsDTO beginWebAuthn(String mfaToken) {
-        methodPolicy.requireWebAuthnEnabled();
-        MfaChallengeDTO challenge = challengeManager.consume(mfaToken, MfaChallengePurposeEnum.STEP_UP);
-        WebAuthnService.CeremonyOptions options = credentialVerifier.beginWebAuthn(challenge.getUserId());
-        String ceremonyToken = challengeManager.save(MfaChallengeDTO.builder()
-                .userId(challenge.getUserId())
-                .username(challenge.getUsername())
-                .loginLogType(challenge.getLoginLogType())
-                .purpose(MfaChallengePurposeEnum.WEBAUTHN_STEP_UP)
-                .webAuthnRequestJson(options.requestJson())
-                .accessTokenHash(challenge.getAccessTokenHash())
-                .build());
-        return MfaWebAuthnOptionsDTO.builder()
-                .ceremonyToken(ceremonyToken)
-                .optionsJson(options.browserOptionsJson())
-                .build();
-    }
-
-    public void completeWebAuthn(String ceremonyToken, String credentialJson) {
-        methodPolicy.requireWebAuthnEnabled();
-        MfaChallengeDTO challenge = challengeManager.consume(ceremonyToken, MfaChallengePurposeEnum.WEBAUTHN_STEP_UP);
-        verify(challenge, () -> credentialVerifier.verifyWebAuthn(challenge, credentialJson));
         mark(challenge);
     }
 

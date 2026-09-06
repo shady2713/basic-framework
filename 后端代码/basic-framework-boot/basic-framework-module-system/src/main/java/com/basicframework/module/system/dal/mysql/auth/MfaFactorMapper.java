@@ -39,31 +39,6 @@ public interface MfaFactorMapper extends BaseMapperX<MfaFactorDO> {
                 .eq(MfaFactorDO::getEnabled, true));
     }
 
-    default List<MfaFactorDO> selectEnabledByUserIdAndTypeList(Long userId, Integer factorType) {
-        return selectList(new LambdaQueryWrapper<MfaFactorDO>()
-                .eq(MfaFactorDO::getUserId, userId)
-                .eq(MfaFactorDO::getFactorType, factorType)
-                .eq(MfaFactorDO::getEnabled, true));
-    }
-
-    default MfaFactorDO selectEnabledByCredentialId(byte[] credentialId, Integer factorType) {
-        return selectOne(new LambdaQueryWrapper<MfaFactorDO>()
-                .eq(MfaFactorDO::getCredentialId, credentialId)
-                .eq(MfaFactorDO::getFactorType, factorType)
-                .eq(MfaFactorDO::getEnabled, true));
-    }
-
-    default MfaFactorDO selectFirstEnabledByUserHandle(byte[] userHandle, Integer factorType) {
-        return selectList(new LambdaQueryWrapper<MfaFactorDO>()
-                        .eq(MfaFactorDO::getUserHandle, userHandle)
-                        .eq(MfaFactorDO::getFactorType, factorType)
-                        .eq(MfaFactorDO::getEnabled, true)
-                        .last("LIMIT 1"))
-                .stream()
-                .findFirst()
-                .orElse(null);
-    }
-
     @Update(
             """
             UPDATE system_user_mfa_factor
@@ -72,19 +47,6 @@ public interface MfaFactorMapper extends BaseMapperX<MfaFactorDO> {
               AND (last_used_step IS NULL OR last_used_step < #{step})
             """)
     int advanceTotpStep(@Param("id") Long id, @Param("step") long step, @Param("updateTime") LocalDateTime updateTime);
-
-    @Update(
-            """
-            UPDATE system_user_mfa_factor
-            SET signature_count = #{newCount}, backup_state = #{backupState}, update_time = #{updateTime}
-            WHERE id = #{id} AND enabled = b'1' AND signature_count = #{oldCount}
-            """)
-    int updateWebAuthnUsage(
-            @Param("id") Long id,
-            @Param("oldCount") long oldCount,
-            @Param("newCount") long newCount,
-            @Param("backupState") boolean backupState,
-            @Param("updateTime") LocalDateTime updateTime);
 
     @Update(
             """

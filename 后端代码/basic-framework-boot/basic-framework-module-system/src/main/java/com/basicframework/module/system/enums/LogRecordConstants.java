@@ -24,7 +24,6 @@ public interface LogRecordConstants {
     String SYSTEM_USER_UPDATE_STATUS_SUCCESS = "将用户【{{#user.nickname}}】的状态修改为【{{#statusName}}】";
     String SYSTEM_USER_MFA_ADD_SUB_TYPE = "新增 MFA 因子";
     String SYSTEM_USER_MFA_TOTP_ADD_SUCCESS = "用户【{{#userId}}】新增或轮换了 TOTP 因子";
-    String SYSTEM_USER_MFA_WEBAUTHN_ADD_SUCCESS = "用户【{{#userId}}】新增了 WebAuthn 因子";
     String SYSTEM_USER_MFA_DELETE_SUB_TYPE = "移除 MFA 因子";
     String SYSTEM_USER_MFA_DELETE_SUCCESS = "用户【{{#userId}}】移除了 MFA 因子【{{#factorId}}】";
     String SYSTEM_USER_MFA_RECOVERY_RESET_SUB_TYPE = "重置 MFA 恢复码";

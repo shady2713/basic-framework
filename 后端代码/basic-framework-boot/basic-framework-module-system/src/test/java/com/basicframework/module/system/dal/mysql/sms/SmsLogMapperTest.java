@@ -24,7 +24,7 @@ class SmsLogMapperTest {
 
         assertThat(mapper.updateReceiveResult(update, 7L, "ALIYUN", "provider-serial"))
                 .isEqualTo(1);
-        assertThat(mapper.updateReceiveResult(update, null, "TENCENT", "provider-serial"))
+        assertThat(mapper.updateReceiveResult(update, null, "ALIYUN", "provider-serial"))
                 .isEqualTo(1);
         update.setReceiveStatus(SmsReceiveStatusEnum.FAILURE.getStatus());
         assertThat(mapper.updateReceiveResult(update, 8L, "ALIYUN", "provider-failure"))
@@ -38,7 +38,7 @@ class SmsLogMapperTest {
         SmsLogMapper mapper = mock(SmsLogMapper.class, CALLS_REAL_METHODS);
         doReturn(1L).when(mapper).selectCount(any(LambdaUpdateWrapper.class));
 
-        assertThat(mapper.existsByProviderCorrelation(null, "TENCENT", "provider-serial"))
+        assertThat(mapper.existsByProviderCorrelation(null, "ALIYUN", "provider-serial"))
                 .isTrue();
     }
 

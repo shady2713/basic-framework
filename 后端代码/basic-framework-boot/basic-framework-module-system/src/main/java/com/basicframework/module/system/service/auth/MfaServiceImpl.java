@@ -5,7 +5,6 @@ import com.basicframework.module.system.enums.logger.LoginLogTypeEnum;
 import com.basicframework.module.system.service.auth.dto.AuthLoginResultDTO;
 import com.basicframework.module.system.service.auth.dto.MfaTotpSetupDTO;
 import com.basicframework.module.system.service.auth.dto.MfaVerifiedPrincipalDTO;
-import com.basicframework.module.system.service.auth.dto.MfaWebAuthnOptionsDTO;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -64,34 +63,6 @@ public class MfaServiceImpl implements MfaService {
     }
 
     @Override
-    public MfaWebAuthnOptionsDTO beginRequiredWebAuthnEnrollment(String mfaToken) {
-        return enrollmentFlow.beginWebAuthn(mfaToken);
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public MfaVerifiedPrincipalDTO completeRequiredWebAuthnEnrollment(String ceremonyToken, String credentialJson) {
-        return enrollmentFlow.completeWebAuthn(null, ceremonyToken, credentialJson);
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public MfaVerifiedPrincipalDTO completeSelfWebAuthnEnrollment(
-            Long userId, String ceremonyToken, String credentialJson) {
-        return enrollmentFlow.completeWebAuthn(userId, ceremonyToken, credentialJson);
-    }
-
-    @Override
-    public MfaWebAuthnOptionsDTO beginWebAuthnAuthentication(String mfaToken) {
-        return loginFlow.beginWebAuthn(mfaToken);
-    }
-
-    @Override
-    public MfaVerifiedPrincipalDTO verifyWebAuthn(String ceremonyToken, String credentialJson) {
-        return loginFlow.verifyWebAuthn(ceremonyToken, credentialJson);
-    }
-
-    @Override
     public AuthLoginResultDTO beginStepUp(Long userId, String accessToken) {
         return stepUpFlow.begin(userId, accessToken);
     }
@@ -104,16 +75,6 @@ public class MfaServiceImpl implements MfaService {
     @Override
     public void completeStepUpRecoveryCode(String mfaToken, String recoveryCode) {
         stepUpFlow.completeRecoveryCode(mfaToken, recoveryCode);
-    }
-
-    @Override
-    public MfaWebAuthnOptionsDTO beginStepUpWebAuthn(String mfaToken) {
-        return stepUpFlow.beginWebAuthn(mfaToken);
-    }
-
-    @Override
-    public void completeStepUpWebAuthn(String ceremonyToken, String credentialJson) {
-        stepUpFlow.completeWebAuthn(ceremonyToken, credentialJson);
     }
 
     @Override

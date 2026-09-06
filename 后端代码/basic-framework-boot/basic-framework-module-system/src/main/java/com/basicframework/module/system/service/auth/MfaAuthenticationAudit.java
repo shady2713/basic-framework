@@ -9,7 +9,7 @@ import com.basicframework.module.system.service.logger.LoginLogService;
 import com.basicframework.module.system.service.logger.dto.LoginLogCreateReqDTO;
 import org.springframework.stereotype.Component;
 
-/** 记录 MFA 认证失败事件，不记录验证码、恢复码或 WebAuthn 响应。 */
+/** 记录 MFA 认证失败事件，不记录验证码或恢复码。 */
 @Component
 public class MfaAuthenticationAudit {
 

@@ -16,8 +16,6 @@ import com.basicframework.framework.security.core.annotation.AuthenticatedOnly;
 import com.basicframework.framework.security.core.annotation.MfaStepUp;
 import com.basicframework.module.system.controller.admin.auth.vo.AuthMfaTotpSetupRespVO;
 import com.basicframework.module.system.controller.admin.auth.vo.AuthMfaTotpVerifyReqVO;
-import com.basicframework.module.system.controller.admin.auth.vo.AuthMfaWebAuthnFinishReqVO;
-import com.basicframework.module.system.controller.admin.auth.vo.AuthMfaWebAuthnOptionsRespVO;
 import com.basicframework.module.system.controller.admin.user.vo.profile.UserProfileMfaEnrollmentStartReqVO;
 import com.basicframework.module.system.controller.admin.user.vo.profile.UserProfileMfaFactorRespVO;
 import com.basicframework.module.system.controller.admin.user.vo.profile.UserProfileMfaRecoveryCodesRespVO;
@@ -144,31 +142,6 @@ public class UserProfileController {
                 .getRecoveryCodes()));
     }
 
-    @PostMapping("/mfa/webauthn/enroll/start")
-    @Operation(summary = "开始当前用户 WebAuthn 自助注册")
-    @RateLimiter(time = 60, count = 10, message = "操作过于频繁，请稍后重试", keyResolver = ClientIpRateLimiterKeyResolver.class)
-    @ApiAccessLog(sanitizeKeys = {"password", "ceremonyToken", "optionsJson"})
-    public CommonResult<AuthMfaWebAuthnOptionsRespVO> startMfaWebAuthnEnrollment(
-            @Valid @RequestBody UserProfileMfaEnrollmentStartReqVO reqVO, HttpServletResponse response) {
-        disableSensitiveResponseCaching(response);
-        AdminUserDO user = requireCurrentPassword(reqVO.getPassword());
-        String enrollmentChallenge = mfaService.beginSelfEnrollment(user.getId(), user.getUsername());
-        return success(BeanUtils.toBean(
-                mfaService.beginRequiredWebAuthnEnrollment(enrollmentChallenge), AuthMfaWebAuthnOptionsRespVO.class));
-    }
-
-    @PostMapping("/mfa/webauthn/enroll/finish")
-    @Operation(summary = "完成当前用户 WebAuthn 自助注册")
-    @RateLimiter(time = 60, count = 10, message = "操作过于频繁，请稍后重试", keyResolver = ClientIpRateLimiterKeyResolver.class)
-    @ApiAccessLog(sanitizeKeys = {"ceremonyToken", "credentialJson", "recoveryCodes"})
-    public CommonResult<UserProfileMfaRecoveryCodesRespVO> finishMfaWebAuthnEnrollment(
-            @Valid @RequestBody AuthMfaWebAuthnFinishReqVO reqVO, HttpServletResponse response) {
-        disableSensitiveResponseCaching(response);
-        return success(new UserProfileMfaRecoveryCodesRespVO(mfaService
-                .completeSelfWebAuthnEnrollment(getLoginUserId(), reqVO.getCeremonyToken(), reqVO.getCredentialJson())
-                .getRecoveryCodes()));
-    }
-
     @PostMapping("/mfa/manage/totp/enroll/start")
     @Operation(summary = "开始新增或轮换当前用户 TOTP 因子")
     @MfaStepUp
@@ -192,30 +165,6 @@ public class UserProfileController {
         disableSensitiveResponseCaching(response);
         return success(new UserProfileMfaRecoveryCodesRespVO(mfaFactorManagementService.completeTotpEnrollment(
                 getLoginUserId(), reqVO.getMfaToken(), reqVO.getCode())));
-    }
-
-    @PostMapping("/mfa/manage/webauthn/enroll/start")
-    @Operation(summary = "开始新增当前用户 WebAuthn 因子")
-    @MfaStepUp
-    @RateLimiter(time = 60, count = 10, message = "操作过于频繁，请稍后重试", keyResolver = ClientIpRateLimiterKeyResolver.class)
-    @ApiAccessLog(sanitizeKeys = {"ceremonyToken", "optionsJson"})
-    public CommonResult<AuthMfaWebAuthnOptionsRespVO> startManagedWebAuthnEnrollment(HttpServletResponse response) {
-        disableSensitiveResponseCaching(response);
-        AdminUserDO user = userService.getUser(getLoginUserId());
-        return success(BeanUtils.toBean(
-                mfaFactorManagementService.beginWebAuthnEnrollment(user.getId(), user.getUsername()),
-                AuthMfaWebAuthnOptionsRespVO.class));
-    }
-
-    @PostMapping("/mfa/manage/webauthn/enroll/finish")
-    @Operation(summary = "完成新增当前用户 WebAuthn 因子")
-    @MfaStepUp
-    @RateLimiter(time = 60, count = 10, message = "操作过于频繁，请稍后重试", keyResolver = ClientIpRateLimiterKeyResolver.class)
-    @ApiAccessLog(sanitizeKeys = {"ceremonyToken", "credentialJson"})
-    public CommonResult<Boolean> finishManagedWebAuthnEnrollment(@Valid @RequestBody AuthMfaWebAuthnFinishReqVO reqVO) {
-        mfaFactorManagementService.completeWebAuthnEnrollment(
-                getLoginUserId(), reqVO.getCeremonyToken(), reqVO.getCredentialJson());
-        return success(true);
     }
 
     @DeleteMapping("/mfa/factors/{factorId}")

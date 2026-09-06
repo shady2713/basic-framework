@@ -108,11 +108,6 @@ basic-framework:
       issuer: ${MFA_ISSUER:basic-framework}
       challenge-ttl: ${MFA_CHALLENGE_TTL:5m}
       step-up-ttl: ${MFA_STEP_UP_TTL:5m}
-      webauthn:
-        enabled: ${MFA_WEBAUTHN_ENABLED:false}
-        rp-id: ${MFA_WEBAUTHN_RP_ID:}
-        rp-name: ${MFA_WEBAUTHN_RP_NAME:basic-framework}
-        allowed-origins: []
   swagger:
     title: basic-framework API
     description: Admin and app API documentation

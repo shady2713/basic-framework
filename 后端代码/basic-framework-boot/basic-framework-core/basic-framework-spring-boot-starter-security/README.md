@@ -47,6 +47,6 @@ Controller 的高风险命令使用 `@MfaStepUp` 标记。切面从当前请求�
 能力未启用时保持兼容放行；启用后，缺少、过期或属于其他访问令牌的验证状态均拒绝执行。
 业务模块不得自行读取验证码或复制 Redis 判断。
 
-客户端先调用 `/system/auth/mfa/step-up/start` 创建一次性挑战，再选择 WebAuthn、
-TOTP 或恢复码完成验证。成功状态只绑定当前 access token，TTL 由
+客户端先调用 `/system/auth/mfa/step-up/start` 创建一次性挑战，再选择 TOTP
+或恢复码完成验证。成功状态只绑定当前 access token，TTL 由
 `basic-framework.security.mfa.step-up-ttl` 统一配置；刷新令牌不会继承该状态。

@@ -15,7 +15,6 @@ import lombok.Getter;
 @AllArgsConstructor
 public enum SmsChannelEnum implements ArrayValuable<String> {
     ALIYUN("ALIYUN", "阿里云"),
-    TENCENT("TENCENT", "腾讯云"),
     ;
 
     public static final String[] ARRAYS =

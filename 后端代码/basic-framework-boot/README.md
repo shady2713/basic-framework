@@ -33,7 +33,7 @@ IntelliJ HTTP Client 的非敏感地址模板位于根目录 `http-client.env.js
 
 管理端只提供内部用户会话，不开放外部客户端授权协议。访问令牌与刷新令牌的默认有效期分别为 30 分钟和 30 天，可通过 `SESSION_ACCESS_TOKEN_TTL`、`SESSION_REFRESH_TOKEN_TTL` 调整；两者必须为正数，且刷新令牌有效期不得短于访问令牌。刷新使用一次性令牌轮换和数据库原子更新，不延长刷新令牌的绝对到期时间。
 
-可选配置为 `MFA_ISSUER`（认证器展示名称，默认 `basic-framework`）、`MFA_CHALLENGE_TTL`（一次性登录挑战有效期，默认 `5m`）和 `MFA_STEP_UP_TTL`（当前 access token 完成二次验证后的高风险操作窗口，默认 `5m`）。生产环境还必须配置 `MFA_WEBAUTHN_RP_ID` 与 `MFA_WEBAUTHN_ALLOWED_ORIGIN`；Origin 必须是 RP ID 范围内的精确 HTTPS Origin。本地开发可通过 `MFA_WEBAUTHN_ENABLED=true`、`MFA_WEBAUTHN_RP_ID=localhost` 和实际前端 Origin 启用浏览器安全密钥。
+可选配置为 `MFA_ISSUER`（认证器展示名称，默认 `basic-framework`）、`MFA_CHALLENGE_TTL`（一次性登录挑战有效期，默认 `5m`）和 `MFA_STEP_UP_TTL`（当前 access token 完成二次验证后的高风险操作窗口，默认 `5m`）。
 
 ## 容器镜像
 

@@ -20,8 +20,6 @@ public class MfaChallengeDTO {
     private Integer loginLogType;
     private MfaChallengePurposeEnum purpose;
     private String encryptedTotpSecret;
-    private byte[] webAuthnUserHandle;
-    private String webAuthnRequestJson;
     private String accessTokenHash;
     private Long factorId;
 }

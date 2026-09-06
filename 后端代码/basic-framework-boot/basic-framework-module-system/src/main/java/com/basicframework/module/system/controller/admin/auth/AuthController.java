@@ -128,58 +128,6 @@ public class AuthController {
                 response);
     }
 
-    @PostMapping("/mfa/webauthn/enroll/start")
-    @PermitAll
-    @Operation(summary = "开始强制 WebAuthn 注册")
-    @RateLimiter(time = 60, count = 10, message = "操作过于频繁，请稍后重试", keyResolver = ClientIpRateLimiterKeyResolver.class)
-    @ApiAccessLog(sanitizeKeys = {"mfaToken", "ceremonyToken", "optionsJson"})
-    public CommonResult<AuthMfaWebAuthnOptionsRespVO> startRequiredWebAuthnEnrollment(
-            @RequestBody @Valid AuthMfaTokenReqVO reqVO, HttpServletResponse response) {
-        disableAuthenticationResponseCaching(response);
-        return success(BeanUtils.toBean(
-                mfaService.beginRequiredWebAuthnEnrollment(reqVO.getMfaToken()), AuthMfaWebAuthnOptionsRespVO.class));
-    }
-
-    @PostMapping("/mfa/webauthn/enroll/finish")
-    @PermitAll
-    @Operation(summary = "完成强制 WebAuthn 注册并登录")
-    @RateLimiter(time = 60, count = 10, message = "操作过于频繁，请稍后重试", keyResolver = ClientIpRateLimiterKeyResolver.class)
-    @ApiAccessLog(sanitizeKeys = {"ceremonyToken", "credentialJson", "recoveryCodes"})
-    public CommonResult<AuthLoginRespVO> finishRequiredWebAuthnEnrollment(
-            @RequestBody @Valid AuthMfaWebAuthnFinishReqVO reqVO, HttpServletResponse response) {
-        disableAuthenticationResponseCaching(response);
-        return authenticationSuccess(
-                authService.completeMfaLogin(mfaService.completeRequiredWebAuthnEnrollment(
-                        reqVO.getCeremonyToken(), reqVO.getCredentialJson())),
-                response);
-    }
-
-    @PostMapping("/mfa/webauthn/authenticate/start")
-    @PermitAll
-    @Operation(summary = "开始 WebAuthn 登录认证")
-    @RateLimiter(time = 60, count = 10, message = "操作过于频繁，请稍后重试", keyResolver = ClientIpRateLimiterKeyResolver.class)
-    @ApiAccessLog(sanitizeKeys = {"mfaToken", "ceremonyToken", "optionsJson"})
-    public CommonResult<AuthMfaWebAuthnOptionsRespVO> startWebAuthnAuthentication(
-            @RequestBody @Valid AuthMfaTokenReqVO reqVO, HttpServletResponse response) {
-        disableAuthenticationResponseCaching(response);
-        return success(BeanUtils.toBean(
-                mfaService.beginWebAuthnAuthentication(reqVO.getMfaToken()), AuthMfaWebAuthnOptionsRespVO.class));
-    }
-
-    @PostMapping("/mfa/webauthn/authenticate/finish")
-    @PermitAll
-    @Operation(summary = "完成 WebAuthn 登录认证")
-    @RateLimiter(time = 60, count = 10, message = "操作过于频繁，请稍后重试", keyResolver = ClientIpRateLimiterKeyResolver.class)
-    @ApiAccessLog(sanitizeKeys = {"ceremonyToken", "credentialJson"})
-    public CommonResult<AuthLoginRespVO> finishWebAuthnAuthentication(
-            @RequestBody @Valid AuthMfaWebAuthnFinishReqVO reqVO, HttpServletResponse response) {
-        disableAuthenticationResponseCaching(response);
-        return authenticationSuccess(
-                authService.completeMfaLogin(
-                        mfaService.verifyWebAuthn(reqVO.getCeremonyToken(), reqVO.getCredentialJson())),
-                response);
-    }
-
     @PostMapping("/mfa/step-up/start")
     @Operation(summary = "开始当前会话的 MFA 二次验证")
     @AuthenticatedOnly
@@ -212,30 +160,6 @@ public class AuthController {
             @RequestBody @Valid AuthMfaRecoveryVerifyReqVO reqVO, HttpServletResponse response) {
         disableAuthenticationResponseCaching(response);
         mfaService.completeStepUpRecoveryCode(reqVO.getMfaToken(), reqVO.getRecoveryCode());
-        return success(true);
-    }
-
-    @PostMapping("/mfa/step-up/webauthn/start")
-    @Operation(summary = "开始当前会话的 WebAuthn 二次验证")
-    @AuthenticatedOnly
-    @RateLimiter(time = 60, count = 10, message = "操作过于频繁，请稍后重试", keyResolver = ClientIpRateLimiterKeyResolver.class)
-    @ApiAccessLog(sanitizeKeys = {"mfaToken", "ceremonyToken", "optionsJson"})
-    public CommonResult<AuthMfaWebAuthnOptionsRespVO> startStepUpWebAuthn(
-            @RequestBody @Valid AuthMfaTokenReqVO reqVO, HttpServletResponse response) {
-        disableAuthenticationResponseCaching(response);
-        return success(BeanUtils.toBean(
-                mfaService.beginStepUpWebAuthn(reqVO.getMfaToken()), AuthMfaWebAuthnOptionsRespVO.class));
-    }
-
-    @PostMapping("/mfa/step-up/webauthn/finish")
-    @Operation(summary = "完成当前会话的 WebAuthn 二次验证")
-    @AuthenticatedOnly
-    @RateLimiter(time = 60, count = 10, message = "操作过于频繁，请稍后重试", keyResolver = ClientIpRateLimiterKeyResolver.class)
-    @ApiAccessLog(sanitizeKeys = {"ceremonyToken", "credentialJson"})
-    public CommonResult<Boolean> finishStepUpWebAuthn(
-            @RequestBody @Valid AuthMfaWebAuthnFinishReqVO reqVO, HttpServletResponse response) {
-        disableAuthenticationResponseCaching(response);
-        mfaService.completeStepUpWebAuthn(reqVO.getCeremonyToken(), reqVO.getCredentialJson());
         return success(true);
     }
 

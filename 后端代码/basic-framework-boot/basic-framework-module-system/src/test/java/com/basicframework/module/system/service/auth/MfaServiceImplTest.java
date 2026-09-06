@@ -23,7 +23,6 @@ import com.basicframework.module.system.service.auth.dto.AuthLoginResultDTO;
 import com.basicframework.module.system.service.auth.dto.MfaChallengeDTO;
 import com.basicframework.module.system.service.auth.dto.MfaTotpSetupDTO;
 import com.basicframework.module.system.service.auth.dto.MfaVerifiedPrincipalDTO;
-import com.basicframework.module.system.service.auth.dto.MfaWebAuthnOptionsDTO;
 import com.basicframework.module.system.service.logger.LoginLogService;
 import com.basicframework.module.system.service.permission.PermissionService;
 import java.util.List;
@@ -41,9 +40,6 @@ class MfaServiceImplTest {
 
     @Mock
     private MfaProperties properties;
-
-    @Mock
-    private MfaProperties.WebAuthn webAuthnProperties;
 
     @Mock
     private MfaChallengeRedisDAO challengeRedisDAO;
@@ -67,9 +63,6 @@ class MfaServiceImplTest {
     private TotpAuthenticator totpAuthenticator;
 
     @Mock
-    private WebAuthnService webAuthnService;
-
-    @Mock
     private PermissionService permissionService;
 
     @Mock
@@ -78,14 +71,13 @@ class MfaServiceImplTest {
     @BeforeEach
     void setUp() {
         when(properties.isEnabled()).thenReturn(true);
-        org.mockito.Mockito.lenient().when(properties.getWebauthn()).thenReturn(webAuthnProperties);
         MfaChallengeManager challengeManager = new MfaChallengeManager(challengeRedisDAO);
         MfaMethodPolicy methodPolicy = new MfaMethodPolicy(properties, factorMapper, permissionService);
         MfaAuthenticationAudit authenticationAudit = new MfaAuthenticationAudit(loginLogService);
-        MfaCredentialVerifier credentialVerifier = new MfaCredentialVerifier(
-                factorMapper, recoveryCodeMapper, secretCrypto, totpAuthenticator, webAuthnService);
+        MfaCredentialVerifier credentialVerifier =
+                new MfaCredentialVerifier(factorMapper, recoveryCodeMapper, secretCrypto, totpAuthenticator);
         MfaRequiredEnrollmentCredentials enrollmentCredentials =
-                new MfaRequiredEnrollmentCredentials(factorMapper, secretCrypto, totpAuthenticator, webAuthnService);
+                new MfaRequiredEnrollmentCredentials(factorMapper, secretCrypto, totpAuthenticator);
         MfaLoginFlow loginFlow =
                 new MfaLoginFlow(methodPolicy, challengeManager, credentialVerifier, authenticationAudit);
         MfaRequiredEnrollmentFlow enrollmentFlow = new MfaRequiredEnrollmentFlow(
@@ -175,19 +167,6 @@ class MfaServiceImplTest {
     }
 
     @Test
-    void beginAuthentication_offersWebAuthnBeforeTotpWhenEnabled() {
-        when(webAuthnProperties.isEnabled()).thenReturn(true);
-        AdminUserDO user = AdminUserDO.builder().id(1L).username("admin").build();
-        when(factorMapper.selectEnabledByUserId(1L)).thenReturn(List.of());
-        when(permissionService.hasAnyRoles(1L, RoleCodeEnum.SUPER_ADMIN.getCode()))
-                .thenReturn(true);
-
-        AuthLoginResultDTO result = service.beginAuthentication(user, "admin", LoginLogTypeEnum.LOGIN_USERNAME);
-
-        assertThat(result.getMfaMethods()).containsExactly("WEBAUTHN", "TOTP");
-    }
-
-    @Test
     void beginRequiredTotpEnrollment_rotatesChallengeAndBuildsEncodedOtpAuthUri() {
         MfaChallengeDTO challenge = challenge(MfaChallengePurposeEnum.REQUIRED_ENROLLMENT);
         when(challengeRedisDAO.getAndDelete("login-token")).thenReturn(challenge);
@@ -209,113 +188,6 @@ class MfaServiceImplTest {
     }
 
     @Test
-    void beginRequiredWebAuthnEnrollment_storesOpaqueHandleAndServerRequest() {
-        when(webAuthnProperties.isEnabled()).thenReturn(true);
-        when(challengeRedisDAO.getAndDelete("login-token"))
-                .thenReturn(challenge(MfaChallengePurposeEnum.REQUIRED_ENROLLMENT));
-        when(factorMapper.selectEnabledByUserIdAndTypeList(1L, MfaFactorTypeEnum.WEBAUTHN.getType()))
-                .thenReturn(List.of());
-        when(webAuthnService.startRegistration(any(), anyString(), any()))
-                .thenReturn(new WebAuthnService.CeremonyOptions("browser-json", "server-json"));
-
-        MfaWebAuthnOptionsDTO result = service.beginRequiredWebAuthnEnrollment("login-token");
-
-        assertThat(result.getOptionsJson()).isEqualTo("browser-json");
-        var challengeCaptor = org.mockito.ArgumentCaptor.forClass(MfaChallengeDTO.class);
-        verify(challengeRedisDAO).set(anyString(), challengeCaptor.capture());
-        assertThat(challengeCaptor.getValue().getPurpose()).isEqualTo(MfaChallengePurposeEnum.WEBAUTHN_ENROLLMENT);
-        assertThat(challengeCaptor.getValue().getWebAuthnUserHandle()).hasSize(32);
-        assertThat(challengeCaptor.getValue().getWebAuthnRequestJson()).isEqualTo("server-json");
-    }
-
-    @Test
-    void completeRequiredWebAuthnEnrollment_persistsCredentialAndRecoveryCodes() {
-        when(webAuthnProperties.isEnabled()).thenReturn(true);
-        MfaChallengeDTO challenge = challenge(MfaChallengePurposeEnum.WEBAUTHN_ENROLLMENT);
-        challenge.setWebAuthnRequestJson("server-json");
-        challenge.setWebAuthnUserHandle(new byte[32]);
-        when(challengeRedisDAO.getAndDelete("ceremony-token")).thenReturn(challenge);
-        when(factorMapper.selectEnabledByUserIdAndTypeList(1L, MfaFactorTypeEnum.WEBAUTHN.getType()))
-                .thenReturn(List.of());
-        WebAuthnService.RegistrationOutcome registration = new WebAuthnService.RegistrationOutcome(
-                true, new byte[] {1, 2, 3}, new byte[] {4, 5, 6}, 1L, true, false, List.of());
-        when(webAuthnService.finishRegistration("server-json", "credential-json"))
-                .thenReturn(registration);
-        when(recoveryCodeManager.replace(any(), any())).thenReturn(recoveryCodes());
-
-        MfaVerifiedPrincipalDTO principal =
-                service.completeRequiredWebAuthnEnrollment("ceremony-token", "credential-json");
-
-        assertThat(principal.getRecoveryCodes()).hasSize(10);
-        var factorCaptor = org.mockito.ArgumentCaptor.forClass(MfaFactorDO.class);
-        verify(factorMapper).insert(factorCaptor.capture());
-        assertThat(factorCaptor.getValue())
-                .extracting(
-                        MfaFactorDO::getUserId,
-                        MfaFactorDO::getFactorType,
-                        MfaFactorDO::getSignatureCount,
-                        MfaFactorDO::getBackupEligible)
-                .containsExactly(1L, MfaFactorTypeEnum.WEBAUTHN.getType(), 1L, true);
-        assertThat(factorCaptor.getValue().getCredentialId()).containsExactly(1, 2, 3);
-        assertThat(factorCaptor.getValue().getPublicKeyCose()).containsExactly(4, 5, 6);
-    }
-
-    @Test
-    void verifyWebAuthn_rejectsResultBoundToAnotherUser() {
-        when(webAuthnProperties.isEnabled()).thenReturn(true);
-        MfaChallengeDTO challenge = challenge(MfaChallengePurposeEnum.WEBAUTHN_AUTHENTICATION);
-        challenge.setWebAuthnRequestJson("server-json");
-        when(challengeRedisDAO.getAndDelete("ceremony-token")).thenReturn(challenge);
-        WebAuthnService.AssertionOutcome assertion =
-                new WebAuthnService.AssertionOutcome(true, true, true, "2", new byte[] {1}, 0L, false);
-        when(webAuthnService.finishAssertion("server-json", "credential-json")).thenReturn(assertion);
-
-        assertThatThrownBy(() -> service.verifyWebAuthn("ceremony-token", "credential-json"))
-                .hasMessageContaining("安全密钥验证失败");
-        verify(factorMapper, never())
-                .updateWebAuthnUsage(
-                        any(),
-                        org.mockito.ArgumentMatchers.anyLong(),
-                        org.mockito.ArgumentMatchers.anyLong(),
-                        org.mockito.ArgumentMatchers.anyBoolean(),
-                        any());
-        verify(loginLogService).createLoginLog(any());
-    }
-
-    @Test
-    void verifyWebAuthn_advancesSignatureCounterForBoundUser() {
-        when(webAuthnProperties.isEnabled()).thenReturn(true);
-        MfaChallengeDTO challenge = challenge(MfaChallengePurposeEnum.WEBAUTHN_AUTHENTICATION);
-        challenge.setWebAuthnRequestJson("server-json");
-        when(challengeRedisDAO.getAndDelete("ceremony-token")).thenReturn(challenge);
-        WebAuthnService.AssertionOutcome assertion =
-                new WebAuthnService.AssertionOutcome(true, true, true, "1", new byte[] {1}, 8L, true);
-        when(webAuthnService.finishAssertion("server-json", "credential-json")).thenReturn(assertion);
-        MfaFactorDO factor =
-                MfaFactorDO.builder().id(10L).userId(1L).signatureCount(7L).build();
-        when(factorMapper.selectEnabledByCredentialId(any(), org.mockito.ArgumentMatchers.eq(1)))
-                .thenReturn(factor);
-        when(factorMapper.updateWebAuthnUsage(
-                        org.mockito.ArgumentMatchers.eq(10L),
-                        org.mockito.ArgumentMatchers.eq(7L),
-                        org.mockito.ArgumentMatchers.eq(8L),
-                        org.mockito.ArgumentMatchers.eq(true),
-                        any()))
-                .thenReturn(1);
-
-        MfaVerifiedPrincipalDTO principal = service.verifyWebAuthn("ceremony-token", "credential-json");
-
-        assertThat(principal.getUserId()).isEqualTo(1L);
-        verify(factorMapper)
-                .updateWebAuthnUsage(
-                        org.mockito.ArgumentMatchers.eq(10L),
-                        org.mockito.ArgumentMatchers.eq(7L),
-                        org.mockito.ArgumentMatchers.eq(8L),
-                        org.mockito.ArgumentMatchers.eq(true),
-                        any());
-    }
-
-    @Test
     void verifyRecoveryCode_consumesNormalizedCodeAndReturnsBoundPrincipal() {
         when(challengeRedisDAO.getAndDelete("login-token")).thenReturn(challenge(MfaChallengePurposeEnum.LOGIN));
         when(secretCrypto.recoveryCodeHash("ABCD2345EFGH67YZ")).thenReturn("code-hash");
@@ -331,39 +203,15 @@ class MfaServiceImplTest {
     }
 
     @Test
-    void beginWebAuthnAuthentication_rotatesLoginChallengeIntoCeremony() {
-        when(webAuthnProperties.isEnabled()).thenReturn(true);
-        when(challengeRedisDAO.getAndDelete("login-token")).thenReturn(challenge(MfaChallengePurposeEnum.LOGIN));
-        when(factorMapper.selectEnabledByUserIdAndTypeList(1L, MfaFactorTypeEnum.WEBAUTHN.getType()))
-                .thenReturn(List.of(MfaFactorDO.builder().id(10L).userId(1L).build()));
-        when(webAuthnService.startAssertion(1L))
-                .thenReturn(new WebAuthnService.CeremonyOptions("browser-json", "server-json"));
-
-        MfaWebAuthnOptionsDTO result = service.beginWebAuthnAuthentication("login-token");
-
-        assertThat(result.getOptionsJson()).isEqualTo("browser-json");
-        var challengeCaptor = org.mockito.ArgumentCaptor.forClass(MfaChallengeDTO.class);
-        verify(challengeRedisDAO).set(anyString(), challengeCaptor.capture());
-        assertThat(challengeCaptor.getValue())
-                .extracting(MfaChallengeDTO::getPurpose, MfaChallengeDTO::getWebAuthnRequestJson)
-                .containsExactly(MfaChallengePurposeEnum.WEBAUTHN_AUTHENTICATION, "server-json");
-    }
-
-    @Test
     void beginStepUp_bindsChallengeToAccessTokenDigestAndOffersExistingFactors() {
-        when(webAuthnProperties.isEnabled()).thenReturn(true);
         when(factorMapper.selectEnabledByUserId(1L))
-                .thenReturn(List.of(
-                        MfaFactorDO.builder()
-                                .factorType(MfaFactorTypeEnum.WEBAUTHN.getType())
-                                .build(),
-                        MfaFactorDO.builder()
-                                .factorType(MfaFactorTypeEnum.TOTP.getType())
-                                .build()));
+                .thenReturn(List.of(MfaFactorDO.builder()
+                        .factorType(MfaFactorTypeEnum.TOTP.getType())
+                        .build()));
 
         AuthLoginResultDTO result = service.beginStepUp(1L, "access-token-secret");
 
-        assertThat(result.getMfaMethods()).containsExactly("WEBAUTHN", "TOTP", "RECOVERY_CODE");
+        assertThat(result.getMfaMethods()).containsExactly("TOTP", "RECOVERY_CODE");
         var challengeCaptor = org.mockito.ArgumentCaptor.forClass(MfaChallengeDTO.class);
         verify(challengeRedisDAO).set(anyString(), challengeCaptor.capture());
         assertThat(challengeCaptor.getValue().getPurpose()).isEqualTo(MfaChallengePurposeEnum.STEP_UP);
@@ -413,45 +261,6 @@ class MfaServiceImplTest {
     }
 
     @Test
-    void webAuthnStepUp_preservesSessionBindingUntilSuccessfulCompletion() {
-        when(webAuthnProperties.isEnabled()).thenReturn(true);
-        MfaChallengeDTO stepUpChallenge = challenge(MfaChallengePurposeEnum.STEP_UP);
-        stepUpChallenge.setAccessTokenHash("token-hash");
-        when(challengeRedisDAO.getAndDelete("step-up-token")).thenReturn(stepUpChallenge);
-        when(factorMapper.selectEnabledByUserIdAndTypeList(1L, MfaFactorTypeEnum.WEBAUTHN.getType()))
-                .thenReturn(List.of(MfaFactorDO.builder().id(10L).userId(1L).build()));
-        when(webAuthnService.startAssertion(1L))
-                .thenReturn(new WebAuthnService.CeremonyOptions("browser-json", "server-json"));
-
-        MfaWebAuthnOptionsDTO options = service.beginStepUpWebAuthn("step-up-token");
-
-        assertThat(options.getOptionsJson()).isEqualTo("browser-json");
-        var challengeCaptor = org.mockito.ArgumentCaptor.forClass(MfaChallengeDTO.class);
-        verify(challengeRedisDAO).set(anyString(), challengeCaptor.capture());
-        MfaChallengeDTO ceremony = challengeCaptor.getValue();
-        assertThat(ceremony.getAccessTokenHash()).isEqualTo("token-hash");
-        when(challengeRedisDAO.getAndDelete("ceremony-token")).thenReturn(ceremony);
-        WebAuthnService.AssertionOutcome assertion =
-                new WebAuthnService.AssertionOutcome(true, true, true, "1", new byte[] {1}, 8L, true);
-        when(webAuthnService.finishAssertion("server-json", "credential-json")).thenReturn(assertion);
-        MfaFactorDO factor =
-                MfaFactorDO.builder().id(10L).userId(1L).signatureCount(7L).build();
-        when(factorMapper.selectEnabledByCredentialId(any(), org.mockito.ArgumentMatchers.eq(1)))
-                .thenReturn(factor);
-        when(factorMapper.updateWebAuthnUsage(
-                        org.mockito.ArgumentMatchers.eq(10L),
-                        org.mockito.ArgumentMatchers.eq(7L),
-                        org.mockito.ArgumentMatchers.eq(8L),
-                        org.mockito.ArgumentMatchers.eq(true),
-                        any()))
-                .thenReturn(1);
-
-        service.completeStepUpWebAuthn("ceremony-token", "credential-json");
-
-        verify(stepUpRedisDAO).setByHash("token-hash", 1L);
-    }
-
-    @Test
     void requireStepUp_rejectsMissingOrExpiredSessionMarker() {
         when(stepUpRedisDAO.matches("access-token", 1L)).thenReturn(false);
 
@@ -479,18 +288,13 @@ class MfaServiceImplTest {
 
     @Test
     void methodQueries_exposeConfiguredFactorsWithoutRecoveryCode() {
-        when(webAuthnProperties.isEnabled()).thenReturn(true);
         when(factorMapper.selectEnabledByUserId(1L))
-                .thenReturn(List.of(
-                        MfaFactorDO.builder()
-                                .factorType(MfaFactorTypeEnum.WEBAUTHN.getType())
-                                .build(),
-                        MfaFactorDO.builder()
-                                .factorType(MfaFactorTypeEnum.TOTP.getType())
-                                .build()));
+                .thenReturn(List.of(MfaFactorDO.builder()
+                        .factorType(MfaFactorTypeEnum.TOTP.getType())
+                        .build()));
 
-        assertThat(service.getEnabledMethods(1L)).containsExactly("WEBAUTHN", "TOTP");
-        assertThat(service.getEnrollmentMethods()).containsExactly("WEBAUTHN", "TOTP");
+        assertThat(service.getEnabledMethods(1L)).containsExactly("TOTP");
+        assertThat(service.getEnrollmentMethods()).containsExactly("TOTP");
     }
 
     @Test

@@ -32,18 +32,14 @@ vi.mock('qrcode', () => ({
 
 vi.mock('#/api/system/user/profile', () => ({
   finishManagedUserTotpEnrollment: vi.fn(),
-  finishManagedUserWebAuthnEnrollment: vi.fn(),
   finishUserTotpEnrollment: vi.fn(),
-  finishUserWebAuthnEnrollment: vi.fn(),
   getUserMfaEnrollmentMethods: vi.fn(),
   getUserMfaFactors: vi.fn(),
   getUserMfaMethods: vi.fn(),
   removeUserMfaFactor: vi.fn(),
   resetUserMfaRecoveryCodes: vi.fn(),
   startManagedUserTotpEnrollment: vi.fn(),
-  startManagedUserWebAuthnEnrollment: vi.fn(),
   startUserTotpEnrollment: vi.fn(),
-  startUserWebAuthnEnrollment: vi.fn(),
 }));
 
 vi.mock('#/utils/feedback', () => ({
@@ -54,10 +50,6 @@ vi.mock('#/utils/feedback', () => ({
 vi.mock('#/utils/mfa-step-up', () => ({
   isMfaStepUpCancelled: (error: unknown) => error === testState.cancellation,
   requestMfaStepUp: vi.fn(),
-}));
-
-vi.mock('#/utils/webauthn', () => ({
-  createWebAuthnCredential: vi.fn(),
 }));
 
 vi.mock('element-plus', async () => {

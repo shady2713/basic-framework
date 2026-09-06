@@ -137,41 +137,6 @@ class ProductionConfigurationEnvironmentPostProcessorTest {
                 .doesNotThrowAnyException();
     }
 
-    @Test
-    void production_rejectsWebAuthnOriginOutsideRpId() {
-        MockEnvironment environment = productionEnvironment();
-        environment.setProperty("basic-framework.security.mfa.enabled", "true");
-        environment.setProperty("basic-framework.security.mfa.webauthn.enabled", "true");
-        environment.setProperty("basic-framework.security.mfa.webauthn.rp-id", "company.invalid");
-        environment.setProperty("basic-framework.security.mfa.webauthn.allowed-origins[0]", "https://attacker.invalid");
-
-        assertThatThrownBy(() -> processor.postProcessEnvironment(environment, new SpringApplication()))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("allowed-origins[0] 必须是 RP ID 范围内的精确 HTTPS Origin");
-    }
-
-    @Test
-    void production_rejectsUnsafeSecondaryWebAuthnOrigin() {
-        MockEnvironment environment = productionEnvironment();
-        enableValidMfa(environment);
-        environment.setProperty("basic-framework.security.mfa.webauthn.allowed-origins[1]", "https://attacker.invalid");
-
-        assertThatThrownBy(() -> processor.postProcessEnvironment(environment, new SpringApplication()))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("basic-framework.security.mfa.webauthn.allowed-origins[1]");
-    }
-
-    @Test
-    void production_acceptsMultipleExactWebAuthnOrigins() {
-        MockEnvironment environment = productionEnvironment();
-        enableValidMfa(environment);
-        environment.setProperty(
-                "basic-framework.security.mfa.webauthn.allowed-origins[1]", "https://ops.company.invalid");
-
-        assertThatCode(() -> processor.postProcessEnvironment(environment, new SpringApplication()))
-                .doesNotThrowAnyException();
-    }
-
     private static MockEnvironment productionEnvironment() {
         MockEnvironment environment = new MockEnvironment();
         environment.setActiveProfiles("prod");
@@ -193,9 +158,5 @@ class ProductionConfigurationEnvironmentPostProcessorTest {
 
     private static void enableValidMfa(MockEnvironment environment) {
         environment.setProperty("basic-framework.security.mfa.enabled", "true");
-        environment.setProperty("basic-framework.security.mfa.webauthn.enabled", "true");
-        environment.setProperty("basic-framework.security.mfa.webauthn.rp-id", "company.invalid");
-        environment.setProperty(
-                "basic-framework.security.mfa.webauthn.allowed-origins[0]", "https://admin.company.invalid");
     }
 }

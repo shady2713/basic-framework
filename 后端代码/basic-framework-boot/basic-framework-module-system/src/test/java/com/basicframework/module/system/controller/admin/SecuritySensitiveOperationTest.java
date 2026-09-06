@@ -46,8 +46,6 @@ class SecuritySensitiveOperationTest {
                 "updateUserProfilePassword",
                 "startManagedTotpEnrollment",
                 "finishManagedTotpEnrollment",
-                "startManagedWebAuthnEnrollment",
-                "finishManagedWebAuthnEnrollment",
                 "removeMfaFactor",
                 "resetMfaRecoveryCodes");
     }

@@ -55,7 +55,7 @@ class MfaChallengeRedisDAOTest {
         MfaChallengeDTO stored = JsonUtils.parseObject(payloadCaptor.getValue(), MfaChallengeDTO.class);
         assertThat(stored.getUserId()).isEqualTo(42L);
         assertThat(stored.getPurpose()).isEqualTo(MfaChallengePurposeEnum.LOGIN);
-        assertThat(stored.getWebAuthnUserHandle()).containsExactly((byte) 1, (byte) 2);
+        assertThat(stored.getEncryptedTotpSecret()).isEqualTo("encrypted-secret");
     }
 
     @Test
@@ -78,8 +78,6 @@ class MfaChallengeRedisDAOTest {
                 .loginLogType(1)
                 .purpose(MfaChallengePurposeEnum.LOGIN)
                 .encryptedTotpSecret("encrypted-secret")
-                .webAuthnUserHandle(new byte[] {1, 2})
-                .webAuthnRequestJson("{\"challenge\":\"value\"}")
                 .accessTokenHash("sha256-token")
                 .factorId(8L)
                 .build();

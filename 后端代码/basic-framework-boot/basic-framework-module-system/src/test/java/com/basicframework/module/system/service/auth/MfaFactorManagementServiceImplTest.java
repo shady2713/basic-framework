@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -17,7 +18,6 @@ import com.basicframework.module.system.enums.auth.MfaFactorTypeEnum;
 import com.basicframework.module.system.enums.permission.RoleCodeEnum;
 import com.basicframework.module.system.service.auth.dto.MfaChallengeDTO;
 import com.basicframework.module.system.service.auth.dto.MfaTotpSetupDTO;
-import com.basicframework.module.system.service.auth.dto.MfaWebAuthnOptionsDTO;
 import com.basicframework.module.system.service.permission.PermissionService;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -38,9 +38,6 @@ class MfaFactorManagementServiceImplTest {
     private MfaProperties properties;
 
     @Mock
-    private MfaProperties.WebAuthn webAuthnProperties;
-
-    @Mock
     private MfaChallengeRedisDAO challengeRedisDAO;
 
     @Mock
@@ -56,25 +53,19 @@ class MfaFactorManagementServiceImplTest {
     private TotpAuthenticator totpAuthenticator;
 
     @Mock
-    private WebAuthnService webAuthnService;
-
-    @Mock
     private PermissionService permissionService;
 
     @BeforeEach
     void setUp() {
         when(properties.isEnabled()).thenReturn(true);
-        org.mockito.Mockito.lenient().when(properties.getWebauthn()).thenReturn(webAuthnProperties);
         org.mockito.Mockito.lenient().when(properties.getIssuer()).thenReturn("basic framework");
         MfaChallengeManager challengeManager = new MfaChallengeManager(challengeRedisDAO);
         MfaTotpEnrollmentManager totpEnrollmentManager = new MfaTotpEnrollmentManager(
                 properties, challengeManager, factorMapper, secretCrypto, totpAuthenticator);
-        MfaWebAuthnEnrollmentManager webAuthnEnrollmentManager =
-                new MfaWebAuthnEnrollmentManager(properties, challengeManager, factorMapper, webAuthnService);
         MfaFactorLifecycleManager factorLifecycleManager =
                 new MfaFactorLifecycleManager(properties, factorMapper, recoveryCodeManager, permissionService);
-        service = new MfaFactorManagementServiceImpl(
-                totpEnrollmentManager, webAuthnEnrollmentManager, factorLifecycleManager, recoveryCodeManager);
+        service =
+                new MfaFactorManagementServiceImpl(totpEnrollmentManager, factorLifecycleManager, recoveryCodeManager);
     }
 
     @Test
@@ -105,16 +96,11 @@ class MfaFactorManagementServiceImplTest {
 
     @Test
     void getFactors_returnsSafeSummaries() {
-        when(factorMapper.selectEnabledByUserId(1L))
-                .thenReturn(List.of(
-                        factor(10L, MfaFactorTypeEnum.TOTP, "TOTP"),
-                        factor(11L, MfaFactorTypeEnum.WEBAUTHN, "1234567890abcdef")));
+        when(factorMapper.selectEnabledByUserId(1L)).thenReturn(List.of(factor(10L, MfaFactorTypeEnum.TOTP, "TOTP")));
 
         assertThat(service.getFactors(1L))
                 .extracting("id", "type", "name")
-                .containsExactly(
-                        org.assertj.core.groups.Tuple.tuple(10L, "TOTP", "动态验证码"),
-                        org.assertj.core.groups.Tuple.tuple(11L, "WEBAUTHN", "安全密钥 · 90abcdef"));
+                .containsExactly(org.assertj.core.groups.Tuple.tuple(10L, "TOTP", "动态验证码"));
     }
 
     @Test
@@ -193,44 +179,6 @@ class MfaFactorManagementServiceImplTest {
     }
 
     @Test
-    void beginWebAuthnEnrollment_reusesExistingUserHandle() {
-        when(webAuthnProperties.isEnabled()).thenReturn(true);
-        byte[] userHandle = new byte[] {4, 5, 6};
-        MfaFactorDO existing = factor(11L, MfaFactorTypeEnum.WEBAUTHN, "credential");
-        existing.setUserHandle(userHandle);
-        when(factorMapper.selectEnabledByUserIdAndTypeList(1L, MfaFactorTypeEnum.WEBAUTHN.getType()))
-                .thenReturn(List.of(existing));
-        when(webAuthnService.startRegistration(1L, "user", userHandle))
-                .thenReturn(new WebAuthnService.CeremonyOptions("browser-json", "server-json"));
-
-        MfaWebAuthnOptionsDTO result = service.beginWebAuthnEnrollment(1L, "user");
-
-        assertThat(result.getOptionsJson()).isEqualTo("browser-json");
-        ArgumentCaptor<MfaChallengeDTO> captor = ArgumentCaptor.forClass(MfaChallengeDTO.class);
-        verify(challengeRedisDAO).set(anyString(), captor.capture());
-        assertThat(captor.getValue().getWebAuthnUserHandle()).isSameAs(userHandle);
-    }
-
-    @Test
-    void completeWebAuthnEnrollment_persistsVerifiedCredential() {
-        when(webAuthnProperties.isEnabled()).thenReturn(true);
-        MfaChallengeDTO challenge = managementChallenge(MfaChallengePurposeEnum.WEBAUTHN_MANAGEMENT_ENROLLMENT);
-        challenge.setWebAuthnRequestJson("server-json");
-        challenge.setWebAuthnUserHandle(new byte[] {7});
-        when(challengeRedisDAO.getAndDelete("ceremony-token")).thenReturn(challenge);
-        WebAuthnService.RegistrationOutcome registration = registrationResult();
-        when(webAuthnService.finishRegistration("server-json", "credential-json"))
-                .thenReturn(registration);
-
-        service.completeWebAuthnEnrollment(1L, "ceremony-token", "credential-json");
-
-        ArgumentCaptor<MfaFactorDO> captor = ArgumentCaptor.forClass(MfaFactorDO.class);
-        verify(factorMapper).insert(captor.capture());
-        assertThat(captor.getValue().getCredentialId()).containsExactly(1, 2, 3);
-        assertThat(captor.getValue().getUserHandle()).containsExactly(7);
-    }
-
-    @Test
     void removeFactor_rejectsLastFactorForSuperAdmin() {
         MfaFactorDO factor = factor(10L, MfaFactorTypeEnum.TOTP, "TOTP");
         when(factorMapper.selectEnabledByIdAndUserId(10L, 1L)).thenReturn(factor);
@@ -262,6 +210,16 @@ class MfaFactorManagementServiceImplTest {
         verify(recoveryCodeManager, never()).replace(any(), any());
     }
 
+    @Test
+    void resetRecoveryCodes_rotatesCodesThroughTheLifecycleManager() {
+        when(factorMapper.selectEnabledByUserIdForUpdate(1L))
+                .thenReturn(List.of(factor(10L, MfaFactorTypeEnum.TOTP, "TOTP")));
+        when(recoveryCodeManager.replace(eq(1L), any())).thenReturn(List.of("AAAA-BBBB-CCCC-DDDD"));
+
+        assertThat(service.resetRecoveryCodes(1L)).containsExactly("AAAA-BBBB-CCCC-DDDD");
+        verify(recoveryCodeManager).replace(eq(1L), any());
+    }
+
     private static MfaFactorDO factor(Long id, MfaFactorTypeEnum type, String name) {
         return MfaFactorDO.builder()
                 .id(id)
@@ -279,10 +237,5 @@ class MfaFactorManagementServiceImplTest {
                 .username("user")
                 .purpose(purpose)
                 .build();
-    }
-
-    private static WebAuthnService.RegistrationOutcome registrationResult() {
-        return new WebAuthnService.RegistrationOutcome(
-                true, new byte[] {1, 2, 3}, new byte[] {4, 5, 6}, 2L, false, false, List.of());
     }
 }

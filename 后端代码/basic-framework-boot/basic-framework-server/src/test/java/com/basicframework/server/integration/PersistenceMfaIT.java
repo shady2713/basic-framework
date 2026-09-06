@@ -11,12 +11,10 @@ import com.basicframework.module.system.dal.redis.auth.MfaStepUpRedisDAO;
 import com.basicframework.module.system.enums.logger.LoginLogTypeEnum;
 import com.basicframework.module.system.service.auth.MfaFactorManagementService;
 import com.basicframework.module.system.service.auth.MfaService;
-import com.basicframework.module.system.service.auth.WebAuthnCredentialRepository;
 import com.basicframework.module.system.service.auth.dto.AuthLoginResultDTO;
 import com.basicframework.module.system.service.auth.dto.MfaTotpSetupDTO;
 import com.basicframework.module.system.service.auth.dto.MfaVerifiedPrincipalDTO;
 import com.basicframework.module.system.service.user.AdminUserService;
-import com.yubico.webauthn.data.ByteArray;
 import java.nio.ByteBuffer;
 import java.security.GeneralSecurityException;
 import javax.crypto.Mac;
@@ -25,7 +23,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
-/** 使用真实 MySQL/Redis 验证 MFA 注册、恢复码、step-up 与 WebAuthn 持久化。 */
+/** 使用真实 MySQL/Redis 验证 MFA 注册、恢复码、step-up 与因子管理持久化。 */
 class PersistenceMfaIT extends AbstractPersistenceIntegrationTest {
 
     @Autowired
@@ -41,16 +39,12 @@ class PersistenceMfaIT extends AbstractPersistenceIntegrationTest {
     private MfaStepUpRedisDAO mfaStepUpRedisDAO;
 
     @Autowired
-    private WebAuthnCredentialRepository webAuthnCredentialRepository;
-
-    @Autowired
     private StringRedisTemplate stringRedisTemplate;
 
     @Test
     void mfaPersistenceAndShortLivedState_succeedAgainstRealServices() throws GeneralSecurityException {
         verifyMfaEnrollmentEncryptionAndRecoveryCodeConsumption();
         verifyMfaStepUpState();
-        verifyWebAuthnCredentialPersistence();
         verifyMfaFactorManagement();
     }
 
@@ -107,38 +101,6 @@ class PersistenceMfaIT extends AbstractPersistenceIntegrationTest {
         }
     }
 
-    private void verifyWebAuthnCredentialPersistence() {
-        byte[] credentialId = new byte[] {11, 12, 13};
-        byte[] userHandle = new byte[] {21, 22, 23};
-        jdbcTemplate.update(
-                """
-                INSERT INTO system_user_mfa_factor
-                    (user_id, factor_type, name, credential_id, user_handle, public_key_cose,
-                     signature_count, backup_eligible, backup_state, transports, enabled)
-                VALUES (?, 1, ?, ?, ?, ?, 7, b'1', b'0', '[\"internal\"]', b'1')
-                """,
-                1L,
-                "integration-webauthn",
-                credentialId,
-                userHandle,
-                new byte[] {31, 32, 33});
-
-        var credential = webAuthnCredentialRepository.lookup(new ByteArray(credentialId), new ByteArray(userHandle));
-
-        assertThat(credential).isPresent();
-        assertThat(credential.orElseThrow().getSignatureCount()).isEqualTo(7L);
-        assertThat(jdbcTemplate.queryForObject(
-                        "SELECT backup_eligible FROM system_user_mfa_factor WHERE credential_id = ?",
-                        Boolean.class,
-                        credentialId))
-                .isTrue();
-        assertThat(jdbcTemplate.queryForObject(
-                        "SELECT backup_state FROM system_user_mfa_factor WHERE credential_id = ?",
-                        Boolean.class,
-                        credentialId))
-                .isFalse();
-    }
-
     private void verifyMfaFactorManagement() throws GeneralSecurityException {
         String oldCiphertext = jdbcTemplate.queryForObject(
                 "SELECT secret_ciphertext FROM system_user_mfa_factor WHERE user_id = 1 AND factor_type = 2",
@@ -158,16 +120,6 @@ class PersistenceMfaIT extends AbstractPersistenceIntegrationTest {
         assertThat(jdbcTemplate.queryForObject(
                         "SELECT COUNT(*) FROM system_user_mfa_recovery_code WHERE user_id = 1", Integer.class))
                 .isEqualTo(10);
-
-        Long webAuthnFactorId = mfaFactorManagementService.getFactors(1L).stream()
-                .filter(factor -> "WEBAUTHN".equals(factor.getType()))
-                .findFirst()
-                .orElseThrow()
-                .getId();
-        mfaFactorManagementService.removeFactor(1L, webAuthnFactorId);
-        assertThat(jdbcTemplate.queryForObject(
-                        "SELECT COUNT(*) FROM system_user_mfa_factor WHERE id = ?", Integer.class, webAuthnFactorId))
-                .isZero();
     }
 
     private static String generateTotpCode(String base32Secret, long step) throws GeneralSecurityException {

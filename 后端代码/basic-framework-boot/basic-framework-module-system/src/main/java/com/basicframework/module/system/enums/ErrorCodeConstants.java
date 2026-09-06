@@ -19,7 +19,6 @@ public interface ErrorCodeConstants {
     ErrorCode AUTH_MFA_NOT_CONFIGURED = new ErrorCode(1_002_000_012, "账号尚未配置可用的 MFA 因子");
     ErrorCode AUTH_MFA_ALREADY_CONFIGURED = new ErrorCode(1_002_000_013, "账号已配置同类 MFA 因子");
     ErrorCode AUTH_MFA_DISABLED = new ErrorCode(1_002_000_014, "MFA 能力未启用");
-    ErrorCode AUTH_MFA_WEBAUTHN_INVALID = new ErrorCode(1_002_000_015, "安全密钥验证失败，请重新登录");
     ErrorCode AUTH_MFA_STEP_UP_REQUIRED = new ErrorCode(1_002_000_016, "该操作需要重新完成 MFA 二次验证");
     ErrorCode AUTH_MFA_FACTOR_NOT_FOUND = new ErrorCode(1_002_000_017, "MFA 因子不存在或不属于当前用户");
     ErrorCode AUTH_MFA_LAST_FACTOR_REQUIRED = new ErrorCode(1_002_000_018, "超级管理员必须保留至少一个 MFA 因子");
