@@ -10,14 +10,6 @@
     "**/*.css"
   ],
   "exports": {
-    "./code-editor": {
-      "types": "./src/code-editor/index.ts",
-      "default": "./src/code-editor/index.ts"
-    },
-    "./echarts": {
-      "types": "./src/echarts/index.ts",
-      "default": "./src/echarts/index.ts"
-    },
     "./vxe-table": {
       "types": "./src/vxe-table/index.ts",
       "default": "./src/vxe-table/index.ts"
@@ -37,16 +29,12 @@
     "@vben/preferences": "workspace:*",
     "@vben/types": "workspace:*",
     "@vben/utils": "workspace:*",
-    "@vueuse/core": "catalog:",
     "@vueuse/motion": "catalog:",
-    "codemirror": "catalog:",
-    "echarts": "catalog:",
     "vue": "catalog:",
     "vxe-pc-ui": "catalog:",
     "vxe-table": "catalog:"
   },
   "devDependencies": {
-    "@types/codemirror": "catalog:",
     "@vue/test-utils": "catalog:"
   }
 }
