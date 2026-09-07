@@ -12,10 +12,8 @@ import com.basicframework.module.system.dal.dataobject.permission.MenuDO;
 import com.basicframework.module.system.dal.dataobject.permission.RoleDO;
 import com.basicframework.module.system.dal.dataobject.user.AdminUserDO;
 import com.basicframework.module.system.enums.permission.MenuTypeEnum;
-import com.basicframework.module.system.service.auth.dto.AuthSmsLoginDTO;
 import com.basicframework.module.system.service.auth.dto.AuthSmsSendDTO;
 import com.basicframework.module.system.service.sms.dto.SmsCodeSendReqDTO;
-import com.basicframework.module.system.service.sms.dto.SmsCodeUseReqDTO;
 import java.util.*;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -87,6 +85,4 @@ public interface AuthConvert {
 
     @Mapping(target = "createIp", ignore = true)
     SmsCodeSendReqDTO convert(AuthSmsSendDTO reqDTO);
-
-    SmsCodeUseReqDTO convert(AuthSmsLoginDTO reqDTO, Integer scene, String usedIp);
 }

@@ -33,7 +33,7 @@ POST/PUT/DELETE 就自动升级，仍由专用权限、参数校验、操作确�
 | 定时任务定义、启停、同步和立即执行 | `JobController` | `createJob`、`updateJob`、`updateJobStatus`、`deleteJob`、`deleteJobList`、`triggerJob`、`syncJob` |
 
 `UserProfileController#updateUserProfile` 同时承载昵称、头像、邮箱和手机号；手机号可
-参与短信登录，因此当前按整个命令保护，避免仅靠客户端字段拆分形成旁路。
+参与忘记密码的短信校验链路，因此当前按整个命令保护，避免仅靠客户端字段拆分形成旁路。
 
 权限分配的 Controller 权限与 MFA 只证明请求经过高风险入口。`PermissionService`
 还必须接收当前操作者编号；凡授予、撤销或修改 `super_admin` 角色，操作者本身必须

@@ -94,8 +94,8 @@ class PersistenceLifecycleIT extends AbstractPersistenceIntegrationTest {
                 VALUES
                     (1, 'ALIYUN', 1, 'receipt-aliyun', 1, 'receipt', '{}', '1',
                      '13900000003', 10, 'receipt-serial-aliyun', 0, NOW()),
-                    (2, 'TENCENT', 2, 'receipt-tencent', 1, 'receipt', '{}', '2',
-                     '13900000004', 10, 'receipt-serial-tencent', 0, NOW())
+                    (2, 'LEGACY', 2, 'receipt-legacy', 1, 'receipt', '{}', '2',
+                     '13900000004', 10, 'receipt-serial-legacy', 0, NOW())
                 """);
         Long aliyunLogId = jdbcTemplate.queryForObject(
                 "SELECT id FROM system_sms_log WHERE api_serial_no = 'receipt-serial-aliyun'", Long.class);
@@ -110,10 +110,10 @@ class PersistenceLifecycleIT extends AbstractPersistenceIntegrationTest {
                         "delivered")))
                 .isTrue();
         assertThat(smsLogService.updateSmsReceiveResult(new SmsReceiveResultCommand(
-                        "TENCENT", null, "receipt-serial-tencent", false, LocalDateTime.now(), "FAIL", "failed")))
+                        "LEGACY", null, "receipt-serial-legacy", false, LocalDateTime.now(), "FAIL", "failed")))
                 .isTrue();
         assertThat(smsLogService.updateSmsReceiveResult(new SmsReceiveResultCommand(
-                        "ALIYUN", null, "receipt-serial-tencent", true, LocalDateTime.now(), null, null)))
+                        "ALIYUN", null, "receipt-serial-legacy", true, LocalDateTime.now(), null, null)))
                 .isFalse();
 
         assertThat(jdbcTemplate.queryForObject(
@@ -121,7 +121,7 @@ class PersistenceLifecycleIT extends AbstractPersistenceIntegrationTest {
                         Integer.class))
                 .isEqualTo(10);
         assertThat(jdbcTemplate.queryForObject(
-                        "SELECT receive_status FROM system_sms_log WHERE api_serial_no = 'receipt-serial-tencent'",
+                        "SELECT receive_status FROM system_sms_log WHERE api_serial_no = 'receipt-serial-legacy'",
                         Integer.class))
                 .isEqualTo(20);
         assertThat(jdbcTemplate.queryForObject(

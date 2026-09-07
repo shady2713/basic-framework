@@ -20,7 +20,6 @@ import com.basicframework.module.system.enums.sms.SmsSceneEnum;
 import com.basicframework.module.system.service.auth.dto.AuthLoginDTO;
 import com.basicframework.module.system.service.auth.dto.AuthLoginResultDTO;
 import com.basicframework.module.system.service.auth.dto.AuthResetPasswordDTO;
-import com.basicframework.module.system.service.auth.dto.AuthSmsLoginDTO;
 import com.basicframework.module.system.service.auth.dto.AuthSmsSendDTO;
 import com.basicframework.module.system.service.auth.dto.MfaVerifiedPrincipalDTO;
 import com.basicframework.module.system.service.logger.LoginLogService;
@@ -132,35 +131,6 @@ public class AdminAuthServiceImpl implements AdminAuthService {
     }
 
     @Override
-    public AuthLoginResultDTO smsLogin(AuthSmsLoginDTO reqDTO) {
-        // 校验验证码
-        smsCodeService.useSmsCode(
-                AuthConvert.INSTANCE.convert(reqDTO, SmsSceneEnum.ADMIN_MEMBER_LOGIN.getScene(), getClientIP()));
-
-        // 获得用户信息
-        AdminUserDO user = userService.getUserByMobile(reqDTO.getMobile());
-        if (user == null) {
-            throw exception(USER_NOT_EXISTS);
-        }
-        if (CommonStatusEnum.isDisable(user.getStatus())) {
-            createLoginLog(
-                    user.getId(), reqDTO.getMobile(), LoginLogTypeEnum.LOGIN_MOBILE, LoginResultEnum.USER_DISABLED);
-            throw exception(AUTH_LOGIN_USER_DISABLED);
-        }
-        loginProtectionService.clear(user.getId());
-
-        AuthLoginResultDTO mfaResult =
-                mfaService.beginAuthentication(user, reqDTO.getMobile(), LoginLogTypeEnum.LOGIN_MOBILE);
-        if (mfaResult != null) {
-            return mfaResult;
-        }
-
-        // 创建 Token 令牌，记录登录日志
-        return AuthLoginResultDTO.token(
-                createTokenAfterLoginSuccess(user.getId(), reqDTO.getMobile(), LoginLogTypeEnum.LOGIN_MOBILE));
-    }
-
-    @Override
     public AuthLoginResultDTO completeMfaLogin(MfaVerifiedPrincipalDTO principal) {
         LoginLogTypeEnum logType = java.util.Arrays.stream(LoginLogTypeEnum.values())
                 .filter(value -> value.getType().equals(principal.getLoginLogType()))
@@ -266,9 +236,6 @@ public class AdminAuthServiceImpl implements AdminAuthService {
     }
 
     private String getUsername(Long userId) {
-        if (userId == null) {
-            return null;
-        }
         AdminUserDO user = userService.getUser(userId);
         return user != null ? user.getUsername() : null;
     }

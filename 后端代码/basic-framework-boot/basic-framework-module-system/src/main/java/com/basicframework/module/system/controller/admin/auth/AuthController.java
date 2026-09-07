@@ -26,7 +26,6 @@ import com.basicframework.module.system.service.auth.MfaService;
 import com.basicframework.module.system.service.auth.dto.AuthLoginDTO;
 import com.basicframework.module.system.service.auth.dto.AuthLoginResultDTO;
 import com.basicframework.module.system.service.auth.dto.AuthResetPasswordDTO;
-import com.basicframework.module.system.service.auth.dto.AuthSmsLoginDTO;
 import com.basicframework.module.system.service.auth.dto.AuthSmsSendDTO;
 import com.basicframework.module.system.service.permission.MenuService;
 import com.basicframework.module.system.service.permission.PermissionService;
@@ -219,24 +218,11 @@ public class AuthController {
         return success(AuthConvert.INSTANCE.convert(user, roles, menuList));
     }
 
-    // ========== 短信登录相关 ==========
-
-    @PostMapping("/sms-login")
-    @PermitAll
-    @Operation(summary = "使用短信验证码登录")
-    @RateLimiter(time = 60, count = 10, message = "操作过于频繁，请稍后重试", keyResolver = ClientIpRateLimiterKeyResolver.class)
-    @ApiAccessLog(sanitizeKeys = "code")
-    public CommonResult<AuthLoginRespVO> smsLogin(
-            @RequestBody @Valid AuthSmsLoginReqVO reqVO, HttpServletResponse response) {
-        disableAuthenticationResponseCaching(response);
-        return authenticationSuccess(authService.smsLogin(BeanUtils.toBean(reqVO, AuthSmsLoginDTO.class)), response);
-    }
-
     @PostMapping("/send-sms-code")
     @PermitAll
     @Operation(summary = "发送手机验证码", description = "未知手机号同样返回受理成功，但不会发送短信")
     @RateLimiter(time = 60, count = 5, message = "操作过于频繁，请稍后重试", keyResolver = ClientIpRateLimiterKeyResolver.class)
-    public CommonResult<Boolean> sendLoginSmsCode(@RequestBody @Valid AuthSmsSendReqVO reqVO) {
+    public CommonResult<Boolean> sendSmsCode(@RequestBody @Valid AuthSmsSendReqVO reqVO) {
         authService.sendSmsCode(BeanUtils.toBean(reqVO, AuthSmsSendDTO.class));
         return success(true);
     }

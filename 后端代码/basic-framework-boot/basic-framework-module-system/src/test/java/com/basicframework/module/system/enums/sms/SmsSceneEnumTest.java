@@ -8,9 +8,8 @@ class SmsSceneEnumTest {
 
     @Test
     void exposesOnlySupportedAdminSmsScenes() {
-        assertThat(SmsSceneEnum.ADMIN_MEMBER_LOGIN.getTemplateCode()).isEqualTo("admin-sms-login");
         assertThat(SmsSceneEnum.ADMIN_MEMBER_RESET_PASSWORD.getDescription()).isEqualTo("后台用户 - 忘记密码");
-        assertThat(SmsSceneEnum.ADMIN_MEMBER_LOGIN.array()).containsExactly(21, 23);
+        assertThat(SmsSceneEnum.ADMIN_MEMBER_RESET_PASSWORD.array()).containsExactly(23);
         assertThat(SmsSceneEnum.getCodeByScene(23)).isEqualTo(SmsSceneEnum.ADMIN_MEMBER_RESET_PASSWORD);
         assertThat(SmsSceneEnum.getCodeByScene(999)).isNull();
     }

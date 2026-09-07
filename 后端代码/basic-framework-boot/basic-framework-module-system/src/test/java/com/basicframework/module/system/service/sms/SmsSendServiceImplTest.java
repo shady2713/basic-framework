@@ -178,12 +178,12 @@ class SmsSendServiceImplTest {
         SmsReceiveRespDTO receipt = new SmsReceiveRespDTO();
         receipt.setSerialNo("unknown-serial");
         receipt.setSuccess(true);
-        when(smsChannelService.getSmsClient("tencent")).thenReturn(client);
+        when(smsChannelService.getSmsClient("aliyun")).thenReturn(client);
         when(client.parseSmsReceiveStatus("receipt-body")).thenReturn(List.of(receipt));
         when(smsLogService.updateSmsReceiveResult(any(SmsReceiveResultCommand.class)))
                 .thenReturn(false);
 
-        assertThatThrownBy(() -> service.receiveSmsStatus("tencent", "receipt-body"))
+        assertThatThrownBy(() -> service.receiveSmsStatus("aliyun", "receipt-body"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("短信回执无法匹配已发送日志");
     }

@@ -171,7 +171,7 @@ fields:
     frontendWidget: Input
     backendValidator: '@Mobile -> ValidationUtils#isMobile'
     vectorMode: regex
-    usage: AuthSmsSendReqVO、AuthSmsLoginReqVO、AuthResetPasswordReqVO、UserSaveReqVO 等
+    usage: AuthSmsSendReqVO、AuthResetPasswordReqVO、UserSaveReqVO 等
     implementations:
       frontendShared:
         kind: frontend_regex

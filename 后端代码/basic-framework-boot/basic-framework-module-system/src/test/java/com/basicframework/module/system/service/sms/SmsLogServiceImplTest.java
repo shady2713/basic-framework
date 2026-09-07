@@ -102,15 +102,15 @@ class SmsLogServiceImplTest {
     @Test
     void updateReceiveResultUsesProviderCorrelation() {
         LocalDateTime receiveTime = LocalDateTime.of(2026, 8, 30, 10, 0);
-        when(smsLogMapper.updateReceiveResult(any(), eq(null), eq("tencent"), eq("serial-1")))
+        when(smsLogMapper.updateReceiveResult(any(), eq(null), eq("aliyun"), eq("serial-1")))
                 .thenReturn(1);
 
         boolean updated = service.updateSmsReceiveResult(
-                new SmsReceiveResultCommand("tencent", null, "serial-1", true, receiveTime, null, null));
+                new SmsReceiveResultCommand("aliyun", null, "serial-1", true, receiveTime, null, null));
 
         assertThat(updated).isTrue();
         ArgumentCaptor<SmsLogDO> logCaptor = ArgumentCaptor.forClass(SmsLogDO.class);
-        verify(smsLogMapper).updateReceiveResult(logCaptor.capture(), eq(null), eq("tencent"), eq("serial-1"));
+        verify(smsLogMapper).updateReceiveResult(logCaptor.capture(), eq(null), eq("aliyun"), eq("serial-1"));
         SmsLogDO updatedLog = logCaptor.getValue();
         assertThat(updatedLog.getReceiveStatus()).isEqualTo(SmsReceiveStatusEnum.SUCCESS.getStatus());
         assertThat(updatedLog.getReceiveTime()).isEqualTo(receiveTime);
@@ -152,7 +152,7 @@ class SmsLogServiceImplTest {
     @Test
     void updateReceiveResultRejectsMissingCorrelation() {
         assertThatThrownBy(() -> service.updateSmsReceiveResult(
-                        new SmsReceiveResultCommand("tencent", null, " ", true, null, null, null)))
+                        new SmsReceiveResultCommand("aliyun", null, " ", true, null, null, null)))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -160,7 +160,7 @@ class SmsLogServiceImplTest {
     void updateReceiveResultRejectsNullCommandAndMissingStatus() {
         assertThatThrownBy(() -> service.updateSmsReceiveResult(null)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> service.updateSmsReceiveResult(
-                        new SmsReceiveResultCommand("tencent", null, "serial-1", null, null, null, null)))
+                        new SmsReceiveResultCommand("aliyun", null, "serial-1", null, null, null, null)))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -168,8 +168,8 @@ class SmsLogServiceImplTest {
         SmsTemplateDO template = new SmsTemplateDO();
         template.setId(20L);
         template.setChannelId(30L);
-        template.setChannelCode("tencent");
-        template.setCode("admin-sms-login");
+        template.setChannelCode("aliyun");
+        template.setCode("admin-reset-password");
         template.setType(1);
         template.setApiTemplateId("1400000000");
         return template;

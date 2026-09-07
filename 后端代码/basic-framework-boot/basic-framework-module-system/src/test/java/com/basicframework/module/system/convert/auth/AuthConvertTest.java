@@ -7,10 +7,8 @@ import com.basicframework.module.system.dal.dataobject.permission.MenuDO;
 import com.basicframework.module.system.dal.dataobject.permission.RoleDO;
 import com.basicframework.module.system.dal.dataobject.user.AdminUserDO;
 import com.basicframework.module.system.enums.permission.MenuTypeEnum;
-import com.basicframework.module.system.service.auth.dto.AuthSmsLoginDTO;
 import com.basicframework.module.system.service.auth.dto.AuthSmsSendDTO;
 import com.basicframework.module.system.service.sms.dto.SmsCodeSendReqDTO;
-import com.basicframework.module.system.service.sms.dto.SmsCodeUseReqDTO;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -65,20 +63,11 @@ class AuthConvertTest {
         send.setMobile("13800138000");
         send.setScene(1);
         send.setCaptchaVerification("captcha");
-        AuthSmsLoginDTO login = new AuthSmsLoginDTO();
-        login.setMobile("13800138000");
-        login.setCode("123456");
-
         SmsCodeSendReqDTO sendResult = AuthConvert.INSTANCE.convert(send);
-        SmsCodeUseReqDTO loginResult = AuthConvert.INSTANCE.convert(login, 1, "127.0.0.1");
 
         assertThat(sendResult.getMobile()).isEqualTo("13800138000");
         assertThat(sendResult.getScene()).isEqualTo(1);
         assertThat(sendResult.getCreateIp()).isNull();
-        assertThat(loginResult.getMobile()).isEqualTo("13800138000");
-        assertThat(loginResult.getCode()).isEqualTo("123456");
-        assertThat(loginResult.getScene()).isEqualTo(1);
-        assertThat(loginResult.getUsedIp()).isEqualTo("127.0.0.1");
     }
 
     private static MenuDO menu(

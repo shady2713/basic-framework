@@ -38,7 +38,7 @@ import org.mockito.ArgumentCaptor;
 class SmsCodeServiceImplTest {
 
     private static final String MOBILE = "13900000001";
-    private static final Integer SCENE = SmsSceneEnum.ADMIN_MEMBER_LOGIN.getScene();
+    private static final Integer SCENE = SmsSceneEnum.ADMIN_MEMBER_RESET_PASSWORD.getScene();
     private static final Duration EXPIRE_TIMES = Duration.ofMinutes(5);
     private static final int MAX_VALIDATE_FAILURES = 5;
 
@@ -90,7 +90,7 @@ class SmsCodeServiceImplTest {
                         eq(MOBILE),
                         isNull(),
                         isNull(),
-                        eq(SmsSceneEnum.ADMIN_MEMBER_LOGIN.getTemplateCode()),
+                        eq(SmsSceneEnum.ADMIN_MEMBER_RESET_PASSWORD.getTemplateCode()),
                         argThat(params -> savedCode.getCode().equals(params.get("code")) && params.size() == 1));
     }
 

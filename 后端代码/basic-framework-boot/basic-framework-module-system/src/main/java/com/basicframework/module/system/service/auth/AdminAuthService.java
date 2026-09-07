@@ -5,7 +5,6 @@ import com.basicframework.module.system.dal.dataobject.user.AdminUserDO;
 import com.basicframework.module.system.service.auth.dto.AuthLoginDTO;
 import com.basicframework.module.system.service.auth.dto.AuthLoginResultDTO;
 import com.basicframework.module.system.service.auth.dto.AuthResetPasswordDTO;
-import com.basicframework.module.system.service.auth.dto.AuthSmsLoginDTO;
 import com.basicframework.module.system.service.auth.dto.AuthSmsSendDTO;
 import com.basicframework.module.system.service.auth.dto.MfaVerifiedPrincipalDTO;
 import jakarta.validation.Valid;
@@ -72,7 +71,6 @@ public interface AdminAuthService {
      * @param reqDTO 登录信息
      * @return 访问令牌
      */
-    AuthLoginResultDTO smsLogin(AuthSmsLoginDTO reqDTO);
 
     /**
      * MFA 成功后签发令牌并记录成功日志。

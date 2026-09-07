@@ -14,7 +14,7 @@ BCrypt 工作因子由部署配置拥有。提高配置只能影响新设密码�
 
 ## 决策
 
-- 仅在用户名密码匹配、账号启用后调用 `PasswordEncoder.upgradeEncoding`；短信登录、MFA 完成和
+- 仅在用户名密码匹配、账号启用后调用 `PasswordEncoder.upgradeEncoding`；MFA 完成和
   当前强度哈希不触发数据库写入。
 - 需要升级时使用当前 `PasswordEncoder` 重新编码已验证密码。
 - 数据库更新同时匹配用户编号与认证时读取的旧哈希。更新零行表示账号已删除或凭据被并发修改，

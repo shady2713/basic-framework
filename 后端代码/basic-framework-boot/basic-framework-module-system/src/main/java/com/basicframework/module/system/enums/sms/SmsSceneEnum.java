@@ -13,7 +13,6 @@ import lombok.Getter;
 @Getter
 @AllArgsConstructor
 public enum SmsSceneEnum implements ArrayValuable<Integer> {
-    ADMIN_MEMBER_LOGIN(21, "admin-sms-login", "后台用户 - 手机号登录"),
     ADMIN_MEMBER_RESET_PASSWORD(23, "admin-reset-password", "后台用户 - 忘记密码");
 
     public static final Integer[] ARRAYS =

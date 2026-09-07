@@ -6,7 +6,6 @@ import com.basicframework.framework.ratelimiter.core.annotation.RateLimiter;
 import com.basicframework.framework.security.core.annotation.MfaStepUp;
 import com.basicframework.module.system.controller.admin.auth.AuthController;
 import com.basicframework.module.system.controller.admin.auth.vo.AuthLoginRespVO;
-import com.basicframework.module.system.controller.admin.auth.vo.AuthSmsLoginReqVO;
 import com.basicframework.module.system.controller.admin.permission.MenuController;
 import com.basicframework.module.system.controller.admin.permission.PermissionController;
 import com.basicframework.module.system.controller.admin.permission.RoleController;
@@ -72,10 +71,6 @@ class SecuritySensitiveOperationTest {
 
     @Test
     void publicTokenEndpoints_areRateLimitedAndKeepSecretsOutOfQueryParameters() throws NoSuchMethodException {
-        Method smsLogin =
-                AuthController.class.getDeclaredMethod("smsLogin", AuthSmsLoginReqVO.class, HttpServletResponse.class);
-        assertThat(smsLogin.isAnnotationPresent(RateLimiter.class)).isTrue();
-
         Method refreshToken = AuthController.class.getDeclaredMethod(
                 "refreshToken", HttpServletRequest.class, HttpServletResponse.class);
         assertThat(refreshToken.isAnnotationPresent(RateLimiter.class)).isTrue();

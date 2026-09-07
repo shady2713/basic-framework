@@ -122,7 +122,7 @@ public class SmsSendServiceImpl implements SmsSendService {
     /**
      * 将参数模板，处理成有序的 KeyValue 数组
      * <p>
-     * 原因是，部分短信平台并不是使用 key 作为参数，而是数组下标，例如说 <a href="https://cloud.tencent.com/document/product/382/39023">腾讯云</a>
+     * 原因是，部分短信平台并不是使用 key 作为参数，而是数组下标（按模板占位符顺序取值）
      *
      * @param template       短信模板
      * @param templateParams 原始参数

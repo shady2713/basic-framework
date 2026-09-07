@@ -18,7 +18,6 @@ import com.basicframework.module.system.enums.sms.SmsSceneEnum;
 import com.basicframework.module.system.service.auth.dto.AuthLoginDTO;
 import com.basicframework.module.system.service.auth.dto.AuthLoginResultDTO;
 import com.basicframework.module.system.service.auth.dto.AuthResetPasswordDTO;
-import com.basicframework.module.system.service.auth.dto.AuthSmsLoginDTO;
 import com.basicframework.module.system.service.auth.dto.AuthSmsSendDTO;
 import com.basicframework.module.system.service.auth.dto.MfaVerifiedPrincipalDTO;
 import com.basicframework.module.system.service.logger.LoginLogService;
@@ -252,73 +251,6 @@ class AdminAuthServiceImplTest {
     }
 
     @Test
-    void smsLogin_rejectsDisabledUserBeforeClearingFailuresOrIssuingSession() {
-        AuthSmsLoginDTO request = new AuthSmsLoginDTO();
-        request.setMobile("13900000001");
-        request.setCode("123456");
-        when(userService.getUserByMobile("13900000001"))
-                .thenReturn(AdminUserDO.builder().id(1L).status(1).build());
-
-        assertThatThrownBy(() -> authService.smsLogin(request)).hasMessageContaining("账号被禁用");
-
-        verifyNoInteractions(loginProtectionService, mfaService, userSessionService);
-    }
-
-    @Test
-    void smsLogin_consumesOnlyLoginSceneThenDefersSessionUntilMfaCompletion() {
-        AuthSmsLoginDTO request = new AuthSmsLoginDTO();
-        request.setMobile("13900000001");
-        request.setCode("123456");
-        AdminUserDO user = AdminUserDO.builder().id(1L).status(0).build();
-        AuthLoginResultDTO challenge = AuthLoginResultDTO.builder()
-                .mfaRequired(true)
-                .mfaToken("mfa-token")
-                .build();
-        when(userService.getUserByMobile(request.getMobile())).thenReturn(user);
-        when(mfaService.beginAuthentication(user, request.getMobile(), LoginLogTypeEnum.LOGIN_MOBILE))
-                .thenReturn(challenge);
-
-        AuthLoginResultDTO result = authService.smsLogin(request);
-
-        ArgumentCaptor<SmsCodeUseReqDTO> smsCodeCaptor = ArgumentCaptor.forClass(SmsCodeUseReqDTO.class);
-        verify(smsCodeService).useSmsCode(smsCodeCaptor.capture());
-        assertThat(smsCodeCaptor.getValue().getScene()).isEqualTo(SmsSceneEnum.ADMIN_MEMBER_LOGIN.getScene());
-        assertThat(smsCodeCaptor.getValue().getMobile()).isEqualTo(request.getMobile());
-        verify(loginProtectionService).clear(1L);
-        verifyNoInteractions(userSessionService);
-        assertThat(result).isSameAs(challenge);
-    }
-
-    @Test
-    void smsLogin_rejectsMissingUserAndIssuesSessionOnlyAfterAValidUser() {
-        AuthSmsLoginDTO missingUserRequest = new AuthSmsLoginDTO();
-        missingUserRequest.setMobile("13900000001");
-        missingUserRequest.setCode("123456");
-        when(userService.getUserByMobile(missingUserRequest.getMobile())).thenReturn(null);
-
-        assertThatThrownBy(() -> authService.smsLogin(missingUserRequest)).hasMessageContaining("用户不存在");
-
-        AuthSmsLoginDTO validRequest = new AuthSmsLoginDTO();
-        validRequest.setMobile("13900000002");
-        validRequest.setCode("654321");
-        AdminUserDO user = AdminUserDO.builder().id(2L).status(0).build();
-        UserSessionDO session = new UserSessionDO()
-                .setUserId(2L)
-                .setAccessToken("sms-access-token")
-                .setRefreshToken("sms-refresh-token");
-        when(userService.getUserByMobile(validRequest.getMobile())).thenReturn(user);
-        when(mfaService.beginAuthentication(user, validRequest.getMobile(), LoginLogTypeEnum.LOGIN_MOBILE))
-                .thenReturn(null);
-        when(userSessionService.createSession(2L, UserTypeEnum.ADMIN.getValue()))
-                .thenReturn(session);
-
-        AuthLoginResultDTO result = authService.smsLogin(validRequest);
-
-        assertThat(result.getAccessToken()).isEqualTo("sms-access-token");
-        verify(userSessionService).createSession(2L, UserTypeEnum.ADMIN.getValue());
-    }
-
-    @Test
     void sendSmsCode_rejectsResetPasswordRequestWhenCaptchaFailsBeforeAccountLookup() {
         AuthSmsSendDTO request = new AuthSmsSendDTO();
         request.setMobile("13900000001");
@@ -337,8 +269,11 @@ class AdminAuthServiceImplTest {
     void sendSmsCode_returnsGenericAcceptanceForUnknownAccountAndSendsOnlyForExistingAccount() {
         AuthSmsSendDTO missingUserRequest = new AuthSmsSendDTO();
         missingUserRequest.setMobile("13900000001");
-        missingUserRequest.setScene(SmsSceneEnum.ADMIN_MEMBER_LOGIN.getScene());
+        missingUserRequest.setScene(SmsSceneEnum.ADMIN_MEMBER_RESET_PASSWORD.getScene());
         when(userService.getUserByMobile(missingUserRequest.getMobile())).thenReturn(null);
+        ResponseModel acceptedCaptcha = mock(ResponseModel.class);
+        when(acceptedCaptcha.isSuccess()).thenReturn(true);
+        when(captchaVerificationService.verify(missingUserRequest)).thenReturn(acceptedCaptcha);
 
         authService.sendSmsCode(missingUserRequest);
 
@@ -346,16 +281,17 @@ class AdminAuthServiceImplTest {
 
         AuthSmsSendDTO validRequest = new AuthSmsSendDTO();
         validRequest.setMobile("13900000002");
-        validRequest.setScene(SmsSceneEnum.ADMIN_MEMBER_LOGIN.getScene());
+        validRequest.setScene(SmsSceneEnum.ADMIN_MEMBER_RESET_PASSWORD.getScene());
         when(userService.getUserByMobile(validRequest.getMobile()))
                 .thenReturn(AdminUserDO.builder().id(2L).build());
+        when(captchaVerificationService.verify(validRequest)).thenReturn(acceptedCaptcha);
 
         authService.sendSmsCode(validRequest);
 
         ArgumentCaptor<SmsCodeSendReqDTO> smsCodeCaptor = ArgumentCaptor.forClass(SmsCodeSendReqDTO.class);
         verify(smsCodeService).sendSmsCode(smsCodeCaptor.capture());
         assertThat(smsCodeCaptor.getValue().getMobile()).isEqualTo(validRequest.getMobile());
-        assertThat(smsCodeCaptor.getValue().getScene()).isEqualTo(SmsSceneEnum.ADMIN_MEMBER_LOGIN.getScene());
+        assertThat(smsCodeCaptor.getValue().getScene()).isEqualTo(SmsSceneEnum.ADMIN_MEMBER_RESET_PASSWORD.getScene());
     }
 
     @Test
@@ -371,6 +307,20 @@ class AdminAuthServiceImplTest {
         verify(loginLogService).createLoginLog(log.capture());
         assertThat(log.getValue().getUserId()).isEqualTo(1L);
         assertThat(log.getValue().getUsername()).isEqualTo("admin");
+    }
+
+    @Test
+    void logoutByAccessTokenId_recordsNullUsernameWhenUserWasDeletedBeforeLogout() {
+        UserSessionDO session = new UserSessionDO().setId(11L).setUserId(2L).setUserType(UserTypeEnum.ADMIN.getValue());
+        when(userSessionService.removeSessionById(11L)).thenReturn(session);
+        when(userService.getUser(2L)).thenReturn(null);
+
+        authService.logoutByAccessTokenId(11L, LoginLogTypeEnum.LOGOUT_DELETE.getType());
+
+        ArgumentCaptor<LoginLogCreateReqDTO> log = ArgumentCaptor.forClass(LoginLogCreateReqDTO.class);
+        verify(loginLogService).createLoginLog(log.capture());
+        assertThat(log.getValue().getUserId()).isEqualTo(2L);
+        assertThat(log.getValue().getUsername()).isNull();
     }
 
     @Test

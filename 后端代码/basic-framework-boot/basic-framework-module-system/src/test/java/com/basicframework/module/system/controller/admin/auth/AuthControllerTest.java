@@ -22,7 +22,6 @@ import com.basicframework.module.system.controller.admin.auth.vo.AuthMfaTotpSetu
 import com.basicframework.module.system.controller.admin.auth.vo.AuthMfaTotpVerifyReqVO;
 import com.basicframework.module.system.controller.admin.auth.vo.AuthPermissionInfoRespVO;
 import com.basicframework.module.system.controller.admin.auth.vo.AuthResetPasswordReqVO;
-import com.basicframework.module.system.controller.admin.auth.vo.AuthSmsLoginReqVO;
 import com.basicframework.module.system.controller.admin.auth.vo.AuthSmsSendReqVO;
 import com.basicframework.module.system.dal.dataobject.permission.MenuDO;
 import com.basicframework.module.system.dal.dataobject.permission.RoleDO;
@@ -30,6 +29,7 @@ import com.basicframework.module.system.dal.dataobject.session.UserSessionDO;
 import com.basicframework.module.system.dal.dataobject.user.AdminUserDO;
 import com.basicframework.module.system.enums.logger.LoginLogTypeEnum;
 import com.basicframework.module.system.enums.permission.MenuTypeEnum;
+import com.basicframework.module.system.enums.sms.SmsSceneEnum;
 import com.basicframework.module.system.service.auth.AdminAuthService;
 import com.basicframework.module.system.service.auth.MfaService;
 import com.basicframework.module.system.service.auth.dto.AuthLoginDTO;
@@ -284,32 +284,25 @@ class AuthControllerTest {
     }
 
     @Test
-    void smsAndPasswordResetEndpointsMapInputAndKeepAuthenticationResponsesPrivate() {
-        AuthSmsLoginReqVO smsLoginRequest =
-                AuthSmsLoginReqVO.builder().mobile("13800138000").code("123456").build();
-        AuthSmsSendReqVO smsSendRequest =
-                AuthSmsSendReqVO.builder().mobile("13800138000").scene(1).build();
+    void smsAndPasswordResetEndpointsMapInput() {
+        AuthSmsSendReqVO smsSendRequest = AuthSmsSendReqVO.builder()
+                .mobile("13800138000")
+                .scene(SmsSceneEnum.ADMIN_MEMBER_RESET_PASSWORD.getScene())
+                .build();
         AuthResetPasswordReqVO resetPasswordRequest = AuthResetPasswordReqVO.builder()
                 .mobile("13800138000")
                 .code("123456")
                 .password("CorrectPassword1")
                 .build();
-        when(authService.smsLogin(any())).thenReturn(tokenResult());
-        MockHttpServletResponse response = new MockHttpServletResponse();
 
-        CommonResult<AuthLoginRespVO> loginResult = controller.smsLogin(smsLoginRequest, response);
-        CommonResult<Boolean> sendResult = controller.sendLoginSmsCode(smsSendRequest);
+        CommonResult<Boolean> sendResult = controller.sendSmsCode(smsSendRequest);
         CommonResult<Boolean> resetResult = controller.resetPassword(resetPasswordRequest);
 
-        assertThat(loginResult.getData().getAccessToken()).isEqualTo(ACCESS_TOKEN);
         assertThat(sendResult.getData()).isTrue();
         assertThat(resetResult.getData()).isTrue();
-        assertAuthenticationCachingDisabled(response);
         verify(authService)
-                .smsLogin(
-                        argThat(login -> "13800138000".equals(login.getMobile()) && "123456".equals(login.getCode())));
-        verify(authService)
-                .sendSmsCode(argThat(send -> "13800138000".equals(send.getMobile()) && send.getScene() == 1));
+                .sendSmsCode(argThat(send -> "13800138000".equals(send.getMobile())
+                        && SmsSceneEnum.ADMIN_MEMBER_RESET_PASSWORD.getScene().equals(send.getScene())));
         verify(authService)
                 .resetPassword(argThat(reset -> "CorrectPassword1".equals(reset.getPassword())
                         && "13800138000".equals(reset.getMobile())
